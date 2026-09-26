@@ -3,7 +3,7 @@
 use std::process::Command;
 use anyhow::{Context, Result as AnyhowResult};
 
-fn mount(fstype: &str, name: &str) -> AnyhowResult<()> {
+pub fn mount(fstype: &str, name: &str) -> AnyhowResult<()> {
     let status = Command::new("mount")
         .arg("-t")
         .arg(fstype)
@@ -14,6 +14,19 @@ fn mount(fstype: &str, name: &str) -> AnyhowResult<()> {
 
     if !status.success() {
         anyhow::bail!("mount /{} failed with status: {status:?}", name);
+    }
+
+    Ok(())
+}
+
+pub fn unmount(name: &str) -> AnyhowResult<()> {
+    let status = Command::new("umount")
+        .arg(name)
+        .status()
+        .context(format!("failed to run umount for {}", name))?;
+
+    if !status.success() {
+        anyhow::bail!("umount {} failed with status: {status:?}", name);
     }
 
     Ok(())
