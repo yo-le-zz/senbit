@@ -20,19 +20,9 @@ BUSYBOX_BINARY="$BUSYBOX_BUILD_DIR/_install/bin/busybox"
 INITRAMFS="$ROOTFS_BUILD_DIR/initramfs.cpio.gz"
 ISO_IMAGE="$ISO_BUILD_DIR/senbit.iso"
 
-KERNEL_VERSION_FILE="$ROOT_DIR/config/kernel/version"
-BUSYBOX_VERSION_FILE="$ROOT_DIR/config/busybox/version"
-BUSYBOX_CONFIG="$ROOT_DIR/config/busybox.config"
-
-BUSYBOX_PATCH_DIR="$ROOT_DIR/third_party/patches/busybox"
-
-KERNEL_REPO="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
-BUSYBOX_REPO="https://git.busybox.net/busybox"
-
 JOBS="$(nproc)"
 
 TOTAL_START="$(date +%s)"
-
 
 # --------------------------------------------------
 # Helpers
@@ -40,12 +30,12 @@ TOTAL_START="$(date +%s)"
 
 format_time() {
     local elapsed="$1"
+
     local minutes=$((elapsed / 60))
     local seconds=$((elapsed % 60))
 
     printf '%02d:%02d' "$minutes" "$seconds"
 }
-
 
 run_step() {
     local name="$1"
@@ -69,28 +59,15 @@ run_step() {
     echo "==> $name completed in $(format_time $((end - start)))"
 }
 
-
 # --------------------------------------------------
-# Linux
+# Kernel
 # --------------------------------------------------
 
-get_latest_linux_version() {
-    git ls-remote \
-        --tags \
-        --refs \
-        "$KERNEL_REPO" \
-        'refs/tags/v[0-9]*' |
-        awk '{print $2}' |
-        sed 's#refs/tags/##' |
-        grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' |
-        sort -V |
-        tail -n 1
-}
+build_kernel() {
+    mkdir -p "$KERNEL_BUILD_DIR"
 
-
-update_linux() {
-    if [[ ! -e "$KERNEL_DIR/.git" ]]; then
-        echo "Error: Linux source tree not found:"
+    if [[ ! -d "$KERNEL_DIR" ]]; then
+        echo "Error: Linux kernel source not found:"
         echo "  $KERNEL_DIR"
         echo
         echo "Run:"
@@ -98,50 +75,6 @@ update_linux() {
         exit 1
     fi
 
-    local latest
-    local current
-
-    latest="$(get_latest_linux_version)"
-
-    if [[ -z "$latest" ]]; then
-        echo "Error: unable to determine latest Linux version."
-        exit 1
-    fi
-
-    current="$(git -C "$KERNEL_DIR" describe --tags --always 2>/dev/null || true)"
-
-    echo "==> Linux version"
-    echo "    Current: $current"
-    echo "    Latest:  $latest"
-
-    if [[ "$current" == "$latest" ]]; then
-        echo "==> Linux is already up to date."
-        return
-    fi
-
-    echo
-    echo "==> Updating Linux kernel..."
-    echo "    $current -> $latest"
-
-    git -C "$KERNEL_DIR" fetch \
-        --tags \
-        --prune \
-        origin
-
-    git -C "$KERNEL_DIR" checkout --detach "$latest"
-
-    printf '%s\n' "$latest" > "$KERNEL_VERSION_FILE"
-
-    echo "==> Linux updated."
-}
-
-
-build_kernel() {
-    mkdir -p "$KERNEL_BUILD_DIR"
-
-    update_linux
-
-    echo
     echo "==> Preparing Linux kernel..."
 
     if [[ ! -f "$KERNEL_BUILD_DIR/.config" ]]; then
@@ -153,19 +86,8 @@ build_kernel() {
             x86_64_defconfig
     fi
 
-    echo
-    echo "==> Updating kernel configuration..."
-
-    make \
-        -C "$KERNEL_DIR" \
-        O="$KERNEL_BUILD_DIR" \
-        olddefconfig
-
-    echo
     echo "==> Building Linux kernel..."
     echo "    Jobs: $JOBS"
-    echo
-    echo "    Incremental build enabled."
 
     make \
         -C "$KERNEL_DIR" \
@@ -177,27 +99,15 @@ build_kernel() {
     echo "  $KERNEL_IMAGE"
 }
 
-
 # --------------------------------------------------
 # BusyBox
 # --------------------------------------------------
 
-get_latest_busybox_version() {
-    git ls-remote \
-        --tags \
-        --refs \
-        "$BUSYBOX_REPO" |
-        awk '{print $2}' |
-        sed 's#refs/tags/##' |
-        grep -E '^1_[0-9]+_[0-9]+$' |
-        sort -V |
-        tail -n 1
-}
+build_busybox() {
+    mkdir -p "$BUSYBOX_BUILD_DIR"
 
-
-update_busybox() {
-    if [[ ! -e "$BUSYBOX_DIR/.git" ]]; then
-        echo "Error: BusyBox source tree not found:"
+    if [[ ! -d "$BUSYBOX_DIR" ]]; then
+        echo "Error: BusyBox source not found:"
         echo "  $BUSYBOX_DIR"
         echo
         echo "Run:"
@@ -205,147 +115,28 @@ update_busybox() {
         exit 1
     fi
 
-    local latest
-    local current
-
-    latest="$(get_latest_busybox_version)"
-
-    if [[ -z "$latest" ]]; then
-        echo "Error: unable to determine latest BusyBox version."
-        exit 1
-    fi
-
-    current="$(git -C "$BUSYBOX_DIR" describe --tags --always 2>/dev/null || true)"
-
-    echo "==> BusyBox version"
-    echo "    Current: $current"
-    echo "    Latest:  $latest"
-
-    if [[ "$current" != "$latest" ]]; then
-        echo
-        echo "==> Updating BusyBox..."
-        echo "    $current -> $latest"
-
-        if [[ -n "$(git -C "$BUSYBOX_DIR" status --porcelain)" ]]; then
-            echo
-            echo "Error: BusyBox source tree contains local modifications:"
-            echo
-            git -C "$BUSYBOX_DIR" status --short
-            echo
-            echo "Senbit patches must be stored in:"
-            echo "  third_party/patches/busybox/"
-            echo
-            echo "The working tree must be clean before updating BusyBox."
-            exit 1
-        fi
-
-        git -C "$BUSYBOX_DIR" fetch \
-            --tags \
-            --prune \
-            origin
-
-        git -C "$BUSYBOX_DIR" checkout --detach "$latest"
-
-        local version
-        version="${latest//_/.}"
-
-        printf '%s\n' "$version" > "$BUSYBOX_VERSION_FILE"
-
-        echo "==> BusyBox updated."
-    else
-        echo "==> BusyBox is already up to date."
-    fi
-}
-
-
-apply_busybox_patches() {
-    if [[ ! -d "$BUSYBOX_PATCH_DIR" ]]; then
-        echo "==> No BusyBox patches directory."
-        return
-    fi
-
-    local patch
-    local patch_name
-
-    shopt -s nullglob
-
-    local patches=(
-        "$BUSYBOX_PATCH_DIR"/*.patch
-    )
-
-    shopt -u nullglob
-
-    if [[ "${#patches[@]}" -eq 0 ]]; then
-        echo "==> No BusyBox patches to apply."
-        return
-    fi
-
-    echo
-    echo "==> Applying Senbit BusyBox patches..."
-
-    for patch in "${patches[@]}"; do
-        patch_name="$(basename "$patch")"
-
-        echo
-        echo "    Applying: $patch_name"
-
-        if git -C "$BUSYBOX_DIR" apply --check "$patch"; then
-            git -C "$BUSYBOX_DIR" apply "$patch"
-        else
-            echo
-            echo "Error: BusyBox patch cannot be applied:"
-            echo "  $patch"
-            echo
-            echo "BusyBox source version:"
-            git -C "$BUSYBOX_DIR" describe --tags --always
-            echo
-            echo "The patch may need to be updated for this BusyBox version."
-            exit 1
-        fi
-    done
-
-    echo
-    echo "==> BusyBox patches applied."
-}
-
-
-build_busybox() {
-    mkdir -p "$BUSYBOX_BUILD_DIR"
-
-    update_busybox
-
-    apply_busybox_patches
-
-    if [[ ! -f "$BUSYBOX_CONFIG" ]]; then
-        echo "Error: BusyBox configuration not found:"
-        echo "  $BUSYBOX_CONFIG"
-        exit 1
-    fi
-
-    echo
     echo "==> Preparing BusyBox..."
 
     if [[ ! -f "$BUSYBOX_BUILD_DIR/.config" ]]; then
-        echo "==> Installing Senbit BusyBox configuration..."
+        echo "==> Creating BusyBox configuration..."
 
-        cp \
-            "$BUSYBOX_CONFIG" \
-            "$BUSYBOX_BUILD_DIR/.config"
+        make \
+            -C "$BUSYBOX_DIR" \
+            O="$BUSYBOX_BUILD_DIR" \
+            defconfig
     fi
 
-    echo
     echo "==> Building BusyBox..."
     echo "    Jobs: $JOBS"
-    echo
-    echo "    Incremental build enabled."
 
     make \
         -C "$BUSYBOX_DIR" \
         O="$BUSYBOX_BUILD_DIR" \
         -j"$JOBS"
 
-    echo
-    echo "==> Installing BusyBox..."
+    echo "==> Installing BusyBox into build directory..."
+
+    rm -rf "$BUSYBOX_BUILD_DIR/_install"
 
     make \
         -C "$BUSYBOX_DIR" \
@@ -353,17 +144,10 @@ build_busybox() {
         CONFIG_PREFIX="$BUSYBOX_BUILD_DIR/_install" \
         install
 
-    if [[ ! -f "$BUSYBOX_BINARY" ]]; then
-        echo "Error: BusyBox binary was not produced:"
-        echo "  $BUSYBOX_BINARY"
-        exit 1
-    fi
-
     echo
     echo "BusyBox:"
     echo "  $BUSYBOX_BINARY"
 }
-
 
 # --------------------------------------------------
 # Root filesystem
@@ -390,11 +174,19 @@ build_rootfs() {
         "$rootfs/usr/bin" \
         "$rootfs/usr/sbin"
 
+    # --------------------------------------------------
+    # Senbit rootfs
+    # --------------------------------------------------
+
     if [[ -d "$ROOT_DIR/rootfs" ]]; then
         rsync -a \
             "$ROOT_DIR/rootfs/" \
             "$rootfs/"
     fi
+
+    # --------------------------------------------------
+    # BusyBox
+    # --------------------------------------------------
 
     echo "==> Installing BusyBox into root filesystem..."
 
@@ -408,17 +200,17 @@ build_rootfs() {
         "$BUSYBOX_BUILD_DIR/_install/" \
         "$rootfs/"
 
-    if [[ -f "$rootfs/init" ]]; then
-        chmod +x "$rootfs/init"
+    # --------------------------------------------------
+    # Init
+    # --------------------------------------------------
 
-        if [[ -f "$rootfs/sbin/init" ]]; then
-            chmod +x "$rootfs/sbin/init"
-        fi
+    if [[ -f "$rootfs/sbin/init" ]]; then
+        chmod +x "$rootfs/sbin/init"
     else
         echo "==> No Senbit init found."
         echo "    Creating temporary init..."
 
-        cat > "$rootfs/init" <<'EOF'
+        cat > "$rootfs/sbin/init" <<'EOF'
 #!/bin/sh
 
 mount -t proc proc /proc
@@ -435,13 +227,15 @@ echo
 echo "Userspace init is currently minimal."
 echo
 
-exec setsid /bin/sh -c 'exec /bin/sh </dev/tty1 >/dev/tty1 2>&1'
+exec /bin/sh
 EOF
 
-    chmod +x "$rootfs/init"
+        chmod +x "$rootfs/sbin/init"
+    fi
 
-    ln -sf ../init "$rootfs/sbin/init"
-fi
+    # --------------------------------------------------
+    # Initramfs
+    # --------------------------------------------------
 
     echo "==> Creating initramfs..."
 
@@ -459,7 +253,6 @@ fi
     echo "Initramfs:"
     echo "  $INITRAMFS"
 }
-
 
 # --------------------------------------------------
 # ISO
@@ -501,7 +294,7 @@ set timeout=0
 set default=0
 
 menuentry "Senbit" {
-    linux /boot/bzImage console=tty0
+    linux /boot/bzImage
     initrd /boot/initramfs.cpio.gz
 }
 EOF
@@ -526,14 +319,14 @@ EOF
     echo "  $ROOT_DIR/iso/senbit.iso"
 }
 
-
 # --------------------------------------------------
-# Main
+# Build selection
 # --------------------------------------------------
 
 TARGET="${1:-all}"
 
 case "$TARGET" in
+
     kernel)
         run_step "Linux Kernel" build_kernel
         ;;
@@ -567,8 +360,8 @@ case "$TARGET" in
         echo "  ./scripts/build.sh iso"
         exit 1
         ;;
-esac
 
+esac
 
 TOTAL_END="$(date +%s)"
 TOTAL_ELAPSED=$((TOTAL_END - TOTAL_START))
