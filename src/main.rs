@@ -34,7 +34,11 @@ fn main() {
 
     // disk detection
     println!("{}", "Detecting disks...".cyan());
-    disk::disk_detection();
+    let installed = disk::detect_installation();
+    match installed {
+        Some(p) => println!("{}", format!("Senbit installed on {}", p).green()),
+        None => println!("{}", "No Senbit installation found.".red()),
+    }
 
     loop {}
 }
