@@ -33,12 +33,15 @@ pub fn detect_installation() -> Option<String> {
 }
 
 fn mount_partition(device: &str, target: &str) -> Result<()> {
+    // On s'assure que target est un chemin absolu propre (pas de "//mnt")
+    let target = target.trim_end_matches('/');
     mount(device, target)
         .context("failed to mount partition")?;
     Ok(())
 }
 
 fn unmount_partition(target: &str) -> Result<()> {
+    let target = target.trim_end_matches('/');
     unmount(target)
         .context("failed to unmount partition")?;
     Ok(())
@@ -103,6 +106,7 @@ pub fn detect_partitions() -> Vec<String> {
 
     for line in reader.lines().flatten() {
         let parts: Vec<&str> = line.split_whitespace().collect();
+
         if parts.len() < 4 {
             continue;
         }
@@ -110,7 +114,6 @@ pub fn detect_partitions() -> Vec<String> {
         let name = parts[3];
 
         if !is_disk_name(name) {
-            // Then it's a partition
             partitions.push(name.to_string());
         }
     }
@@ -123,37 +126,9 @@ pub fn detect_partitions() -> Vec<String> {
 /// - Disks: vda, sda, nvme0n1, mmcblk0, etc.
 /// - Partitions: vda1, sda2, nvme0n1p1, mmcblk0p1, etc.
 fn is_disk_name(name: &str) -> bool {
-    // If the name ends with a digit, it's likely a partition
-    // But some disks also end with digits (e.g. nvme0n1, mmcblk0)
-    // So we use a simple heuristic:
-    // - If it ends with a digit AND the previous char is also a digit or 'p', it's a partition
-    // - Otherwise, consider it a disk
-
-    let chars: Vec<char> = name.chars().collect();
-    if chars.is_empty() {
-        return false;
+    if name.starts_with("nvme") || name.starts_with("mmcblk") {
+        return !name.contains('p');
     }
 
-    let last = chars[chars.len() - 1];
-
-    if !last.is_ascii_digit() {
-        // Doesn't end with a digit -> likely a disk
-        return true;
-    }
-
-    // Ends with a digit, check previous char
-    if chars.len() == 1 {
-        // Single digit name, unlikely but treat as disk
-        return true;
-    }
-
-    let prev = chars[chars.len() - 2];
-
-    if prev == 'p' || prev.is_ascii_digit() {
-        // Patterns like nvme0n1p1, sda1, mmcblk0p1
-        return false;
-    }
-
-    // Patterns like nvme0n1, mmcblk0
-    true
+    !name.chars().last().is_some_and(|c| c.is_ascii_digit())
 }

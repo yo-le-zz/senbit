@@ -4,3 +4,9 @@
 [submodule "third_party/busybox"]
 	path = third_party/busybox
 	url = https://git.busybox.net/busybox
+[submodule "third_party/util-linux"]
+	path = third_party/util-linux
+	url = https://github.com/util-linux/util-linux.git
+[submodule "third_party/parted"]
+	path = third_party/parted
+	url = https://git.savannah.gnu.org/git/parted.git

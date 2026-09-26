@@ -6,6 +6,35 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 BUILD_SCRIPT="$ROOT_DIR/scripts/build.sh"
 VM_CONFIG="$ROOT_DIR/config/vm.config"
+VM_DIR="$ROOT_DIR/build/vm"
+
+# --------------------------------------------------
+# Arguments
+# --------------------------------------------------
+
+NEW_VM=false
+
+case "${1:-}" in
+    "")
+        ;;
+
+    --new)
+        NEW_VM=true
+        ;;
+
+    *)
+        echo "Error: unknown argument: $1"
+        echo
+        echo "Usage:"
+        echo "  $0"
+        echo "  $0 --new"
+        exit 1
+        ;;
+esac
+
+# --------------------------------------------------
+# Checks
+# --------------------------------------------------
 
 if [[ ! -x "$BUILD_SCRIPT" ]]; then
     echo "Error: build script not found or not executable:"
@@ -20,13 +49,49 @@ if [[ ! -f "$VM_CONFIG" ]]; then
 fi
 
 # --------------------------------------------------
+# New VM
+# --------------------------------------------------
+
+if [[ "$NEW_VM" == true ]]; then
+    echo
+    echo "========================================"
+    echo "          Create New Senbit VM"
+    echo "========================================"
+    echo
+    echo "This will delete the entire VM directory:"
+    echo "  $VM_DIR"
+    echo
+    echo "All VM state stored there will be lost."
+    echo
+
+    read -r -p "Continue? [y/N] " answer
+
+    case "$answer" in
+        y|Y|yes|YES|Yes)
+            echo
+            echo "==> Removing existing VM state..."
+            rm -rf "$VM_DIR"
+
+            echo "==> Creating fresh VM directory..."
+            mkdir -p "$VM_DIR"
+            ;;
+
+        *)
+            echo
+            echo "Cancelled."
+            exit 0
+            ;;
+    esac
+fi
+
+# --------------------------------------------------
 # VM defaults
 # --------------------------------------------------
 
 RAM="512M"
 CPUS="2"
 
-DISK="$ROOT_DIR/build/vm/senbit.qcow2"
+DISK="$VM_DIR/senbit.qcow2"
 DISK_SIZE="10G"
 DISK_FORMAT="qcow2"
 

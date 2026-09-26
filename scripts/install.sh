@@ -31,6 +31,11 @@ sudo apt-get install -y \
     libelf-dev \
     libssl-dev \
     libncurses-dev \
+    libreadline-dev \
+    libuuid-dev \
+    gettext \
+    gperf \
+    texinfo \
     dwarves \
     cpio \
     gzip \

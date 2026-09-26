@@ -61,11 +61,11 @@ fn decompte() -> ! {
         let key_pressed = wait_key_or_timeout(1000);
 
         if key_pressed {
-            crate::kernel::alim::do_reboot();
+            alim::do_reboot();
         }
 
         if remaining == 0 {
-            crate::kernel::alim::do_power_off();
+            alim::do_power_off();
         }
 
         remaining -= 1;

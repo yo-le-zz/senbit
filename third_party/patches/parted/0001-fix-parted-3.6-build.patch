@@ -1,0 +1,25 @@
+diff --git a/configure.ac b/configure.ac
+index cf9fb8a..edd2b0f 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -387,6 +387,7 @@ Consider upgrading to version 5.2 or newer.])
+ 
+ 	if test $found_working_libreadline = yes; then
+ 		PARTED_LIBS="-lreadline $PARTED_LIBS"
++		PARTED_LIBS="$UUID_LIBS $PARTED_LIBS"
+ 		AC_DEFINE([HAVE_LIBREADLINE], [1], [have readline])
+ 	fi
+ 	LIBS="$OLD_LIBS"
+diff --git a/parted/parted.c b/parted/parted.c
+index 3abb52f..fc2aeba 100644
+--- a/parted/parted.c
++++ b/parted/parted.c
+@@ -2172,7 +2172,7 @@ do_unit (PedDevice** dev, PedDisk** diskp)
+ }
+ 
+ static int
+-do_version ()
++do_version (PedDevice** dev, PedDisk** diskp)
+ {
+     printf ("\n%s\n%s",
+             prog_name,
