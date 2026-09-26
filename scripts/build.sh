@@ -11,12 +11,15 @@ BUILD_DIR="$ROOT_DIR/build"
 
 KERNEL_BUILD_DIR="$BUILD_DIR/kernel"
 BUSYBOX_BUILD_DIR="$BUILD_DIR/busybox"
-SENBIT_BUILD_DIR="$BUILD_DIR/senbit"
 ROOTFS_BUILD_DIR="$BUILD_DIR/rootfs"
 ISO_BUILD_DIR="$BUILD_DIR/iso"
 
 KERNEL_IMAGE="$KERNEL_BUILD_DIR/arch/x86/boot/bzImage"
 BUSYBOX_BINARY="$BUSYBOX_BUILD_DIR/_install/bin/busybox"
+
+RUST_TARGET="x86_64-unknown-linux-musl"
+SENBIT_INIT_BINARY="$ROOT_DIR/target/$RUST_TARGET/release/senbit-init"
+
 INITRAMFS="$ROOTFS_BUILD_DIR/initramfs.cpio.gz"
 ISO_IMAGE="$ISO_BUILD_DIR/senbit.iso"
 
@@ -366,6 +369,39 @@ build_busybox() {
 
 
 # --------------------------------------------------
+# Rust
+# --------------------------------------------------
+
+build_rust() {
+    echo "==> Building Senbit Rust userspace..."
+
+    if [[ ! -f "$ROOT_DIR/Cargo.toml" ]]; then
+        echo "Error: Cargo.toml not found:"
+        echo "  $ROOT_DIR/Cargo.toml"
+        exit 1
+    fi
+
+    (
+        cd "$ROOT_DIR"
+
+        cargo build \
+            --release \
+            --target "$RUST_TARGET"
+    )
+
+    if [[ ! -x "$SENBIT_INIT_BINARY" ]]; then
+        echo "Error: Senbit init binary was not produced:"
+        echo "  $SENBIT_INIT_BINARY"
+        exit 1
+    fi
+
+    echo
+    echo "Senbit init:"
+    echo "  $SENBIT_INIT_BINARY"
+}
+
+
+# --------------------------------------------------
 # Root filesystem
 # --------------------------------------------------
 
@@ -408,41 +444,28 @@ build_rootfs() {
         "$BUSYBOX_BUILD_DIR/_install/" \
         "$rootfs/"
 
-    if [[ -f "$rootfs/init" ]]; then
-        chmod +x "$rootfs/init"
-
-        if [[ -f "$rootfs/sbin/init" ]]; then
-            chmod +x "$rootfs/sbin/init"
-        fi
-    else
-        echo "==> No Senbit init found."
-        echo "    Creating temporary init..."
-
-        cat > "$rootfs/init" <<'EOF'
-#!/bin/sh
-
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t devtmpfs devtmpfs /dev
-
-echo
-echo "========================================"
-echo "              SENBIT"
-echo "========================================"
-echo
-echo "Senbit kernel booted successfully."
-echo
-echo "Userspace init is currently minimal."
-echo
-
-exec setsid /bin/sh -c 'exec /bin/sh </dev/tty1 >/dev/tty1 2>&1'
-EOF
-
+    echo "==> Installing Senbit Rust init..."
+    
+    if [[ ! -x "$SENBIT_INIT_BINARY" ]]; then
+        echo "Error: Senbit init binary not found:"
+        echo "  $SENBIT_INIT_BINARY"
+        echo
+        echo "Run:"
+        echo "  ./scripts/build.sh rust"
+        exit 1
+    fi
+    
+    rm -f "$rootfs/init"
+    
+    cp \
+        "$SENBIT_INIT_BINARY" \
+        "$rootfs/init"
+    
     chmod +x "$rootfs/init"
-
+    
     ln -sf ../init "$rootfs/sbin/init"
-fi
 
+    echo
     echo "==> Creating initramfs..."
 
     rm -f "$INITRAMFS"
@@ -542,6 +565,10 @@ case "$TARGET" in
         run_step "BusyBox" build_busybox
         ;;
 
+    rust)
+        run_step "Senbit Rust Userspace" build_rust
+        ;;
+
     rootfs)
         run_step "Senbit Root Filesystem" build_rootfs
         ;;
@@ -553,6 +580,7 @@ case "$TARGET" in
     all)
         run_step "Linux Kernel" build_kernel
         run_step "BusyBox" build_busybox
+        run_step "Senbit Rust Userspace" build_rust
         run_step "Senbit Root Filesystem" build_rootfs
         run_step "Senbit ISO" build_iso
         ;;
@@ -563,6 +591,7 @@ case "$TARGET" in
         echo "  ./scripts/build.sh all"
         echo "  ./scripts/build.sh kernel"
         echo "  ./scripts/build.sh busybox"
+        echo "  ./scripts/build.sh rust"
         echo "  ./scripts/build.sh rootfs"
         echo "  ./scripts/build.sh iso"
         exit 1
