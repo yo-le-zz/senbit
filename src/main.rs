@@ -9,8 +9,8 @@ mod filesystem;
 
 // imports
 use utils::clear;
-use kernel::panic;
-use filesystem::{fs, disk};
+use kernel::alim;
+use filesystem::{fs, disk, install};
 
 // wrapper pour clear
 fn clear() {
@@ -19,7 +19,29 @@ fn clear() {
     }
 }
 
+fn yes_installation() {
+    
+}
+
+fn no_installation() {
+    println!("{}", "Starting system installation...".cyan());
+
+    if let Err(e) = install::install_system() {
+        kpanic!("Failed to install: {}", e);
+    }
+
+    println!("{}", "Installation completed successfully.".green());
+}
+
 fn main() {
+    // PID 1 is responsible for setting the PATH environment variable
+    unsafe {
+        std::env::set_var(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        );
+    }
+    
     clear();
 
     // start different steps
@@ -34,11 +56,22 @@ fn main() {
 
     // disk detection
     println!("{}", "Detecting disks...".cyan());
+    
     let installed = disk::detect_installation();
     match installed {
-        Some(p) => println!("{}", format!("Senbit installed on {}", p).green()),
-        None => println!("{}", "No Senbit installation found.".red()),
+        Some(p) => {
+            println!("{}", format!("Senbit installed on {}", p).green());
+            yes_installation();
+        }
+        None => {
+            println!("{}", "No Senbit installation found.".red());
+            no_installation();
+        }
     }
 
-    loop {}
+    loop {
+        
+    }
+    
+    alim::do_power_off();
 }

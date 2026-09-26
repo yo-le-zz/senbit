@@ -17,4 +17,5 @@ panic = "abort"
 [dependencies]
 anyhow = "1.0.104"
 colored = "3.1.1"
+inquire = "0.9.4"
 libc = "0.2.189"
