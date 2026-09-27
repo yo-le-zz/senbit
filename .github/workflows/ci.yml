@@ -43,6 +43,7 @@ jobs:
             gzip \
             xz-utils \
             bzip2 \
+            git \
             wget \
             curl \
             rsync \
@@ -55,7 +56,8 @@ jobs:
             qemu-utils \
             musl-tools \
             libreadline-dev \
-            libuuid-dev \
+            uuid-dev \
+            libpam0g-dev \
             gettext \
             gperf \
             texinfo
@@ -111,7 +113,8 @@ jobs:
             cargo \
             musl-tools \
             libreadline-dev \
-            libuuid-dev \
+            uuid-dev \
+            libpam0g-dev \
             gettext \
             gperf \
             texinfo
