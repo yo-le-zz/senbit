@@ -23,9 +23,18 @@ jobs:
           submodules: recursive
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          targets: x86_64-unknown-linux-musl
+          toolchain: 1.89.0
+          target: x86_64-unknown-linux-musl
+          components: rustfmt
+
+      - name: Check Rust toolchain
+        run: |
+          rustc --version
+          rustfmt --version
+          cargo --version
+          rustup show active-toolchain
 
       - name: Install build dependencies
         run: |
@@ -82,6 +91,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.89.0
+          target: x86_64-unknown-linux-musl
+
+      - name: Check Rust toolchain
+        run: |
+          rustc --version
+          cargo --version
+          rustup show active-toolchain
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -109,8 +130,6 @@ jobs:
             mtools \
             qemu-system-x86 \
             qemu-utils \
-            rustc \
-            cargo \
             musl-tools \
             libreadline-dev \
             uuid-dev \
