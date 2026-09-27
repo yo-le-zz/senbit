@@ -29,6 +29,11 @@ PARTED_BINARY="$PARTED_BUILD_DIR/_install/usr/sbin/parted"
 RUST_TARGET="x86_64-unknown-linux-musl"
 SENBIT_INIT_BINARY="$ROOT_DIR/target/$RUST_TARGET/release/senbit-init"
 
+TOOLS_DIR="$ROOT_DIR/tools"
+
+KEYMAPS_GENERATED_DIR="$BUILD_DIR/tools/generated/keymaps"
+KEYMAPS_ROOTFS_DIR="$ROOTFS_BUILD_DIR/usr/share/keymaps"
+
 INITRAMFS="$BUILD_DIR/initramfs.cpio.gz"
 ISO_IMAGE="$ISO_BUILD_DIR/senbit.iso"
 
@@ -713,6 +718,90 @@ build_rust() {
     echo "  $SENBIT_INIT_BINARY"
 }
 
+# --------------------------------------------------
+# Build tools
+# --------------------------------------------------
+
+build_tools() {
+    echo "==> Searching for Senbit build tools..."
+
+    if [[ ! -d "$TOOLS_DIR" ]]; then
+        echo "==> No tools directory found."
+        return 0
+    fi
+
+    shopt -s nullglob
+
+    local tools=(
+        "$TOOLS_DIR"/*
+    )
+
+    shopt -u nullglob
+
+    for tool_dir in "${tools[@]}"; do
+        [[ -d "$tool_dir" ]] || continue
+        [[ -f "$tool_dir/Cargo.toml" ]] || continue
+
+        local tool_name
+        tool_name="$(basename "$tool_dir")"
+
+        echo
+        echo "----------------------------------------"
+        echo "  Tool: $tool_name"
+        echo "----------------------------------------"
+
+        echo "==> Compiling..."
+
+        (
+            cd "$ROOT_DIR" || exit 1
+
+            cargo build \
+                --release \
+                --manifest-path "$tool_dir/Cargo.toml"
+
+            local binary
+            binary="$(
+                cargo metadata \
+                    --format-version 1 \
+                    --no-deps \
+                    --manifest-path "$tool_dir/Cargo.toml" |
+                python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+
+for package in data["packages"]:
+    for target in package["targets"]:
+        if "bin" in target["kind"]:
+            print(target["name"])
+            raise SystemExit
+'
+            )"
+
+            if [[ -z "$binary" ]]; then
+                echo "Error: unable to determine compiled binary name."
+                exit 1
+            fi
+
+            local binary_path="$tool_dir/target/release/$binary"
+
+            if [[ ! -x "$binary_path" ]]; then
+                echo "Error: compiled tool binary not found:"
+                echo "  $binary_path"
+                exit 1
+            fi
+
+            echo "==> Running..."
+            echo "    $binary_path"
+
+            "$binary_path"
+        )
+    done
+
+    echo
+    echo "==> All Senbit build tools completed."
+}
 
 # --------------------------------------------------
 # Root filesystem
@@ -737,13 +826,40 @@ build_rootfs() {
         "$rootfs/run" \
         "$rootfs/tmp" \
         "$rootfs/usr/bin" \
-        "$rootfs/usr/sbin"
+        "$rootfs/usr/sbin" \
+        "$rootfs/usr/share/keymaps"
 
     if [[ -d "$ROOT_DIR/rootfs" ]]; then
         rsync -a \
             "$ROOT_DIR/rootfs/" \
             "$rootfs/"
     fi
+
+    echo "==> Installing generated keymaps..."
+    
+    if [[ ! -d "$KEYMAPS_GENERATED_DIR" ]]; then
+        echo "Error: generated keymaps directory not found:"
+        echo "  $KEYMAPS_GENERATED_DIR"
+        exit 1
+    fi
+    
+    shopt -s nullglob
+    local keymaps=(
+        "$KEYMAPS_GENERATED_DIR"/*.bmap
+    )
+    shopt -u nullglob
+    
+    if [[ "${#keymaps[@]}" -eq 0 ]]; then
+        echo "Error: no generated keymaps found:"
+        echo "  $KEYMAPS_GENERATED_DIR"
+        exit 1
+    fi
+    
+    cp \
+        "${keymaps[@]}" \
+        "$KEYMAPS_ROOTFS_DIR/"
+    
+    echo "==> Installed ${#keymaps[@]} keymaps."
 
     echo "==> Installing BusyBox into root filesystem..."
 
@@ -905,7 +1021,7 @@ set timeout=0
 set default=0
 
 menuentry "Senbit" {
-    linux /boot/bzImage console=tty0 loglevel=3
+    linux /boot/bzImage console=ttyS0,115200 console=tty0 loglevel=3
     initrd /boot/initramfs.cpio.gz
 }
 EOF
@@ -958,6 +1074,10 @@ case "$TARGET" in
         run_step "Senbit Rust Userspace" build_rust
         ;;
 
+    tools)
+        run_step "Senbit Build Tools" build_tools
+        ;;
+
     rootfs)
         run_step "Senbit Root Filesystem" build_rootfs
         ;;
@@ -965,13 +1085,14 @@ case "$TARGET" in
     iso)
         run_step "Senbit ISO" build_iso
         ;;
-
+        
     all)
         run_step "Linux Kernel" build_kernel
         run_step "BusyBox" build_busybox
         run_step "util-linux" build_util_linux
         run_step "GNU Parted" build_parted
         run_step "Senbit Rust Userspace" build_rust
+        run_step "Senbit Build Tools" build_tools
         run_step "Senbit Root Filesystem" build_rootfs
         run_step "Senbit ISO" build_iso
         ;;

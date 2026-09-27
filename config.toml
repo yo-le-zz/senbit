@@ -1,0 +1,53 @@
+root = "."
+jobs = 0
+
+[kernel]
+repository = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+version_file = "config/kernel/version"
+directory = "kernel/linux"
+build_directory = "build/kernel"
+image = "arch/x86/boot/bzImage"
+
+[busybox]
+repository = "https://git.busybox.net/busybox"
+version_file = "config/busybox/version"
+directory = "third_party/busybox"
+build_directory = "build/busybox"
+patch_directory = "third_party/patches/busybox"
+config = "config/busybox.config"
+binary = "_install/bin/busybox"
+
+[util_linux]
+repository = "https://github.com/util-linux/util-linux.git"
+version_file = "config/util-linux/version"
+directory = "third_party/util-linux"
+build_directory = "build/util-linux"
+fdisk_binary = "fdisk.static"
+sfdisk_binary = "sfdisk.static"
+
+[parted]
+repository = "https://gitlab.com/parted/parted.git"
+version_file = "config/parted/version"
+directory = "third_party/parted"
+build_directory = "build/parted"
+patch_directory = "third_party/patches/parted"
+binary = "_install/usr/sbin/parted"
+
+[rust]
+target = "x86_64-unknown-linux-musl"
+init_binary = "target/x86_64-unknown-linux-musl/release/senbit-init"
+
+[rootfs]
+build_directory = "build/rootfs"
+source = "rootfs"
+
+[initramfs]
+path = "build/initramfs.cpio.gz"
+
+[iso]
+build_directory = "build/iso"
+image = "senbit.iso"
+distribution_image = "iso/senbit.iso"
+
+[tools]
+directory = "tools"

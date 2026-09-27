@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            bison \
+            flex \
+            libelf-dev \
+            libssl-dev \
+            libncurses-dev \
+            dwarves \
+            cpio \
+            gzip \
+            xz-utils \
+            bzip2 \
+            wget \
+            curl \
+            rsync \
+            file \
+            xorriso \
+            grub-pc-bin \
+            grub-common \
+            mtools \
+            qemu-system-x86 \
+            qemu-utils \
+            musl-tools \
+            libreadline-dev \
+            libuuid-dev \
+            gettext \
+            gperf \
+            texinfo
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check Rust
+        run: cargo check --target x86_64-unknown-linux-musl
+
+      - name: Build Rust
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+  build:
+    name: Senbit build
+    runs-on: ubuntu-latest
+    needs: rust
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            bison \
+            flex \
+            libelf-dev \
+            libssl-dev \
+            libncurses-dev \
+            dwarves \
+            cpio \
+            gzip \
+            xz-utils \
+            bzip2 \
+            git \
+            wget \
+            curl \
+            rsync \
+            file \
+            xorriso \
+            grub-pc-bin \
+            grub-common \
+            mtools \
+            qemu-system-x86 \
+            qemu-utils \
+            rustc \
+            cargo \
+            musl-tools \
+            libreadline-dev \
+            libuuid-dev \
+            gettext \
+            gperf \
+            texinfo
+
+      - name: Build Senbit
+        run: ./scripts/build.sh

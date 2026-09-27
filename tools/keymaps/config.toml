@@ -1,0 +1,138 @@
+[repository]
+base_url = "https://raw.githubusercontent.com/legionus/kbd/v2.9.0/data/keymaps/i386"
+
+[[keymaps]]
+name = "fr"
+path = "azerty/fr-pc.map"
+
+[[keymaps]]
+name = "fr-bepo"
+path = "bepo/fr-bepo.map"
+
+[[keymaps]]
+name = "us"
+path = "qwerty/us.map"
+
+[[keymaps]]
+name = "uk"
+path = "qwerty/uk.map"
+
+[[keymaps]]
+name = "de"
+path = "qwertz/de.map"
+
+[[keymaps]]
+name = "ch-fr"
+path = "qwertz/fr_CH.map"
+
+[[keymaps]]
+name = "ch-de"
+path = "qwertz/de_CH-latin1.map"
+
+[[keymaps]]
+name = "be"
+path = "azerty/be-latin1.map"
+
+[[keymaps]]
+name = "ca"
+path = "qwerty/ca.map"
+
+[[keymaps]]
+name = "es"
+path = "qwerty/es.map"
+
+[[keymaps]]
+name = "it"
+path = "qwerty/it.map"
+
+[[keymaps]]
+name = "pt"
+path = "qwerty/pt-latin1.map"
+
+[[keymaps]]
+name = "nl"
+path = "qwerty/nl.map"
+
+[[keymaps]]
+name = "dk"
+path = "qwerty/dk.map"
+
+[[keymaps]]
+name = "no"
+path = "qwerty/no.map"
+
+[[keymaps]]
+name = "se"
+path = "qwerty/sv-latin1.map"
+
+[[keymaps]]
+name = "fi"
+path = "qwerty/fi.map"
+
+[[keymaps]]
+name = "pl"
+path = "qwerty/pl.map"
+
+[[keymaps]]
+name = "cz"
+path = "qwerty/cz.map"
+
+[[keymaps]]
+name = "sk"
+path = "qwertz/sk-qwertz.map"
+
+[[keymaps]]
+name = "hu"
+path = "qwertz/hu.map"
+
+[[keymaps]]
+name = "ro"
+path = "qwerty/ro.map"
+
+[[keymaps]]
+name = "hr"
+path = "qwertz/croat.map"
+
+[[keymaps]]
+name = "si"
+path = "qwertz/slovene.map"
+
+[[keymaps]]
+name = "rs"
+path = "qwertz/sr-latin.map"
+
+[[keymaps]]
+name = "ru"
+path = "qwerty/ru.map"
+
+[[keymaps]]
+name = "ua"
+path = "qwerty/ua.map"
+
+[[keymaps]]
+name = "bg"
+path = "qwerty/bg_bds-utf8.map"
+
+[[keymaps]]
+name = "tr"
+path = "qwerty/trq.map"
+
+[[keymaps]]
+name = "gr"
+path = "qwerty/gr.map"
+
+[[keymaps]]
+name = "il"
+path = "qwerty/il.map"
+
+[[keymaps]]
+name = "colemak"
+path = "colemak/en-latin9.map"
+
+[[keymaps]]
+name = "dvorak"
+path = "dvorak/ANSI-dvorak.map"
+
+[[keymaps]]
+name = "neo"
+path = "neo/neo.map"

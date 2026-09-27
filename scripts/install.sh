@@ -33,6 +33,7 @@ sudo apt-get install -y \
     libncurses-dev \
     libreadline-dev \
     libuuid-dev \
+    pkg-config \
     gettext \
     gperf \
     texinfo \
@@ -46,6 +47,8 @@ sudo apt-get install -y \
     curl \
     rsync \
     file \
+    kbd \
+    python3 \
     xorriso \
     grub-pc-bin \
     grub-common \

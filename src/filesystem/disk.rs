@@ -1,5 +1,9 @@
+// filesystem/disk.rs
+
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+
+use crate::logln;
 
 use colored::Colorize;
 
@@ -51,14 +55,14 @@ fn disk_detection() {
     let disks = detect_disks();
     let partitions = detect_partitions();
 
-    println!("{}", "Detected disks:".green());
+    logln!("{}", "Detected disks:".green());
     for d in &disks {
-        println!("{}", d);
+        logln!("{}", d);
     }
 
-    println!("{}", "Detected partitions:".green());
+    logln!("{}", "Detected partitions:".green());
     for p in &partitions {
-        println!("{}", p);
+        logln!("{}", p);
     }
 }
 
