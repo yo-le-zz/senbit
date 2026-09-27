@@ -107,7 +107,6 @@ get_latest_linux_version() {
         tail -n 1
 }
 
-
 update_linux() {
     if [[ ! -e "$KERNEL_DIR/.git" ]]; then
         echo "Error: Linux source tree not found:"
@@ -118,43 +117,14 @@ update_linux() {
         exit 1
     fi
 
-    local latest
     local current
-
-    latest="$(get_latest_linux_version)"
-
-    if [[ -z "$latest" ]]; then
-        echo "Error: unable to determine latest Linux version."
-        exit 1
-    fi
 
     current="$(git -C "$KERNEL_DIR" describe --tags --always 2>/dev/null || true)"
 
     echo "==> Linux version"
     echo "    Current: $current"
-    echo "    Latest:  $latest"
-
-    if [[ "$current" == "$latest" ]]; then
-        echo "==> Linux is already up to date."
-        return
-    fi
-
-    echo
-    echo "==> Updating Linux kernel..."
-    echo "    $current -> $latest"
-
-    git -C "$KERNEL_DIR" fetch \
-        --tags \
-        --prune \
-        origin
-
-    git -C "$KERNEL_DIR" checkout --detach "$latest"
-
-    printf '%s\n' "$latest" > "$KERNEL_VERSION_FILE"
-
-    echo "==> Linux updated."
+    echo "    Using checked-out version."
 }
-
 
 build_kernel() {
     mkdir -p "$KERNEL_BUILD_DIR"
