@@ -13,24 +13,31 @@ VM_DIR="$ROOT_DIR/build/vm"
 # --------------------------------------------------
 
 NEW_VM=false
+DEBUG=false
 
-case "${1:-}" in
-    "")
-        ;;
+for arg in "$@"; do
+    case "$arg" in
+        --new)
+            NEW_VM=true
+            ;;
 
-    --new)
-        NEW_VM=true
-        ;;
+        --debug)
+            DEBUG=true
+            ;;
 
-    *)
-        echo "Error: unknown argument: $1"
-        echo
-        echo "Usage:"
-        echo "  $0"
-        echo "  $0 --new"
-        exit 1
-        ;;
-esac
+        *)
+            echo "Error: unknown argument: $arg"
+            echo
+            echo "Usage:"
+            echo "  $0"
+            echo "  $0 --new"
+            echo "  $0 --debug"
+            echo "  $0 --new --debug"
+            echo "  $0 --debug --new"
+            exit 1
+            ;;
+    esac
+done
 
 # --------------------------------------------------
 # Checks
@@ -152,6 +159,7 @@ if [[ "$DISK" != /* ]]; then
 fi
 
 ISO="$ROOT_DIR/iso/senbit.iso"
+DEBUG_LOG="$VM_DIR/qemu.log"
 
 # --------------------------------------------------
 # Build Senbit
@@ -224,6 +232,17 @@ case "$NETWORK" in
 esac
 
 # --------------------------------------------------
+# Debug
+# --------------------------------------------------
+
+if [[ "$DEBUG" == true ]]; then
+    echo
+    echo "==> Debug mode enabled"
+    echo "    QEMU log: $DEBUG_LOG"
+    echo
+fi
+
+# --------------------------------------------------
 # Launch QEMU
 # --------------------------------------------------
 
@@ -237,13 +256,31 @@ echo "CPUs:    $CPUS"
 echo "Disk:    $DISK"
 echo "ISO:     $ISO"
 echo "Network: $NETWORK"
+
+if [[ "$DEBUG" == true ]]; then
+    echo "Debug:   enabled"
+    echo "Log:     $DEBUG_LOG"
+fi
+
 echo
 
-exec qemu-system-x86_64 \
-    -enable-kvm \
-    -m "$RAM" \
-    -smp "$CPUS" \
-    -drive "file=$DISK,format=$DISK_FORMAT" \
-    -cdrom "$ISO" \
-    "${NETWORK_ARGS[@]}" \
-    -serial mon:stdio
+QEMU_CMD=(
+    qemu-system-x86_64
+    -enable-kvm
+    -m "$RAM"
+    -smp "$CPUS"
+    -drive "file=$DISK,format=$DISK_FORMAT"
+    -cdrom "$ISO"
+    "${NETWORK_ARGS[@]}"
+)
+
+if [[ "$DEBUG" == true ]]; then
+    mkdir -p "$VM_DIR"
+    : > "$DEBUG_LOG"
+
+    QEMU_CMD+=(
+        -serial "file:$DEBUG_LOG"
+    )
+fi
+
+exec "${QEMU_CMD[@]}"

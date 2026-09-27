@@ -1,16 +1,19 @@
 // src/main.rs
 
+// Cosmetics
 use colored::Colorize;
 
 // modules
 mod utils;
 mod kernel;
 mod filesystem;
+mod installation;
 
 // imports
-use utils::clear;
 use kernel::alim;
-use filesystem::{fs, disk, install};
+use utils::clear;
+use filesystem::{fs, disk};
+use installation::install;
 
 // wrapper pour clear
 fn clear() {
@@ -24,13 +27,13 @@ fn yes_installation() {
 }
 
 fn no_installation() {
-    println!("{}", "Starting system installation...".cyan());
+    logln!("{}", "Starting system installation...".cyan());
 
     if let Err(e) = install::install_system() {
         kpanic!("Failed to install: {}", e);
     }
 
-    println!("{}", "Installation completed successfully.".green());
+    logln!("{}", "Installation completed successfully.".green());
 }
 
 fn main() {
@@ -45,26 +48,26 @@ fn main() {
     clear();
 
     // start different steps
-    println!("{}", "Senbit init starting...".cyan());
+    logln!("{}", "Senbit init starting...".cyan());
 
     // mount filesystems
-    println!("{}", "Mounting filesystems...".cyan());
+    logln!("{}", "Mounting filesystems...".cyan());
     if let Err(e) = fs::mount_filesystems() {
         kpanic!(format!("Failed to mount filesystems: {}", e));
     }
-    println!("{}", "Filesystems mounted successfully.".green());
+    logln!("{}", "Filesystems mounted successfully.".green());
 
     // disk detection
-    println!("{}", "Detecting disks...".cyan());
+    logln!("{}", "Detecting disks...".cyan());
     
     let installed = disk::detect_installation();
     match installed {
         Some(p) => {
-            println!("{}", format!("Senbit installed on {}", p).green());
+            logln!("{}", format!("Senbit installed on {}", p).green());
             yes_installation();
         }
         None => {
-            println!("{}", "No Senbit installation found.".red());
+            logln!("{}", "No Senbit installation found.".red());
             no_installation();
         }
     }

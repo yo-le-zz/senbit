@@ -1,5 +1,7 @@
 // src/utils/clear.rs
 
+use crate::log;
+
 use anyhow::{Context, Result}; // <- Result vient de anyhow
 use std::io::{self, Write};
 use std::process::Command;
@@ -18,6 +20,6 @@ pub fn clear_screen() -> Result<()> {
 }
 
 pub fn clear_screen_ansi() {
-    print!("\x1b[2J\x1b[1;1H");
+    log!("\x1b[2J\x1b[1;1H");
     let _ = io::stdout().flush();
 }

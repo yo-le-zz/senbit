@@ -2,3 +2,4 @@
 
 pub mod clear;
 pub mod files;
+pub mod log;

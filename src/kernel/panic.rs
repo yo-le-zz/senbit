@@ -2,6 +2,7 @@
 
 use colored::Colorize;
 use crate::kernel::alim;
+use crate::{elogln, log};
 
 use libc::{poll, pollfd, POLLIN};
 use std::io::{self, Write};
@@ -55,7 +56,7 @@ fn decompte() -> ! {
     let mut remaining = 5;
 
     loop {
-        print!("\rShutdown in {} seconds, press any key for reboot", remaining);
+        log!("\rShutdown in {} seconds, press any key for reboot", remaining);
         io::stdout().flush().unwrap();
 
         let key_pressed = wait_key_or_timeout(1000);
@@ -73,6 +74,6 @@ fn decompte() -> ! {
 }
 
 pub fn kpanic_impl(msg: &str) -> ! {
-    eprintln!("{}", msg.red());
+    elogln!("{}", msg.red());
     decompte();
 }

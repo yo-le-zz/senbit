@@ -9,4 +9,7 @@
 	url = https://github.com/util-linux/util-linux.git
 [submodule "third_party/parted"]
 	path = third_party/parted
-	url = https://git.savannah.gnu.org/git/parted.git
+	url = https://github.com/oldium/gnu-parted.git
+[submodule "tools/keymaps/kbd"]
+	path = tools/keymaps/kbd
+	url = https://github.com/legionus/kbd.git
