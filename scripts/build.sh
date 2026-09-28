@@ -27,7 +27,7 @@ UTIL_LINUX_SFDISK_BINARY="$UTIL_LINUX_BUILD_DIR/sfdisk.static"
 PARTED_BINARY="$PARTED_BUILD_DIR/_install/usr/sbin/parted"
 
 RUST_TARGET="x86_64-unknown-linux-musl"
-SENBIT_INIT_BINARY="$ROOT_DIR/target/$RUST_TARGET/release/senbit-init"
+SENBIT_INIT_BINARY="$ROOT_DIR/target/$RUST_TARGET/release/senbit"
 
 TOOLS_DIR="$ROOT_DIR/tools"
 

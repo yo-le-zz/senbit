@@ -65,3 +65,76 @@ pub fn mount_filesystems() -> AnyhowResult<()> {
 
     Ok(())
 }
+
+pub fn recursive_copy(
+    source: &str,
+    dest: &str,
+    excluded: &[&str],
+) -> AnyhowResult<()> {
+    std::fs::create_dir_all(dest)
+        .context("failed to create destination directory")?;
+
+    for file in std::fs::read_dir(source)
+        .context("failed to read source directory")?
+    {
+        let file = file?;
+        let source_path = file.path();
+        let file_name = file.file_name();
+
+        let source_path_str = source_path.to_string_lossy();
+
+        // Skip excluded paths
+        if excluded.iter().any(|path| source_path_str == *path) {
+            continue;
+        }
+
+        let dest_path = std::path::Path::new(dest).join(&file_name);
+
+        if source_path.is_dir() {
+            recursive_copy(
+                &source_path_str,
+                &dest_path.to_string_lossy(),
+                excluded,
+            )?;
+        } else {
+            std::fs::copy(&source_path, &dest_path)
+                .context("failed to copy file")?;
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_recursive_copy_excludes_paths() -> AnyhowResult<()> {
+    let source = tempdir()?;
+    let dest = tempdir()?;
+
+    fs::write(source.path().join("file.txt"), "hello")?;
+
+    fs::create_dir(source.path().join("excluded"))?;
+    fs::write(
+        source.path().join("excluded").join("secret.txt"),
+        "should not be copied",
+    )?;
+
+    let excluded = [
+        source.path()
+            .join("excluded")
+            .to_string_lossy()
+            .to_string(),
+    ];
+
+    let excluded_refs: Vec<&str> = excluded.iter().map(|s| s.as_str()).collect();
+
+    recursive_copy(
+        &source.path().to_string_lossy(),
+        &dest.path().to_string_lossy(),
+        &excluded_refs,
+    )?;
+
+    assert!(dest.path().join("file.txt").exists());
+    assert!(!dest.path().join("excluded").exists());
+
+    Ok(())
+}

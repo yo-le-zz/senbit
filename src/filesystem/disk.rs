@@ -136,3 +136,21 @@ fn is_disk_name(name: &str) -> bool {
 
     !name.chars().last().is_some_and(|c| c.is_ascii_digit())
 }
+
+
+pub fn get_partition_uuid(device: &str) -> Result<String> {
+    let output = std::process::Command::new("blkid")
+        .args(["-s", "UUID", "-o", "value", device])
+        .output()
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    if !output.status.success() {
+        anyhow::bail!("Failed to get UUID for {}", device);
+    }
+
+    let uuid = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .to_string();
+
+    Ok(uuid)
+}
