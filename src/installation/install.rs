@@ -1,299 +1,25 @@
 // installation/install.rs
 
-use inquire::{Confirm, Select};
-use std::fs::{self, File};
-use std::io::Write;
+use inquire::Confirm;
+use crate::logln;
 use std::path::Path;
-use anyhow::{Context, Result};
-use std::process::{Command, Stdio};
-use crate::{elogln, logln};
-use colored::Colorize;
 
 // ============================================================
-// Miscs functions immports
+// Misc functions imports
 // ============================================================
 
-use crate::installation::lang;
-use crate::filesystem::disk::{detect_disks, detect_partitions};
+use crate::installation::lang::setup_lang;
+use crate::installation::partition::{
+    manual_partitioning,
+    select_disk_interactive,
+    format_partition,
+    create_single_partition,
+    DiskKind,
+};
+use crate::filesystem::disk::get_partition_uuid;
+use crate::installation::rootfs::setup_rootfs;
 use crate::filesystem::fs::{mount, unmount};
-
-// ============================================================
-// Structs definitions
-// ============================================================
-
-#[derive(Clone)]
-pub struct DiskOption {
-    pub name: String,
-    pub device: String,
-    pub kind: DiskKind,
-}
-
-#[derive(Clone, Copy)]
-pub enum DiskKind {
-    Disk,
-    Partition,
-}
-
-// ============================================================
-// Keyboard layout functions
-// ============================================================
-
-fn set_keyboard_layout(lang: &str) -> Result<()> {
-    let keymap = if lang == "en" { "us" } else { lang };
-    let path = format!("/usr/share/keymaps/{}.bmap", keymap);
-
-    if !std::path::Path::new(&path).exists() {
-        elogln!(
-            "Failed to set keyboard layout '{}': Keyboard layout '{}' not found. (us fallback)",
-            lang, keymap
-        );
-
-        let fallback = "/usr/share/keymaps/us.bmap";
-
-        if !std::path::Path::new(fallback).exists() {
-            anyhow::bail!("Failed to set fallback keyboard layout: 'us' not found");
-        }
-
-        let file = std::fs::File::open(fallback)
-            .context("Failed to open fallback keyboard layout")?;
-
-        let status = Command::new("loadkmap")
-            .stdin(Stdio::from(file))
-            .status()
-            .context("Failed to execute loadkmap")?;
-
-        if !status.success() {
-            anyhow::bail!("Failed to load fallback keyboard layout");
-        }
-
-        return Ok(());
-    }
-
-    let file = std::fs::File::open(&path)
-        .with_context(|| format!("Failed to open keyboard layout '{}'", path))?;
-
-    let status = Command::new("loadkmap")
-        .stdin(Stdio::from(file))
-        .status()
-        .with_context(|| format!("Failed to execute loadkmap for '{}'", keymap))?;
-
-    if !status.success() {
-        anyhow::bail!("Failed to load keyboard layout '{}'", keymap);
-    }
-
-    Ok(())
-}
-
-fn setup_lang() -> anyhow::Result<()> {
-    let lang = lang::keyboard_select();
-
-    if lang.is_empty() {
-        logln!(
-            "{}",
-            "Failed to set keyboard layout. ( qwerty fallback )".red()
-        );
-
-        set_keyboard_layout("en")
-            .map_err(|e| anyhow::anyhow!("Failed to set fallback keyboard layout: {}", e))?;
-
-        return Ok(());
-    }
-
-    if let Err(e) = set_keyboard_layout(&lang) {
-        logln!(
-            "{}",
-            format!(
-                "Failed to set keyboard layout '{}': {}. ( qwerty fallback )",
-                lang, e
-            )
-            .red()
-        );
-
-        if let Err(e) = set_keyboard_layout("en") {
-            logln!(
-                "{}",
-                format!("Failed to set fallback keyboard layout: {}", e).red()
-            );
-        }
-    }
-
-    Ok(())
-}
-
-// ============================================================
-// Disk installation functions
-// ============================================================
-
-pub fn select_disk_interactive() -> Option<DiskOption> {
-    let disks = detect_disks();
-    let partitions = detect_partitions();
-
-    let mut options: Vec<DiskOption> = Vec::new();
-
-    // Add disks
-    for d in disks {
-        options.push(DiskOption {
-            name: d.clone(),
-            device: format!("/dev/{}", d),
-            kind: DiskKind::Disk,
-        });
-    }
-
-    // Add partitions
-    for p in partitions {
-        options.push(DiskOption {
-            name: p.clone(),
-            device: format!("/dev/{}", p),
-            kind: DiskKind::Partition,
-        });
-    }
-
-    if options.is_empty() {
-        return None;
-    }
-
-    let choices: Vec<String> = options
-        .iter()
-        .map(|o| {
-            let kind_str = match o.kind {
-                DiskKind::Disk => "(disk)",
-                DiskKind::Partition => "(partition)",
-            };
-            format!("{} {}", o.name, kind_str)
-        })
-        .collect();
-
-    let selection = Select::new("Select target disk/partition:", choices.clone())
-        .prompt()
-        .ok()?;
-
-    let index = choices.iter().position(|c| c == &selection)?;
-    Some(options[index].clone())
-}
-
-fn manual_partitioning(disk: &str) -> Result<String, String> {
-    logln!("Starting manual partitioning on {}...", disk);
-    logln!("Use fdisk to create or modify your partitions.");
-    logln!("When finished, use 'w' to write the changes and exit.");
-
-    let status = Command::new("fdisk")
-        .arg(disk)
-        .status()
-        .map_err(|e| format!("Failed to run fdisk: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("fdisk exited with status: {}", status));
-    }
-
-    // Ask the kernel to reload the partition table.
-    let status = Command::new("partprobe")
-        .arg(disk)
-        .status()
-        .map_err(|e| format!("Failed to run partprobe: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("partprobe exited with status: {}", status));
-    }
-
-    let partitions = detect_partitions();
-
-    if partitions.is_empty() {
-        return Err("No partitions found after manual partitioning.".to_string());
-    }
-
-    let choices: Vec<String> = partitions
-        .iter()
-        .map(|partition| format!("/dev/{}", partition))
-        .collect();
-
-    let selection = Select::new(
-        "Select the partition to install Senbit on:",
-        choices.clone(),
-    )
-    .prompt()
-    .map_err(|e| format!("Partition selection error: {}", e))?;
-
-    Ok(selection)
-}
-
-fn format_partition(device: &str) -> Result<(), String> {
-    // Try mkfs.ext4, otherwise use mke2fs.
-    let status = if Command::new("mkfs.ext4")
-        .arg("--version")
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-    {
-        Command::new("mkfs.ext4")
-            .arg("-F")
-            .arg(device)
-            .status()
-    } else {
-        Command::new("mke2fs")
-            .args(["-F", device])
-            .status()
-    }
-    .map_err(|e| format!("Failed to format partition: {}", e))?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("Format command exited with status: {}", status))
-    }
-}
-
-fn create_single_partition(disk: &str) -> Result<(), String> {
-    // Use parted to create a single partition using the entire disk.
-    // Example: parted /dev/vda mklabel gpt mkpart primary ext4 0% 100%
-    let status = Command::new("parted")
-        .args([
-            disk,
-            "mklabel",
-            "gpt",
-            "mkpart",
-            "primary",
-            "ext4",
-            "0%",
-            "100%",
-        ])
-        .status()
-        .map_err(|e| format!("Failed to run parted: {}", e))?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("parted exited with status: {}", status))
-    }
-}
-
-fn create_minimal_rootfs(root: &str) -> Result<(), String> {
-    let dirs = [
-        "etc", "bin", "usr", "var", "tmp", "root", "home",
-        "proc", "sys", "dev", "run",
-    ];
-
-    for d in &dirs {
-        let path = Path::new(root).join(d);
-        fs::create_dir_all(&path)
-            .map_err(|e| format!("Failed to create directory {}: {}", path.display(), e))?;
-    }
-
-    // /etc/senbit-release
-    let release_path = Path::new(root).join("etc/senbit-release");
-    let mut f = File::create(&release_path)
-        .map_err(|e| format!("Failed to create senbit-release: {}", e))?;
-    writeln!(f, "Senbit 0.1.0")
-        .map_err(|e| format!("Failed to write senbit-release: {}", e))?;
-
-    // /etc/passwd minimal
-    let passwd_path = Path::new(root).join("etc/passwd");
-    let mut f = File::create(&passwd_path)
-        .map_err(|e| format!("Failed to create passwd: {}", e))?;
-    writeln!(f, "root:x:0:0:root:/root:/bin/sh")
-        .map_err(|e| format!("Failed to write passwd: {}", e))?;
-
-    Ok(())
-}
+use crate::installation::users::user::setup_users;
 
 // ============================================================
 // Final installation
@@ -354,17 +80,36 @@ pub fn install_system() -> Result<(), String> {
     logln!("Formatting partition {}...", partition_device);
     format_partition(&partition_device)?;
 
-    let mount_point = "/mnt";
+    let mount_point = Path::new("/mnt");
 
-    logln!("Mounting partition on {}...", mount_point);
-    mount(&partition_device, mount_point)
-        .map_err(|e| format!("Failed to mount: {}", e))?;
+    logln!("Mounting partition on {}...", mount_point.display());
+    mount(
+        &partition_device,
+        mount_point.to_str().unwrap(),
+    )
+    .map_err(|e| format!("Failed to mount: {}", e))?;
 
-    logln!("Creating minimal rootfs...");
-    create_minimal_rootfs(mount_point)?;
+    logln!("Installing rootfs...");
 
+    let root_uuid = get_partition_uuid(&partition_device)
+        .map_err(|e| format!("Failed to get partition UUID: {}", e))?;
+
+    setup_rootfs(
+        Path::new("/"),
+        mount_point,
+        &root_uuid,
+    )
+    .map_err(|e| format!("Failed to setup rootfs: {}", e))?;
+
+    logln!("Rootfs setup successfully.");
+
+    // Step 3: users
+    setup_users(mount_point)?;
+
+    // Step 4: unmount
     logln!("Unmounting...");
-    unmount(mount_point)
+
+    unmount(mount_point.to_str().unwrap())
         .map_err(|e| format!("Failed to unmount: {}", e))?;
 
     Ok(())

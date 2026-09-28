@@ -1,10 +1,10 @@
 [package]
-name = "senbit-init"
+name = "senbit"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "senbit-init"
+name = "senbit"
 path = "src/main.rs"
 
 [profile.release]
@@ -16,6 +16,8 @@ panic = "abort"
 
 [dependencies]
 anyhow = "1.0.104"
+argon2 = "0.6.0"
 colored = "3.1.1"
 inquire = "0.9.4"
 libc = "0.2.189"
+tempfile = "3.27.0"
