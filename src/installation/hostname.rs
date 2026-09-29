@@ -41,14 +41,6 @@ pub fn write_hostname(root: &Path, hostname: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn _read_hostname(root: &Path) -> Result<String> {
-    let content = std::fs::read_to_string(
-        root.join("etc/hostname")
-    )?;
-
-    Ok(content.trim().to_string())
-}
-
 pub fn setup_hostname(root: &Path) -> Result<String> {
     let hostname = get_hostname()?;
 

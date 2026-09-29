@@ -2,6 +2,7 @@
 pub mod local;
 pub mod crypto;
 pub mod users;
+pub mod network;
 
 // files imports
 pub mod install;
