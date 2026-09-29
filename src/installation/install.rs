@@ -17,6 +17,9 @@ use crate::installation::local::lang::setup_lang;
 // local setup
 use crate::installation::local::local::setup_locale;
 
+// timezone setup
+use crate::installation::local::timezone::setup_timezone;
+
 // partition selection
 use crate::installation::partition::{
     manual_partitioning,
@@ -145,6 +148,10 @@ pub fn install_system() -> Result<(), String> {
     // Step 8: locale
     setup_locale(mount_point)
         .map_err(|e| format!("Failed to setup locale: {}", e))?;
+
+    // Step 9: timezone
+    setup_timezone(mount_point)
+        .map_err(|e| format!("Failed to setup timezone: {}", e))?;
 
     // Final step: unmount
     logln!("Unmounting...");
