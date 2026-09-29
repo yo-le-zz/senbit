@@ -12,7 +12,10 @@ use std::path::Path;
 use colored::Colorize;
 
 // language keyboard layout
-use crate::installation::lang::setup_lang;
+use crate::installation::local::lang::setup_lang;
+
+// local setup
+use crate::installation::local::local::setup_locale;
 
 // partition selection
 use crate::installation::partition::{
@@ -138,6 +141,10 @@ pub fn install_system() -> Result<(), String> {
         "{}",
         "Hostname set successfully.".green().bold()
     );
+
+    // Step 8: locale
+    setup_locale(mount_point)
+        .map_err(|e| format!("Failed to setup locale: {}", e))?;
 
     // Final step: unmount
     logln!("Unmounting...");
