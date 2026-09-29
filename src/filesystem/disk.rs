@@ -3,10 +3,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use crate::logln;
-
-use colored::Colorize;
-
 use anyhow::{Result, Context};
 
 use crate::filesystem::fs::{unmount, mount};
@@ -49,21 +45,6 @@ fn unmount_partition(target: &str) -> Result<()> {
     unmount(target)
         .context("failed to unmount partition")?;
     Ok(())
-}
-
-fn disk_detection() {
-    let disks = detect_disks();
-    let partitions = detect_partitions();
-
-    logln!("{}", "Detected disks:".green());
-    for d in &disks {
-        logln!("{}", d);
-    }
-
-    logln!("{}", "Detected partitions:".green());
-    for p in &partitions {
-        logln!("{}", p);
-    }
 }
 
 /// Detect all disks (e.g. "vda", "sda", "nvme0n1")

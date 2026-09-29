@@ -6,7 +6,7 @@
 # Build artifacts
 # --------------------------------------------------
 
-/build/
+build/
 
 # Final generated ISO
 /iso/*.iso
@@ -74,3 +74,8 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# --------------------------------------------------
+# Devtool
+# --------------------------------------------------
+scripts/devtool_bin/

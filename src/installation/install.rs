@@ -8,7 +8,13 @@ use std::path::Path;
 // Misc functions imports
 // ============================================================
 
+// colored output
+use colored::Colorize;
+
+// language keyboard layout
 use crate::installation::lang::setup_lang;
+
+// partition selection
 use crate::installation::partition::{
     manual_partitioning,
     select_disk_interactive,
@@ -16,10 +22,21 @@ use crate::installation::partition::{
     create_single_partition,
     DiskKind,
 };
+
+// filesystem setup
 use crate::filesystem::disk::get_partition_uuid;
+
+// root filesystem setup
 use crate::installation::rootfs::setup_rootfs;
+
+// filesystem mounting
 use crate::filesystem::fs::{mount, unmount};
+
+// user setup
 use crate::installation::users::user::setup_users;
+
+// hostname setup
+use crate::installation::hostname::setup_hostname;
 
 // ============================================================
 // Final installation
@@ -77,18 +94,25 @@ pub fn install_system() -> Result<(), String> {
         }
     };
 
+    // Step 3: format partition
     logln!("Formatting partition {}...", partition_device);
     format_partition(&partition_device)?;
 
+    // Step 4: mount target
     let mount_point = Path::new("/mnt");
 
-    logln!("Mounting partition on {}...", mount_point.display());
+    logln!(
+        "Mounting partition on {}...",
+        mount_point.display()
+    );
+
     mount(
         &partition_device,
         mount_point.to_str().unwrap(),
     )
     .map_err(|e| format!("Failed to mount: {}", e))?;
 
+    // Step 5: install rootfs
     logln!("Installing rootfs...");
 
     let root_uuid = get_partition_uuid(&partition_device)
@@ -103,10 +127,19 @@ pub fn install_system() -> Result<(), String> {
 
     logln!("Rootfs setup successfully.");
 
-    // Step 3: users
+    // Step 6: users
     setup_users(mount_point)?;
 
-    // Step 4: unmount
+    // Step 7: hostname
+    setup_hostname(mount_point)
+        .map_err(|e| format!("Failed to set hostname: {}", e))?;
+
+    logln!(
+        "{}",
+        "Hostname set successfully.".green().bold()
+    );
+
+    // Final step: unmount
     logln!("Unmounting...");
 
     unmount(mount_point.to_str().unwrap())

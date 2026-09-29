@@ -107,6 +107,9 @@ pub fn recursive_copy(
 
 #[test]
 fn test_recursive_copy_excludes_paths() -> AnyhowResult<()> {
+    use std::fs;
+    use tempfile::tempdir;
+    
     let source = tempdir()?;
     let dest = tempdir()?;
 

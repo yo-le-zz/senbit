@@ -39,7 +39,7 @@ pub fn logln(message: &str) {
     write_stdout(&format!("{}\n", message));
 }
 
-pub fn elog(message: &str) {
+pub fn _elog(message: &str) {
     write_stderr(message);
 }
 
