@@ -1,20 +1,19 @@
 [package]
-name = "senbit"
+name = "devtool"
 version = "0.1.0"
 edition = "2021"
-description = "Senbit build tooling (Rust port of scripts/*.sh) - build, run, install, getlinux, getutil"
+description = "Senbit development tool: build, get, install, run"
 
 [[bin]]
-name = "senbit"
+name = "devtool"
 path = "src/main.rs"
 
 [dependencies]
-colored = "2.1"
+anyhow = "1"
+clap = { version = "~4.4", features = ["derive"] }
+colored = "2"
 indicatif = "0.17"
-anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-walkdir = "2.4"
+serde_json = "1"
 
 [profile.release]
 opt-level = 2

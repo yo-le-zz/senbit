@@ -10,7 +10,7 @@ mod filesystem;
 mod installation;
 
 // imports
-use kernel::alim;
+// use kernel::alim;
 use utils::clear;
 use filesystem::{fs, disk};
 use installation::install;
@@ -76,5 +76,5 @@ fn main() {
         
     }
     
-    alim::do_power_off();
+    // alim::do_power_off();
 }
