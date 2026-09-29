@@ -20,6 +20,9 @@ use crate::installation::local::local::setup_locale;
 // timezone setup
 use crate::installation::local::timezone::setup_timezone;
 
+// network setup
+use crate::installation::network::network::setup_network;
+
 // partition selection
 use crate::installation::partition::{
     manual_partitioning,
@@ -152,6 +155,10 @@ pub fn install_system() -> Result<(), String> {
     // Step 9: timezone
     setup_timezone(mount_point)
         .map_err(|e| format!("Failed to setup timezone: {}", e))?;
+
+    // Step 10: network
+    setup_network(mount_point)
+        .map_err(|e| format!("Failed to setup network: {}", e))?;
 
     // Final step: unmount
     logln!("Unmounting...");
