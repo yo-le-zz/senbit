@@ -70,7 +70,9 @@ impl Paths {
 
     // ---- rust userspace ----
     pub const RUST_TARGET: &'static str = "x86_64-unknown-linux-musl";
-    pub fn senbit_init_binary(&self) -> PathBuf {
+    /// Nom du binaire produit par le crate racine (renommé de senbit-init à
+    /// senbit).
+    pub fn senbit_binary(&self) -> PathBuf {
         self.r(&format!("target/{}/release/senbit", Self::RUST_TARGET))
     }
 

@@ -11,11 +11,11 @@ use crate::ui::{self, format_time};
 
 const PACKAGES: &[&str] = &[
     "build-essential", "bc", "bison", "flex", "libelf-dev", "libssl-dev",
-    "libncurses-dev", "libreadline-dev", "libuuid-dev", "pkg-config",
+    "libncurses-dev", "libreadline-dev", "uuid-dev", "pkg-config",
     "gettext", "gperf", "texinfo", "dwarves", "cpio", "gzip", "xz-utils",
     "bzip2", "git", "wget", "curl", "rsync", "file", "kbd", "python3",
-    "xorriso", "grub-pc-bin", "grub-common", "mtools", "qemu-system-x86",
-    "qemu-utils", "rustc", "cargo",
+    "xorriso", "grub-pc-bin", "grub-common", "grub-efi-amd64-bin", "ovmf",
+    "mtools", "qemu-system-x86", "qemu-utils", "rustc", "cargo",
 ];
 
 pub fn run_install(p: &Paths) -> Result<()> {
