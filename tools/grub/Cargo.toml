@@ -1,0 +1,13 @@
+[package]
+name = "senbit-grub"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+colored = "2"
+tar = "0.4"
+xz2 = "0.1"

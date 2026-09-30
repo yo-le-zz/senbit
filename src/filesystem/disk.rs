@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader};
 
 use anyhow::{Result, Context};
 
+use crate::installation::partition::{DiskKind, DiskOption};
 use crate::filesystem::fs::{unmount, mount};
 use crate::utils::files::file_exists;
 
@@ -104,6 +105,39 @@ pub fn detect_partitions() -> Vec<String> {
     }
 
     partitions
+}
+
+pub fn get_boot_device(target: &DiskOption) -> Result<String, String> {
+    match target.kind {
+        DiskKind::Disk => Ok(target.device.clone()),
+
+        DiskKind::Partition => {
+            let output = std::process::Command::new("lsblk")
+                .args(["-no", "PKNAME", &target.device])
+                .output()
+                .map_err(|e| format!("Failed to execute lsblk: {}", e))?;
+
+            if !output.status.success() {
+                return Err(format!(
+                    "lsblk failed with status: {}",
+                    output.status
+                ));
+            }
+
+            let parent = String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .to_string();
+
+            if parent.is_empty() {
+                return Err(format!(
+                    "Could not determine parent disk of {}",
+                    target.device
+                ));
+            }
+
+            Ok(format!("/dev/{}", parent))
+        }
+    }
 }
 
 /// Heuristic to distinguish disk names from partition names.

@@ -60,3 +60,26 @@ pub fn succeeds(cmd: &mut Command) -> bool {
 pub fn nproc() -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
 }
+
+/// Comme `run`, mais capture toute la sortie au lieu de la laisser s'afficher.
+/// En cas de succès elle est jetée (le spinner qui encadre l'appel suffit) ;
+/// en cas d'échec elle est affichée en entier pour permettre le débogage.
+/// Sert à désencombrer les étapes très verbeuses (make install de BusyBox,
+/// cargo build, grub-mkrescue...).
+pub fn run_quiet(cmd: &mut Command) -> Result<()> {
+    use std::io::Write;
+
+    let out = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .with_context(|| format!("failed to run `{}`", describe(cmd)))?;
+
+    if !out.status.success() {
+        let _ = std::io::stdout().write_all(&out.stdout);
+        let _ = std::io::stderr().write_all(&out.stderr);
+        bail!("`{}` exited with {}", describe(cmd), out.status);
+    }
+    Ok(())
+}

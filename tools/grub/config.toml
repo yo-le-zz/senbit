@@ -1,0 +1,10 @@
+[grub]
+version = "2.12"
+source = "https://ftp.gnu.org/gnu/grub/grub-2.12.tar.xz"
+
+[build]
+jobs = "auto"
+
+[targets]
+legacy = true
+efi = true

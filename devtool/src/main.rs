@@ -40,6 +40,15 @@ enum Commands {
     Build {
         #[arg(value_enum, default_value_t = Target::All)]
         target: Target,
+
+        /// Nombre de jobs make/cargo (défaut : nombre de CPU détecté).
+        #[arg(short = 'j', long)]
+        jobs: Option<usize>,
+
+        /// Vide le cache de rebuild intelligent avant de commencer :
+        /// tout est recompilé, même si rien n'a changé.
+        #[arg(long)]
+        force: bool,
     },
 
     /// Récupère ou met à jour les sources d'un composant à la version
@@ -60,6 +69,17 @@ enum Commands {
         /// Redirige la sortie série vers build/vm/qemu.log au lieu du terminal.
         #[arg(long)]
         debug: bool,
+        /// Ne reconstruit que l'userspace Rust, les outils, le rootfs et
+        /// l'ISO (comme `devtool build fast`) — pour itérer vite sans
+        /// retoucher au noyau/BusyBox/util-linux/Parted.
+        #[arg(long)]
+        fast: bool,
+        /// Vide le cache de rebuild intelligent avant de construire.
+        #[arg(long)]
+        force: bool,
+        /// Nombre de jobs make/cargo (défaut : nombre de CPU détecté).
+        #[arg(short = 'j', long)]
+        jobs: Option<usize>,
     },
 }
 
@@ -75,10 +95,12 @@ fn main() -> ExitCode {
     };
 
     let result = match cli.command {
-        Commands::Build { target } => build::run(&paths, target),
+        Commands::Build { target, jobs, force } => build::run(&paths, target, jobs, force),
         Commands::Get { component } => get::run(&paths, component),
         Commands::Install => install::run_install(&paths),
-        Commands::Run { new, debug } => run_vm::run(&paths, new, debug),
+        Commands::Run { new, debug, fast, force, jobs } => {
+            run_vm::run(&paths, new, debug, fast, force, jobs)
+        }
     };
 
     match result {
