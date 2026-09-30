@@ -1,0 +1,69 @@
+#!/bin/sh
+
+# Script udhcpc de Senbit (BusyBox).
+# Appelé par udhcpc avec l'action en $1 ; les infos DHCP arrivent
+# dans les variables d'environnement : interface, ip, subnet, router, dns.
+
+RESOLV_CONF="/etc/resolv.conf"
+
+# Convertit un masque (255.255.255.0) en longueur de préfixe (24).
+mask_to_prefix() {
+    prefix=0
+
+    for octet in $(echo "$1" | tr '.' ' '); do
+        case "$octet" in
+            255) prefix=$((prefix + 8)) ;;
+            254) prefix=$((prefix + 7)) ;;
+            252) prefix=$((prefix + 6)) ;;
+            248) prefix=$((prefix + 5)) ;;
+            240) prefix=$((prefix + 4)) ;;
+            224) prefix=$((prefix + 3)) ;;
+            192) prefix=$((prefix + 2)) ;;
+            128) prefix=$((prefix + 1)) ;;
+            0)   ;;
+        esac
+    done
+
+    echo "$prefix"
+}
+
+case "$1" in
+    deconfig)
+        ip addr flush dev "$interface"
+        ip link set "$interface" up
+        ;;
+
+    bound|renew)
+        if [ -n "$subnet" ]; then
+            prefix=$(mask_to_prefix "$subnet")
+        else
+            prefix=24
+        fi
+
+        ip addr flush dev "$interface"
+        ip addr add "$ip/$prefix" dev "$interface"
+        ip link set "$interface" up
+
+        if [ -n "$router" ]; then
+            ip route del default 2>/dev/null
+
+            for gw in $router; do
+                ip route add default via "$gw" dev "$interface"
+                break
+            done
+        fi
+
+        if [ -n "$dns" ]; then
+            : > "$RESOLV_CONF"
+
+            for dns_server in $dns; do
+                echo "nameserver $dns_server" >> "$RESOLV_CONF"
+            done
+        fi
+        ;;
+
+    *)
+        ;;
+esac
+
+exit 0

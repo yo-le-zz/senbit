@@ -83,7 +83,7 @@ impl Paths {
 
     // ---- rootfs / initramfs / iso ----
     pub fn rootfs_dir(&self) -> PathBuf { self.r("build/rootfs") }
-    pub fn senbit_rootfs_overlay(&self) -> PathBuf { self.r("rootfs") }
+    pub fn senbit_rootfs_overlay(&self) -> PathBuf {self.root.join("rootfs")}
     pub fn initramfs(&self) -> PathBuf { self.r("build/initramfs.cpio.gz") }
     pub fn iso_build_dir(&self) -> PathBuf { self.r("build/iso") }
     pub fn iso_image(&self) -> PathBuf { self.iso_build_dir().join("senbit.iso") }

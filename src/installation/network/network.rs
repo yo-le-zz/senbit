@@ -1,54 +1,17 @@
 use crate::logln;
 
-use std::process::Command;
-
 use std::path::Path;
 
 use anyhow::{Result, anyhow};
 
+use crate::utils::network::{
+    detect_network_interfaces,
+    filter_network_interfaces
+};
+
 use inquire::Select;
 
 use colored::Colorize;
-
-fn detect_network_interfaces() -> Result<Vec<String>> {
-    let output = Command::new("ip")
-        .args(["-o", "link"])
-        .output()
-        .map_err(|e| anyhow!("Failed to execute ip: {}", e))?;
-
-    if !output.status.success() {
-        return Err(anyhow!(
-            "ip command failed with status: {}",
-            output.status
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let interfaces = stdout
-        .lines()
-        .filter_map(|line| {
-            let name = line.split(':').nth(1)?.trim();
-
-            if name == "lo" {
-                return None;
-            }
-
-            Some(name.to_string())
-        })
-        .collect();
-
-    Ok(interfaces)
-}
-
-fn filter_network_interfaces(interfaces: &[String]) -> Vec<String> {
-    // Filter out virtual interfaces (e.g., veth, docker)
-    interfaces
-        .iter()
-        .filter(|name| !name.contains("veth"))
-        .cloned()
-        .collect()
-}
 
 fn ask_interface(interfaces: &[String]) -> Result<String> {
     if interfaces.is_empty() {

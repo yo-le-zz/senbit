@@ -271,6 +271,7 @@ pub fn install_system() -> Result<(), String> {
         mount_point
             .to_str()
             .unwrap(),
+        None,
     )
     .map_err(|e| {
         format!(
@@ -302,7 +303,7 @@ pub fn install_system() -> Result<(), String> {
         "Installing rootfs..."
     );
 
-    setup_rootfs(
+    setup_rootfs( // install the installation file
         Path::new("/"),
         mount_point,
         &root_uuid,
