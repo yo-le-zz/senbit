@@ -704,7 +704,7 @@ pub fn format_partition(
 Compatibility helper
 ============================================================ */
 
-pub fn create_single_partition(
+pub fn _create_single_partition(
     disk: &str,
 ) -> Result<(), String> {
     create_legacy_partitions(disk)

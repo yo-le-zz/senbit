@@ -3,6 +3,8 @@
 use inquire::Select;
 use crate::{elogln, logln};
 
+use std::path::Path;
+
 use std::process::Stdio;
 use std::process::Command;
 use colored::Colorize;
@@ -39,7 +41,7 @@ pub fn keyboard_select() -> String {
         .unwrap_or_else(|_| "us".to_string())
 }
 
-fn set_keyboard_layout(lang: &str) -> Result<()> {
+pub fn set_keyboard_layout(lang: &str) -> Result<()> {
     let keymap = if lang == "en" { "us" } else { lang };
     let path = format!("/usr/share/keymaps/{}.bmap", keymap);
 
@@ -85,6 +87,38 @@ fn set_keyboard_layout(lang: &str) -> Result<()> {
     Ok(())
 }
 
+fn write_config(lang: &str) -> anyhow::Result<()> {
+    let config = format!(
+        "XKBMODEL=\"pc105\"\n\
+         XKBLAYOUT=\"{}\"\n\
+         XKBVARIANT=\"\"\n\
+         XKBOPTIONS=\"\"\n",
+        lang
+    );
+
+    let path = Path::new("/etc/default/keyboard");
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| {
+                format!(
+                    "Failed to create keyboard config directory: {}",
+                    parent.display()
+                )
+            })?;
+    }
+
+    std::fs::write(&path, config)
+        .with_context(|| {
+            format!(
+                "Failed to write keyboard layout config: {}",
+                path.display()
+            )
+        })?;
+
+    Ok(())
+}
+
 pub fn setup_lang() -> anyhow::Result<()> {
     let lang = keyboard_select();
 
@@ -117,6 +151,8 @@ pub fn setup_lang() -> anyhow::Result<()> {
             );
         }
     }
-
+    
+    write_config(&lang)?;
+    
     Ok(())
 }

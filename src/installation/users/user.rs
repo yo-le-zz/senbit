@@ -6,7 +6,7 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use crate::installation::crypto::hash::hash_password;
+use crate::utils::crypto::hash::hash_password;
 use crate::installation::users::questions::ask_user;
 use crate::logln;
 
@@ -217,14 +217,14 @@ fn find_next_gid(root: &Path) -> Result<u32> {
 
 pub fn setup_users(mount_point: &Path) -> Result<(), String> {
     logln!("Creating root account...");
-
+    
     let root_user = User::new(
         "root".to_string(),
         0,
         0,
         "/root".to_string(),
         "/bin/sh".to_string(),
-        "*",
+        "root",
     )
     .map_err(|e| format!("Failed to create root user: {}", e))?;
 

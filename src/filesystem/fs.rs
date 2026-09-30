@@ -4,11 +4,17 @@ use std::process::Command;
 
 use anyhow::{Context, Result as AnyhowResult};
 
-pub fn mount(device: &str, target: &str) -> AnyhowResult<()> {
+pub fn mount(device: &str, target: &str, fs_type: Option<&str>) -> AnyhowResult<()> {
     std::fs::create_dir_all(target)
         .context("failed to create mount point")?;
 
-    let status = Command::new("mount")
+    let mut command = Command::new("mount");
+
+    if let Some(fs_type) = fs_type {
+        command.args(["-t", fs_type]);
+    }
+
+    let status = command
         .args([device, target])
         .status()
         .context("failed to run mount")?;

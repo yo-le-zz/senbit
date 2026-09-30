@@ -36,7 +36,7 @@ pub fn detect_installation() -> Option<String> {
 fn mount_partition(device: &str, target: &str) -> Result<()> {
     // On s'assure que target est un chemin absolu propre (pas de "//mnt")
     let target = target.trim_end_matches('/');
-    mount(device, target)
+    mount(device, target, None)
         .context("failed to mount partition")?;
     Ok(())
 }
@@ -107,7 +107,7 @@ pub fn detect_partitions() -> Vec<String> {
     partitions
 }
 
-pub fn get_boot_device(target: &DiskOption) -> Result<String, String> {
+pub fn _get_boot_device(target: &DiskOption) -> Result<String, String> {
     match target.kind {
         DiskKind::Disk => Ok(target.device.clone()),
 

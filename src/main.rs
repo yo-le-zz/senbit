@@ -8,12 +8,14 @@ mod utils;
 mod kernel;
 mod filesystem;
 mod installation;
+mod system;
 
 // imports
-// use kernel::alim;
+use kernel::alim;
 use utils::clear;
 use filesystem::{fs, disk};
 use installation::install;
+use system::entry;
 
 // wrapper pour clear
 fn clear() {
@@ -22,8 +24,12 @@ fn clear() {
     }
 }
 
-fn yes_installation() {
-    
+fn yes_installation(sys_disk: &str) {
+    logln!("{}", "Starting system initialization...".cyan());
+
+    if let Err(e) = entry::start_system(sys_disk) {
+        kpanic!("Failed to start system: {}", e);
+    }
 }
 
 fn no_installation() {
@@ -64,17 +70,13 @@ fn main() {
     match installed {
         Some(p) => {
             logln!("{}", format!("Senbit installed on {}", p).green());
-            yes_installation();
+            yes_installation(&p);
         }
         None => {
             logln!("{}", "No Senbit installation found.".red());
             no_installation();
         }
     }
-
-    loop {
-        
-    }
     
-    // alim::do_power_off();
+    alim::do_reboot();
 }
