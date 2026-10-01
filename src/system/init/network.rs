@@ -334,13 +334,12 @@ pub fn configure_network(
     Ok(())
 }
 
-pub fn init_network(
-    root: &str,
-) -> Result<()> {
+pub fn init_network(root: &str) -> Result<()> {
     prepare_dhcp(root)?;
 
     let interfaces =
         detect_network_interfaces()?;
+
 
     let filtered =
         filter_network_interfaces(
@@ -358,11 +357,6 @@ pub fn init_network(
         &filtered,
     )?;
 
-    /*
-     * DHCP normally creates resolv.conf through
-     * default.script. Fall back to the QEMU resolver
-     * if it did not.
-     */
     let resolv =
         Path::new(root)
             .join("etc/resolv.conf");

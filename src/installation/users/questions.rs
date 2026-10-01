@@ -6,6 +6,8 @@ use inquire::{Password, Text};
 
 use super::user::User;
 
+use crate::logln;
+
 use std::fs;
 use std::path::Path;
 
@@ -69,7 +71,8 @@ fn ask_username(root: &Path) -> Result<String> {
     }
 }
 
-fn ask_password() -> Result<String> {
+pub fn ask_password(question: &str) -> Result<String> {
+    logln!("{}", question.cyan());
     loop {
         let password = Password::new(&format!(
             "{} ",
@@ -103,7 +106,7 @@ pub fn ask_user(root: &Path) -> Result<User> {
 
     let name = ask_username(root)?;
 
-    let password = ask_password()?;
+    let password = ask_password("")?;
 
     let home = Text::new(&format!("{} ", "Home directory:".bold().green()))
         .with_default(&format!("/home/{}", name))

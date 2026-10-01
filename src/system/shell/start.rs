@@ -10,17 +10,54 @@ use anyhow::{Context, Result};
 
 use crate::system::shell::prompt::{build_prompt, prepare_console, term_for, ColorMode};
 
-fn get_user_config(username: &str) -> Result<(String, String)> {
+fn get_user_config(
+    username: &str,
+) -> Result<(u32, u32, String, String)> {
     let passwd_path = Path::new("/etc/passwd");
 
-    let passwd = fs::read_to_string(passwd_path)
-        .with_context(|| format!("Failed to read {}", passwd_path.display()))?;
+    let passwd =
+        fs::read_to_string(passwd_path)
+            .with_context(|| {
+                format!(
+                    "Failed to read {}",
+                    passwd_path.display()
+                )
+            })?;
 
     for line in passwd.lines() {
-        let fields: Vec<&str> = line.split(':').collect();
+        let fields: Vec<&str> =
+            line.split(':')
+                .collect();
 
-        if fields.len() >= 7 && fields[0] == username {
-            return Ok((fields[5].to_string(), fields[6].to_string()));
+        if fields.len() >= 7
+            && fields[0] == username
+        {
+            let uid =
+                fields[2]
+                    .parse::<u32>()
+                    .with_context(|| {
+                        format!(
+                            "Invalid UID for user '{}'",
+                            username
+                        )
+                    })?;
+
+            let gid =
+                fields[3]
+                    .parse::<u32>()
+                    .with_context(|| {
+                        format!(
+                            "Invalid GID for user '{}'",
+                            username
+                        )
+                    })?;
+
+            return Ok((
+                uid,
+                gid,
+                fields[5].to_string(),
+                fields[6].to_string(),
+            ));
         }
     }
 
@@ -30,22 +67,34 @@ fn get_user_config(username: &str) -> Result<(String, String)> {
     ))
 }
 
-pub fn set_env(username: &str, mode: ColorMode) -> Result<()> {
-    let (home, shell) = get_user_config(username)?;
+pub fn set_env(
+    username: &str,
+    mode: ColorMode,
+) -> Result<()> {
+    let (
+        _uid,
+        _gid,
+        home,
+        shell,
+    ) =
+        get_user_config(username)?;
 
-    // USER must be set before build_prompt() reads it
     unsafe {
         set_var("USER", username);
         set_var("LOGNAME", username);
         set_var("HOME", &home);
         set_var("SHELL", &shell);
-        set_var("PATH", "/usr/local/bin:/usr/bin:/bin");
+        set_var(
+            "PATH",
+            "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
+        );
         set_var("PWD", &home);
         set_var("OLDPWD", &home);
         set_var("TERM", term_for(mode));
     }
 
-    let ps1 = build_prompt(mode);
+    let ps1 =
+        build_prompt(mode);
 
     unsafe {
         set_var("PS1", ps1);
