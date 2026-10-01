@@ -5,6 +5,20 @@ use std::process::Command;
 
 use crate::config::Config;
 
+/*
+ * The Senbit rootfs has no libc and no shared libraries, so every
+ * GRUB host tool (grub-install, grub-mkimage, grub-probe, ...) must
+ * be fully static. Optional features that pull extra shared
+ * libraries are disabled.
+ */
+const STATIC_HOST_ARGS: &[&str] = &[
+    "--disable-nls",
+    "--disable-grub-mkfont",
+    "--disable-grub-themes",
+    "--disable-device-mapper",
+    "--disable-liblzma",
+];
+
 pub fn build(
     config: &Config,
     source: &Path,
@@ -150,6 +164,8 @@ fn configure_legacy(
         .arg("--with-platform=pc")
         .arg("--prefix=/usr")
         .arg("--disable-werror")
+        .args(STATIC_HOST_ARGS)
+        .env("LDFLAGS", "-static")
         .current_dir(build_dir)
         .status()
         .context("Failed to execute GRUB Legacy configure")?;
@@ -242,6 +258,8 @@ fn configure_efi(
         .arg("--with-platform=efi")
         .arg("--prefix=/usr")
         .arg("--disable-werror")
+        .args(STATIC_HOST_ARGS)
+        .env("LDFLAGS", "-static")
         .current_dir(build_dir)
         .status()
         .context("Failed to execute GRUB UEFI configure")?;
@@ -448,6 +466,12 @@ fn install_grub(
         );
     }
 
+    for tool in ["grub-install", "grub-mkimage", "grub-probe"] {
+        let bin = staging.join("usr/sbin").join(tool);
+        let bin = if bin.is_file() { bin } else { staging.join("usr/bin").join(tool) };
+        ensure_static(&bin)?;
+    }
+
     println!(
         "{} {}",
         "GRUB BIOS + UEFI installed into".green(),
@@ -549,6 +573,26 @@ fn copy_recursive(
                 )
             })?;
         }
+    }
+
+    Ok(())
+}
+/// Fails if the ELF binary is dynamically linked (has a PT_INTERP header).
+fn ensure_static(bin: &Path) -> Result<()> {
+    let out = Command::new("file")
+        .arg("-L")
+        .arg(bin)
+        .output()
+        .context("Failed to execute `file`")?;
+
+    let text = String::from_utf8_lossy(&out.stdout);
+
+    if text.contains("dynamically linked") {
+        anyhow::bail!(
+            "{} is dynamically linked but the rootfs has no libc:\n  {}",
+            bin.display(),
+            text.trim()
+        );
     }
 
     Ok(())

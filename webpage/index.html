@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Senbit — Server infrastructure, built around Linux</title>
+<meta name="description" content="Senbit is a lightweight, secure, server-first operating system built around the Linux kernel, with a Rust-first userspace.">
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAA1CAMAAAAwEZgGAAAAP1BMVEU6ovMAAAA6pvk7pfg7pfhOrP4A//8Nf/xd1PoAAP9BtP9/f/8/f78Af39VqqpAqPsAAAAAAAAAAAAAAAAAAAA8YYpEAAAAEHRSTlP5ACJboAgBAgcB/wIEAgNH/ERzYgAAAe5JREFUeNqNllmCwyAIQBFFa9uZuf9tRzRRQNImH10MT1YRCM6TC39S9d6BI04hYERG8g2gdHFoT2y/qHwBXiye4HgY+Qjwfkucn4S1aC0LqGyxFgd4Ah1mWqDyWjTirGH4n0kD/J9c8cL+p7gQmHFUok0iRlyrjNSeGOjGkBLnt8h5wOaDXAw0NBhxHM7wt45BfIcaINs4ajsMEjI0vUpcqduQR5CA9HItFrlIDZgGGC9n6qQvSsPp7ZaLlqFzW22SE5i+SfsucZmEcOnlClm4AkaSBxKP3b8BA4lS/BtwnBzpjQOoBDxT0c47AOqKCqRDsQOmxAXQ69TxISpkAj3Q0XdaItO14fxVlDiWAzk14HD+ojSElnoASUepAbWYgutaMOt9pIa6daPU++olgByHuCHxGji6SlKZNgBap+1JuAJkaahGbAHyAInc0RAwP15n0RjAKw32ojQEd0AcW1UanDE6E7aAlntKsi+hSbIG2u4kooe2liIak0wVIDdjHY+kAVNnlPd274Z1Wsz3A+13oQf0mIgryyAW6Ld8Vpei31dkxNW1axEJJBRjB+ghYyLhT4q/szs6SGSGFc1QA/soI9pEom0GAm/66Y3oue/uD1hjYGpHlnf/uTORhdeDm327PfO9EY6L5Zcj7b76B+muCx7q0F+jAAAAAElFTkSuQmCC">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070b14;--panel:#0d1322;--panel2:#121a2e;--line:#1c2742;--tx:#e6ebf5;--mu:#8d99b3;--blue:#3aa0f0;--rust:#f97316;--ok:#34d399;--r:6px;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root:not([data-theme=dark]){color-scheme:dark}
+*,*:before,*:after{box-sizing:inherit}html{scroll-behavior:smooth;scroll-padding-top:calc(76px + env(safe-area-inset-top,0px))}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.65 Geist,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:48px 48px;background-position:-1px -1px}
+body:before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 30% 0,transparent 0,var(--bg) 75%);pointer-events:none;z-index:-1}
+a{color:inherit}code,.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:3px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+header{position:sticky;top:0;z-index:20;background:rgba(7,11,20,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.bar{display:flex;align-items:center;gap:20px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:19px;letter-spacing:-.02em;text-decoration:none}.brand img{height:34px;width:auto}
+nav{display:flex;gap:2px;margin-left:auto}nav a{color:var(--mu);text-decoration:none;font-size:14px;padding:6px 11px;border-radius:var(--r)}nav a:hover{color:var(--tx);background:var(--panel2)}
+.btn{display:inline-flex;align-items:center;gap:8px;font:500 15px Geist,sans-serif;padding:11px 18px;border-radius:var(--r);text-decoration:none;border:1px solid var(--line);background:var(--panel);color:var(--tx);cursor:pointer}
+.btn:hover{border-color:#34436b}.btn.p{background:var(--blue);border-color:var(--blue);color:#04101d}.btn.p:hover{background:#5bb4f6}.btn:active{transform:translateY(1px)}
+.sm{padding:7px 13px;font-size:14px}
+.menu{display:none;margin-left:auto}
+section{padding:88px 0}h2{font-size:clamp(28px,4vw,40px);line-height:1.15;letter-spacing:-.035em;margin:0 0 14px;font-weight:600;max-width:20ch}
+.lead{color:var(--mu);max-width:62ch;margin:0 0 40px}
+.hero{padding:64px 0 80px}.hg{display:grid;grid-template-columns:1.02fr 1fr;gap:48px;align-items:center}
+h1{font-size:clamp(38px,5.6vw,66px);line-height:1.02;letter-spacing:-.045em;margin:0 0 20px;font-weight:600}
+h1 span{color:var(--blue)}
+.sub{font-size:18px;color:var(--mu);max-width:50ch;margin:0 0 28px}.cta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:34px}
+.pill{display:inline-flex;align-items:center;gap:8px;font:500 13px "JetBrains Mono",monospace;color:var(--rust);border:1px solid #5a2c0f;background:#1a0f08;padding:5px 11px;border-radius:99px;margin-bottom:22px}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--rust)}
+.pr{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pr div{background:var(--panel);padding:14px 16px}.pr b{display:block;font-weight:600}.pr span{color:var(--mu);font-size:14px}
+.term{background:#050810;border:1px solid var(--line);border-radius:8px;box-shadow:0 24px 60px -20px #000;overflow:hidden}
+.tb{display:flex;align-items:center;gap:7px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel);font:12px "JetBrains Mono",monospace;color:var(--mu)}
+.tb i{width:10px;height:10px;border-radius:50%;background:#26324f}.tb span{margin-left:auto}
+.tt{margin:0;padding:16px;font:12.5px/1.6 "JetBrains Mono",monospace;height:372px;overflow:hidden;white-space:pre-wrap;color:#c2cbe0}
+.tt .c{color:#4cd7f6}.tt .g{color:var(--ok)}.tt .r{color:#ff7b72}.tt .m{color:#66739a}
+.cur:after{content:"▍";color:var(--blue);animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:0}}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:26px}
+.card h3{margin:0 0 4px;font-size:18px;letter-spacing:-.02em;font-weight:600}.card p.n{color:var(--mu);margin:0 0 18px;font-size:14px}
+ul.ck{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.ck li{display:flex;gap:11px;font-size:15px;align-items:baseline}
+ul.ck li:before{content:"";flex:none;width:9px;height:9px;border-radius:2px;background:var(--ok);transform:translateY(-1px)}
+ul.ck.todo li:before{background:transparent;border:1.5px solid var(--rust)}
+.stack{display:grid;gap:10px;max-width:760px}
+.lay{display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
+.lay b{padding:18px 20px;font-weight:600;border-right:1px solid var(--line);background:var(--panel2)}.lay span{padding:18px 20px;color:var(--mu);font-size:15px}
+.lay.k b{background:#0d2036;color:var(--blue)}.lay.s b{background:#1c1109;color:var(--rust)}
+.split{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:start}
+ol.fl{list-style:none;margin:0;padding:0;counter-reset:s;position:relative}
+ol.fl li{counter-increment:s;position:relative;padding:0 0 18px 48px;font-size:15px}
+ol.fl li:before{content:counter(s);position:absolute;left:0;top:-2px;width:30px;height:30px;border-radius:50%;border:1px solid #34436b;background:var(--panel);display:grid;place-items:center;font:12px "JetBrains Mono",monospace;color:var(--blue)}
+ol.fl li:after{content:"";position:absolute;left:14.5px;top:30px;bottom:2px;width:1px;background:var(--line)}ol.fl li:last-child:after{display:none}
+ol.fl small{display:block;color:var(--mu);font-size:13px}
+.iso{display:grid;gap:12px}.iso .card{padding:20px}.iso h3{font-size:16px}.iso p{margin:0;color:var(--mu);font-size:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.tab{font:500 14px Geist,sans-serif;background:transparent;color:var(--mu);border:1px solid var(--line);border-radius:var(--r);padding:8px 14px;cursor:pointer}
+.tab:hover{color:var(--tx)}.tab[aria-selected=true]{background:var(--panel2);color:var(--tx);border-color:var(--blue)}
+.pg{height:6px;background:var(--line);border-radius:9px;overflow:hidden;margin:14px 0 22px}.pg i{display:block;height:100%;background:var(--blue);transition:width .3s}
+.rm{columns:2;column-gap:32px}.rm li{break-inside:avoid}
+.cmd{display:flex;align-items:center;gap:12px;background:#050810;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.cmd code{flex:1;font-size:13.5px;color:#c2cbe0;overflow-x:auto;white-space:nowrap}.cmd code:before{content:"$ ";color:var(--blue)}
+.cmd button{font:12px "JetBrains Mono",monospace;background:var(--panel2);color:var(--mu);border:1px solid var(--line);border-radius:4px;padding:4px 9px;cursor:pointer}.cmd button:hover{color:var(--tx)}
+.pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:28px 0 0}
+.pipe span{font:13px "JetBrains Mono",monospace;border:1px solid var(--line);background:var(--panel);padding:6px 11px;border-radius:var(--r)}.pipe em{color:#34436b;font-style:normal}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.three .card{padding:22px}.three p{margin:0;color:var(--mu);font-size:15px}
+.vars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:-24px}
+.vars div{background:var(--panel);padding:13px 16px;min-width:0}.vars span{display:block;font-size:13px;color:var(--mu)}.vars b{display:block;font:500 14px "JetBrains Mono",monospace;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vars b a{text-decoration:none}.vars b a:hover{color:var(--blue)}
+[data-var].none{color:var(--mu)}
+.btn[aria-disabled=true]{opacity:.6;cursor:not-allowed;pointer-events:none}
+footer{border-top:1px solid var(--line);padding:44px 0 56px;background:var(--bg);color:var(--mu);font-size:14px}
+.fg{display:flex;flex-wrap:wrap;gap:28px;justify-content:space-between;align-items:flex-start}.fg a{text-decoration:none;margin-right:18px}.fg a:hover{color:var(--tx)}
+@media(max-width:900px){nav{display:none}.menu{display:inline-flex}nav.open{display:flex;position:absolute;top:64px;left:0;right:0;flex-direction:column;background:var(--bg);padding:12px 24px;border-bottom:1px solid var(--line)}.bar .btn.sm{display:none}.hg,.split,.cols,.three{grid-template-columns:1fr}.rm{columns:1}.lay{grid-template-columns:1fr}.lay b{border-right:0;border-bottom:1px solid var(--line)}section{padding:64px 0}.tt{height:320px;font-size:11.5px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+</style></head><body>
+<header><div class="wrap bar"><a class="brand" href="#top"><img src="data:image/png;base64,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" alt="">Senbit</a>
+<nav id="nav"><a href="#status">Status</a><a href="#architecture">Architecture</a><a href="#boot">Boot</a><a href="#install">Installer</a><a href="#roadmap">Roadmap</a><a href="#develop">Develop</a></nav>
+<a class="btn sm" href="https://github.com/yo-le-zz/senbit">GitHub</a><button class="btn sm menu" id="mb" aria-expanded="false" aria-controls="nav">Menu</button></div></header>
+<main id="top">
+<div class="wrap hero"><div class="hg"><div>
+<div class="pill"><i></i>Early development · latest release: <span data-var="release">no release</span></div>
+<h1>Server infrastructure, built <span>around Linux.</span></h1>
+<p class="sub">Senbit is a lightweight, secure, server-first operating system. It keeps the Linux kernel and its software ecosystem, and adds a small Rust userspace on top.</p>
+<div class="cta"><a class="btn p" id="dl" href="https://github.com/yo-le-zz/senbit/releases" aria-disabled="true"><span data-var="dlLabel">No release yet</span></a><a class="btn" href="#develop">Build and run it</a><a class="btn" href="https://github.com/yo-le-zz/senbit" data-repo-link>★ <span data-var="stars">—</span></a></div>
+<div class="pr"><div><b>Performance</b><span>Less software, less overhead</span></div><div><b>Lightweight</b><span>No graphical stack in the base</span></div><div><b>Stability</b><span>Mature Linux kernel underneath</span></div><div><b>Deployment</b><span>Built for repeatable installs</span></div></div>
+</div>
+<div class="term" aria-label="Senbit boot log in QEMU"><div class="tb"><i></i><i></i><i></i><span>qemu · senbit 0.1.0</span></div><pre class="tt cur" id="tt"></pre></div>
+</div></div>
+
+<div class="wrap"><div class="vars" id="vars" aria-label="Live project data from GitHub">
+<div><span>Latest release</span><b data-var="release" class="none">no release</b></div>
+<div><span>Released</span><b data-var="released" class="none">—</b></div>
+<div><span>ISO</span><b data-var="iso" class="none">none yet</b></div>
+<div><span>Stars</span><b data-var="stars">—</b></div>
+<div><span>Forks</span><b data-var="forks">—</b></div>
+<div><span>Open issues</span><b data-var="issues">—</b></div>
+<div><span>Last commit</span><b data-var="pushed">—</b></div>
+<div><span>License</span><b data-var="license">—</b></div></div></div>
+<section id="status"><div class="wrap"><h2>What works today</h2>
+<p class="lead">Senbit boots, installs itself to disk, brings up the network and logs you into a shell. Everything below is tested in QEMU with both BIOS and UEFI firmware. Physical hardware comes later.</p>
+<div class="cols"><div class="card"><h3>Working</h3><p class="n">Implemented and tested</p><ul class="ck" id="done"></ul></div>
+<div class="card"><h3>In progress</h3><p class="n">Not usable yet</p><ul class="ck todo" id="todo"></ul></div></div></div></section>
+
+<section id="architecture"><div class="wrap"><h2>Built around the kernel, not instead of it</h2>
+<p class="lead">Senbit does not rewrite what Linux already does well. It maintains its own kernel configuration, patches only with a concrete reason, and puts its own work in the layers above.</p>
+<div class="stack">
+<div class="lay"><b>Server applications</b><span>Docker, Podman, nginx, databases and other Linux software. Nothing is installed by default.</span></div>
+<div class="lay s"><b>Senbit userspace</b><span>Rust services and tools: init, login, installer, and the devtool build tool.</span></div>
+<div class="lay"><b>System infrastructure</b><span>Installation, networking, updates, configuration, services and recovery.</span></div>
+<div class="lay k"><b>Linux kernel</b><span>Processes, memory, networking, drivers, filesystems, security and virtualization.</span></div></div>
+<div class="three" style="margin-top:40px"><div class="card"><h3>Rust-first userspace</h3><p>Init, login and the installer are written in Rust and split into small modules: hostname, keymaps, network, services, updates.</p></div><div class="card"><h3>BusyBox base</h3><p>A minimal shell, networking with <code>udhcpc</code>, and <code>loadkmap</code> for console keymaps.</p></div><div class="card"><h3>Linux compatibility</h3><p>Debian packages and APT are planned, so existing software does not need to be rewritten.</p></div></div></div></section>
+
+<section id="boot"><div class="wrap split"><div><h2>From power-on to login</h2>
+<p class="lead">Senbit init runs as PID 1. If no installation is found it starts the installer; otherwise it brings the installed system up in this order.</p>
+<ol class="fl"><li>Mount the root filesystem<small>then <code>/proc</code>, <code>/sys</code>, <code>/dev</code> and <code>/run</code></small></li><li>Verify <code>/etc/fstab</code></li><li>Initialize the hostname</li><li>Check for updates</li><li>Initialize the network<small>detect interfaces, <code>ifup</code>, DHCP lease, ping test</small></li><li>Switch root to the installed system</li><li>Start services</li><li>Restore the keyboard layout<small>from <code>/etc/default/keyboard</code></small></li><li>Set environment variables<small>hostname, language, timezone</small></li><li>Log in and start the user's shell</li></ol></div>
+<div class="iso"><div class="card"><h3>One ISO, two firmwares</h3><p>The Senbit ISO boots on both. GRUB <code>i386-pc</code> handles BIOS and GRUB <code>x86_64-efi</code> handles UEFI, and both lead to the same Senbit Linux.</p></div>
+<div class="card"><h3>BIOS installs</h3><p>MBR partition table, ext4 root, GRUB installed with the <code>i386-pc</code> target.</p></div>
+<div class="card"><h3>UEFI installs</h3><p>GPT table with a FAT32 EFI System Partition, ext4 root, GRUB with the <code>x86_64-efi</code> target.</p></div></div></div></section>
+
+<section id="install"><div class="wrap"><h2>An installer that does the whole job</h2>
+<p class="lead">The interactive installer detects the boot mode and your disks, partitions automatically or through <code>fdisk</code>, and can also install onto an existing partition.</p>
+<div class="three"><div class="card"><h3>Disks</h3><p>Automatic partitioning, manual partitioning, FAT32 for EFI, ext4 for root, root filesystem and bootloader installation.</p></div>
+<div class="card"><h3>Accounts</h3><p>A root account and a main user, stored in <code>/etc/passwd</code>, <code>/etc/shadow</code> and <code>/etc/group</code> with hashed passwords.</p></div>
+<div class="card"><h3>Locale</h3><p>Hostname, locale, timezone and keyboard layout are chosen at install time and written to the target system so they persist across reboots.</p></div></div></div></section>
+
+<section id="roadmap"><div class="wrap"><h2>Roadmap</h2>
+<p class="lead">Organized by capability, not by date. Select a phase to see its checklist.</p>
+<div class="tabs" role="tablist" id="tabs"></div>
+<div class="card"><h3 id="rt"></h3><div class="pg"><i id="pb"></i></div><ul class="ck rm" id="rl"></ul></div></div></section>
+
+<section id="develop"><div class="wrap split"><div><h2>Build it and run it</h2>
+<p class="lead">The <code>devtool</code> script manages the kernel, userspace, root filesystem, initramfs, GRUB and ISO, and rebuilds only what changed.</p>
+<div class="cmd"><code>./install.sh</code><button data-c="./install.sh">copy</button></div>
+<div class="cmd"><code>./scripts/devtool run --force</code><button data-c="./scripts/devtool run --force">copy</button></div>
+<div class="cmd"><code>git clone https://github.com/yo-le-zz/senbit</code><button data-c="git clone https://github.com/yo-le-zz/senbit">copy</button></div>
+<div class="pipe"><span>Linux kernel</span><em>/</em><span>BusyBox</span><em>/</em><span>Rust userspace</span><em>/</em><span>GRUB</span><em>/</em><span>rootfs</span><em>/</em><span>initramfs</span><em>/</em><span>ISO</span></div></div>
+<div class="card"><h3>Test environment</h3><p class="n">What Senbit is developed and tested on</p><ul class="ck"><li>x86_64 on Linux hosts</li><li>QEMU with BIOS firmware</li><li>QEMU with UEFI (OVMF) firmware</li></ul><p class="n" style="margin:18px 0 0">ARM64 and other server architectures are planned once they add practical value.</p></div></div></section>
+
+<section><div class="wrap"><h2>Where it is going</h2>
+<p class="lead">The long-term goal is a server platform where a machine's whole lifecycle is predictable: deploy, configure, run, monitor, update, verify, recover.</p>
+<div class="three"><div class="card"><h3>Updates</h3><p>Online and offline updates, replacing only the components that changed. A kernel update should not touch unrelated parts.</p></div><div class="card"><h3>Snapshots and recovery</h3><p>Automatic snapshots before updates, rollback on failure, and boot recovery.</p></div><div class="card"><h3>Security and monitoring</h3><p>Firewall management, auditing, file integrity checks and visibility into system state.</p></div></div></div></section>
+
+<section><div class="wrap"><h2>Senbit is built in the open</h2>
+<p class="lead">Code, kernel work, Rust, testing, documentation, bug reports, security research and architecture discussion are all welcome.</p>
+<div class="cta"><a class="btn p" href="https://github.com/yo-le-zz/senbit">Contribute on GitHub</a><a class="btn" href="https://github.com/yo-le-zz/senbit/discussions">Join the discussions</a></div></div></section>
+</main>
+<footer><div class="wrap fg"><div><b style="color:var(--tx)">Senbit</b><br>Server infrastructure, built around Linux.<br>Latest release: <span data-var="release">no release</span> · <span data-var="stars">—</span> stars on GitHub.<br>Original code under Apache License 2.0. The Linux kernel and third-party components keep their own licenses.</div>
+<div><a href="https://github.com/yo-le-zz/senbit">Repository</a><a href="https://github.com/yo-le-zz/senbit/discussions">Discussions</a><a href="#roadmap">Roadmap</a></div></div></footer>
+<script>
+const $=s=>document.querySelector(s);
+const done=["Linux kernel and Rust userspace","Senbit init as PID 1","Interactive installer","BIOS and UEFI boot","Automatic MBR and GPT partitioning","DHCP networking","User creation and password login","Persistent keyboard layout","Hostname, locale and timezone","Interactive shell"];
+const todo=["TTY and session management","Job control in the shell","Service manager","Static networking","SSH","System updates","Recovery mode"];
+$("#done").innerHTML=done.map(t=>`<li>${t}</li>`).join("");$("#todo").innerHTML=todo.map(t=>`<li>${t}</li>`).join("");
+const P=[["Foundation",[["Build system and dev environment",1],["Kernel integration and configuration",1],["Minimal root filesystem",1],["Senbit init and QEMU boot",1],["BIOS and UEFI boot",1],["Installation system",1],["User authentication",1],["Basic networking",1],["Interactive shell",1],["Complete TTY and session management",0],["Clean shutdown",0]]],
+["Basic server",[["DHCP networking",1],["Storage initialization",1],["Users and groups",1],["Basic system initialization",1],["Static networking",0],["SSH",0],["Service management",0]]],
+["Packages",[["Debian package compatibility",0],["APT integration",0],["Package install, removal, updates",0],["Automatic update configuration",0]]],
+["Updates",[["System update infrastructure",0],["Kernel and component-level updates",0],["Offline and USB updates",0],["Update verification",0],["Recovery mechanisms",0]]],
+["Snapshots",[["Automatic snapshots and retention",0],["Configurable snapshot storage",0],["Rollback",0],["Failed-update and boot recovery",0]]],
+["Security",[["Firewall integration",0],["Security auditing",0],["System monitoring",0],["File integrity tracking",0],["Application-level file association",0],["Security event management",0]]],
+["Deployment",[["Configuration-based installation",0],["Automated system configuration",0],["Automated package installation",0],["Reproducible deployment",0],["Server fleet deployment",0],["Remote administration",0]]],
+["Architectures",[["x86_64",1],["ARM64",0],["Additional server architectures",0],["Architecture-specific optimizations",0]]]];
+const tabs=$("#tabs");
+function show(i){[...tabs.children].forEach((b,j)=>b.setAttribute("aria-selected",j==i));const[n,it]=P[i],d=it.filter(x=>x[1]).length;
+$("#rt").textContent=`Phase ${i} — ${n}`;$("#pb").style.width=(d/it.length*100)+"%";
+$("#rl").innerHTML=it.map(x=>`<li${x[1]?"":' style="opacity:.8"'}>${x[1]?"":""}${x[0]}</li>`).join("");
+[...$("#rl").children].forEach((li,k)=>{if(!it[k][1])li.classList.add("t")});}
+P.forEach((p,i)=>{const b=document.createElement("button");b.className="tab";b.role="tab";b.textContent=`${i}. ${p[0]}`;b.onclick=()=>show(i);tabs.appendChild(b)});show(0);
+document.head.insertAdjacentHTML("beforeend","<style>#rl li.t:before{background:transparent;border:1.5px solid var(--rust)}</style>");
+document.querySelectorAll(".cmd button").forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.c);b.textContent="copied";setTimeout(()=>b.textContent="copy",1400)}catch(e){b.textContent="select it"}});
+const mb=$("#mb");mb.onclick=()=>{const o=$("#nav").classList.toggle("open");mb.setAttribute("aria-expanded",o)};
+document.querySelectorAll("#nav a").forEach(a=>a.onclick=()=>{$("#nav").classList.remove("open");mb.setAttribute("aria-expanded",false)});
+const L=[["c","Senbit init starting..."],["c","Mounting filesystems..."],["g","Filesystems mounted successfully."],["c","Detecting disks..."],["g","Senbit installed on sda2"],["c","Starting system initialization..."],["c","Mounting system..."],["c","Checking fstab..."],["c","Initializing hostname..."],["c","Initializing network..."],["","Configuring eth0 using dhcp..."],["m","udhcpc: lease of 10.0.2.15 obtained from 10.0.2.2"],["","Network connection is working."],["","Switching root to /newroot..."],["c","Starting services..."],["c","Initializing keymaps..."],["","Keyboard layout 'fr' initialized."],["c","Initializing variables..."],["",""],["g","Welcome to Senbit 0.1.0"],["","Select user: root"],["","Password: ········"]];
+const tt=$("#tt"),esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const html=n=>L.slice(0,n).map(([c,t])=>c?`<span class="${c}">${esc(t)}</span>`:esc(t)).join("\n");
+if(matchMedia("(prefers-reduced-motion:reduce)").matches){tt.innerHTML=html(L.length)}else{let n=0;const t=setInterval(()=>{n++;tt.innerHTML=html(n);if(n>=L.length)clearInterval(t)},230)}
+
+/* ---- Live data from GitHub. Everything is bound to the repository's releases. ---- */
+const REPO="yo-le-zz/senbit",TTL=10*60*1e3,KEY="senbit-gh-v1";
+const setVar=(n,txt,o={})=>document.querySelectorAll(`[data-var="${n}"]`).forEach(e=>{
+  if(o.href){e.textContent="";const a=document.createElement("a");a.href=o.href;a.textContent=txt;a.rel="noopener";e.appendChild(a)}else e.textContent=txt;
+  e.classList.toggle("none",!!o.none);if(o.title)e.title=o.title});
+const num=n=>n>=1e4?(n/1e3).toFixed(n>=1e5?0:1).replace(/\.0$/,"")+"k":String(n);
+const ago=d=>{const s=(new Date(d)-Date.now())/1e3,u=[["year",31536e3],["month",2592e3],["day",86400],["hour",3600],["minute",60]];
+  const f=new Intl.RelativeTimeFormat("en",{numeric:"auto"});for(const[k,v]of u)if(Math.abs(s)>=v)return f.format(Math.round(s/v),k);return "just now"};
+const size=b=>b>=1e9?(b/1e9).toFixed(2)+" GB":(b/1e6).toFixed(0)+" MB";
+async function gh(p){const r=await fetch(`https://api.github.com/repos/${REPO}${p}`,{headers:{Accept:"application/vnd.github+json"}});if(!r.ok)throw new Error(r.status);return r.json()}
+async function fetchData(){
+  const[repo,rels]=await Promise.all([gh(""),gh("/releases?per_page=1")]);
+  const r=rels[0]||null;
+  return{ts:Date.now(),stars:repo.stargazers_count,forks:repo.forks_count,issues:repo.open_issues_count,pushed:repo.pushed_at,
+    license:repo.license&&repo.license.spdx_id&&repo.license.spdx_id!=="NOASSERTION"?repo.license.spdx_id:null,
+    rel:r&&{tag:r.tag_name,name:r.name||r.tag_name,date:r.published_at||r.created_at,url:r.html_url,pre:r.prerelease,
+      assets:(r.assets||[]).map(a=>({name:a.name,size:a.size,url:a.browser_download_url}))}}}
+function render(d){
+  setVar("stars",num(d.stars));setVar("forks",num(d.forks));setVar("issues",num(d.issues));
+  setVar("pushed",ago(d.pushed));setVar("license",d.license||"none",{none:!d.license});
+  const dl=document.getElementById("dl");
+  document.querySelectorAll("[data-repo-link]").forEach(a=>a.title=`${d.stars} stars on GitHub`);
+  if(!d.rel){
+    setVar("release","no release",{none:true});setVar("released","—",{none:true});setVar("iso","none yet",{none:true});
+    setVar("dlLabel","No release yet");dl.setAttribute("aria-disabled","true");dl.href=`https://github.com/${REPO}/releases`;return}
+  const iso=d.rel.assets.find(a=>/\.iso$/i.test(a.name));
+  setVar("release",d.rel.tag+(d.rel.pre?" (pre-release)":""),{href:d.rel.url,title:d.rel.name});
+  setVar("released",ago(d.rel.date),{title:new Date(d.rel.date).toLocaleString()});
+  if(iso){setVar("iso",`${iso.name} · ${size(iso.size)}`,{href:iso.url});setVar("dlLabel",`Download ${iso.name}`);dl.href=iso.url}
+  else{setVar("iso","not attached",{none:true});setVar("dlLabel",`Release ${d.rel.tag}`);dl.href=d.rel.url}
+  dl.removeAttribute("aria-disabled")}
+(async()=>{let c=null;try{c=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+  if(c&&Date.now()-c.ts<TTL){render(c);return}
+  try{const d=await fetchData();render(d);try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}}
+  catch(e){if(c)render(c)}})();   /* offline or rate-limited: show last known data, else the defaults above */
+</script></body></html>

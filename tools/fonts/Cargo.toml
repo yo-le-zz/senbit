@@ -1,0 +1,10 @@
+[package]
+name = "senbit-fonts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
+colored = "2"
+flate2 = "1"

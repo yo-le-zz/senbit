@@ -106,7 +106,7 @@ pub fn init_vars(root: &str) -> Result<()> {
 
     unsafe {
         set_var("HOSTNAME", &hostname);
-        set_var("TERM", "xterm-256color");
+        set_var("TERM", "linux");
         set_var(
             "PATH",
             "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",

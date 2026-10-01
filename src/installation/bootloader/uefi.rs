@@ -228,7 +228,7 @@ fn install_grub(
      * --no-nvram: do not call efibootmgr (not needed to boot, the
      * fallback loader EFI/BOOT/BOOTX64.EFI is created below).
      */
-    let status = Command::new("grub-install")
+    let status = Command::new("/usr/sbin/grub-install")
         .args([
             "--target=x86_64-efi",
             "--efi-directory",
@@ -245,7 +245,12 @@ fn install_grub(
             "--recheck",
         ])
         .status()
-        .context("Failed to execute grub-install")?;
+        .with_context(|| {
+            format!(
+                "Failed to execute /usr/sbin/grub-install: {}",
+                std::io::Error::last_os_error()
+            )
+        })?;
 
     if !status.success() {
         bail!("grub-install failed");
