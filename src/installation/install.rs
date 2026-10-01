@@ -37,6 +37,8 @@ use crate::filesystem::fs::{
     unmount,
 };
 
+use crate::installation::users::perms::set_sys_perms;
+
 use crate::installation::users::user::setup_users;
 
 use crate::installation::hostname::setup_hostname;
@@ -416,7 +418,25 @@ pub fn install_system() -> Result<(), String> {
     })?;
 
     // ========================================================
-    // Step 15: unmount
+    // Step 15: set sys perms
+    // ========================================================
+
+    logln!(
+        "Setting sys perms..."
+    );
+
+    set_sys_perms(
+        mount_point,
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to set sys perms: {}",
+            e
+        )
+    })?;
+
+    // ========================================================
+    // Step 16: unmount
     // ========================================================
 
     logln!(

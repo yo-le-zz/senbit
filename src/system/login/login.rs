@@ -9,8 +9,63 @@ use crate::system::shell::shell::shell_start;
 use crate::system::shell::start::splash;
 
 use crate::logln;
-use crate::utils::crypto::hash::verify_password;
+use crate::utils::crypto::hash::verify_shadow_password;
 use crate::utils::clear::clear_screen_ansi;
+
+fn get_user_ids(
+    username: &str,
+    root: &str,
+) -> Result<(u32, u32)> {
+    let path =
+        Path::new(root)
+            .join("etc/passwd");
+
+    let content =
+        fs::read_to_string(&path)
+            .with_context(|| {
+                format!(
+                    "failed to read {}",
+                    path.display()
+                )
+            })?;
+
+    for line in content.lines() {
+        let fields: Vec<&str> =
+            line.split(':')
+                .collect();
+
+        if fields.len() >= 4
+            && fields[0] == username
+        {
+            let uid =
+                fields[2]
+                    .parse::<u32>()
+                    .with_context(|| {
+                        format!(
+                            "invalid UID for '{}'",
+                            username
+                        )
+                    })?;
+
+            let gid =
+                fields[3]
+                    .parse::<u32>()
+                    .with_context(|| {
+                        format!(
+                            "invalid GID for '{}'",
+                            username
+                        )
+                    })?;
+
+            return Ok((uid, gid));
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "user '{}' not found in passwd",
+        username
+    ))
+}
 
 fn list_users(root: &str) -> Result<Vec<String>> {
     let path = Path::new(root).join("etc/passwd");
@@ -73,16 +128,39 @@ pub fn login(root: &str, version: &str) -> Result<()> {
             .with_display_mode(inquire::PasswordDisplayMode::Masked)
             .prompt()?;
 
-        let password_hash = get_password(&username, root)?;
-
-        if !verify_password(&password, &password_hash)? {
-            logln!("{}", "Invalid password.".red());
+        let password_hash =
+            get_password(
+                &username,
+                root,
+            )?;
+        
+        if !verify_shadow_password(
+            &password,
+            &password_hash,
+        )? {
+            logln!(
+                "{}",
+                "Invalid password.".red()
+            );
+        
             continue;
         }
-
-        splash(&version, &username);
-
-        shell_start()?;
+        
+        splash(
+            &version,
+            &username,
+        );
+        
+        let (uid, gid) =
+            get_user_ids(
+                &username,
+                root,
+            )?;
+        
+        shell_start(
+            uid,
+            gid,
+        )?;
 
         logln!("{}", "Shell exited. Returning to login...".cyan());
     }

@@ -12,52 +12,94 @@ use std::os::unix::fs::PermissionsExt;
 
 fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
     if !src.exists() {
-        bail!("Source path does not exist: {}", src.display());
+        bail!(
+            "Source path does not exist: {}",
+            src.display()
+        );
     }
 
     for entry in fs::read_dir(src)
-        .with_context(|| format!("Failed to read directory {}", src.display()))?
+        .with_context(|| {
+            format!(
+                "Failed to read directory {}",
+                src.display()
+            )
+        })?
     {
         let entry = entry?;
 
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
 
-        let metadata = fs::symlink_metadata(&src_path)?;
-        let file_type = metadata.file_type();
+        let metadata =
+            fs::symlink_metadata(&src_path)?;
+
+        let file_type =
+            metadata.file_type();
 
         // Handle symlinks first because symlink_metadata does not
         // classify a symlink to a directory as a directory.
         if file_type.is_symlink() {
-            // symlink_metadata also detects broken symlinks.
-            if fs::symlink_metadata(&dst_path).is_ok() {
-                fs::remove_file(&dst_path)?;
-            }
-
-            let target = fs::read_link(&src_path)?;
-
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(target, &dst_path).with_context(|| {
-                format!("Failed to create symlink {}", dst_path.display())
-            })?;
-        } else if file_type.is_dir() {
-            fs::create_dir_all(&dst_path)?;
-            copy_tree(&src_path, &dst_path)?;
-        } else if file_type.is_file() {
-            if let Some(parent) = dst_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-
-            // If the destination is a symlink, remove it first.
-            // Otherwise fs::copy would write through the symlink.
+            // Remove an existing destination before creating the
+            // new symlink.
             if fs::symlink_metadata(&dst_path)
-                .map(|m| m.file_type().is_symlink())
-                .unwrap_or(false)
+                .is_ok()
             {
                 fs::remove_file(&dst_path)?;
             }
 
-            fs::copy(&src_path, &dst_path).with_context(|| {
+            let target =
+                fs::read_link(&src_path)?;
+
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(
+                target,
+                &dst_path,
+            )
+            .with_context(|| {
+                format!(
+                    "Failed to create symlink {}",
+                    dst_path.display()
+                )
+            })?;
+        } else if file_type.is_dir() {
+            fs::create_dir_all(
+                &dst_path
+            )?;
+
+            copy_tree(
+                &src_path,
+                &dst_path,
+            )?;
+        } else if file_type.is_file() {
+            if let Some(parent) =
+                dst_path.parent()
+            {
+                fs::create_dir_all(
+                    parent
+                )?;
+            }
+
+            // If the destination is a symlink, remove it first.
+            // Otherwise fs::copy would write through the symlink.
+            if fs::symlink_metadata(
+                &dst_path,
+            )
+            .map(|m| {
+                m.file_type().is_symlink()
+            })
+            .unwrap_or(false)
+            {
+                fs::remove_file(
+                    &dst_path
+                )?;
+            }
+
+            fs::copy(
+                &src_path,
+                &dst_path,
+            )
+            .with_context(|| {
                 format!(
                     "Failed to copy {} to {}",
                     src_path.display(),
@@ -71,17 +113,28 @@ fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
 }
 
 pub fn build(p: &Paths) -> Result<()> {
-    let rootfs = p.rootfs_dir();
-    let overlay = p.senbit_rootfs_overlay();
+    let rootfs =
+        p.rootfs_dir();
 
-    ui::info("Preparing root filesystem...");
+    let overlay =
+        p.senbit_rootfs_overlay();
+
+    ui::info(
+        "Preparing root filesystem..."
+    );
 
     // Recreate the generated rootfs.
-    let _ = fs::remove_dir_all(&rootfs);
-    fs::create_dir_all(&rootfs)?;
+    let _ =
+        fs::remove_dir_all(&rootfs);
+
+    fs::create_dir_all(
+        &rootfs
+    )?;
 
     // Create the base filesystem directories.
-    // /var is created normally. /var/run is handled separately by init.
+    //
+    // /var is created normally.
+    // /var/run is handled separately by init.
     for dir in [
         "bin",
         "sbin",
@@ -97,12 +150,15 @@ pub fn build(p: &Paths) -> Result<()> {
         "usr/share/keymaps",
         "usr/share/consolefonts",
     ] {
-        fs::create_dir_all(rootfs.join(dir))?;
+        fs::create_dir_all(
+            rootfs.join(dir)
+        )?;
     }
 
     // Console fonts are generated by the standalone
     // tools/fonts tool before rootfs assembly.
-    let console_fonts = p.console_fonts_dir();
+    let console_fonts =
+        p.console_fonts_dir();
 
     if !console_fonts.is_dir() {
         bail!(
@@ -113,14 +169,20 @@ pub fn build(p: &Paths) -> Result<()> {
 
     copy_tree(
         &console_fonts,
-        &rootfs.join("usr/share/consolefonts"),
+        &rootfs.join(
+            "usr/share/consolefonts"
+        ),
     )?;
 
     // Senbit overlay:
+    //
     //   /etc/network/interfaces
     //   /usr/share/udhcpc/default.script
     if overlay.is_dir() {
-        copy_tree(&overlay, &rootfs)?;
+        copy_tree(
+            &overlay,
+            &rootfs,
+        )?;
     } else {
         ui::info(&format!(
             "Warning: rootfs overlay not found: {}",
@@ -136,12 +198,19 @@ pub fn build(p: &Paths) -> Result<()> {
         "etc/network/if-post-down.d",
         "usr/share/udhcpc",
     ] {
-        fs::create_dir_all(rootfs.join(dir))?;
+        fs::create_dir_all(
+            rootfs.join(dir)
+        )?;
     }
 
     // DHCP script compiled into BusyBox:
-    // CONFIG_UDHCPC_DEFAULT_SCRIPT="/usr/share/udhcpc/default.script"
-    let udhcpc_script = rootfs.join("usr/share/udhcpc/default.script");
+    //
+    // CONFIG_UDHCPC_DEFAULT_SCRIPT=
+    // "/usr/share/udhcpc/default.script"
+    let udhcpc_script =
+        rootfs.join(
+            "usr/share/udhcpc/default.script"
+        );
 
     if !udhcpc_script.exists() {
         bail!(
@@ -149,21 +218,36 @@ pub fn build(p: &Paths) -> Result<()> {
              Expected it in the overlay: {}",
             udhcpc_script.display(),
             overlay
-                .join("usr/share/udhcpc/default.script")
+                .join(
+                    "usr/share/udhcpc/default.script"
+                )
                 .display()
         );
     }
 
     #[cfg(unix)]
     {
-        let mut permissions = fs::metadata(&udhcpc_script)?.permissions();
+        let mut permissions =
+            fs::metadata(
+                &udhcpc_script
+            )?
+            .permissions();
+
         permissions.set_mode(0o755);
-        fs::set_permissions(&udhcpc_script, permissions)?;
+
+        fs::set_permissions(
+            &udhcpc_script,
+            permissions,
+        )?;
     }
 
-    ui::info("Installing BusyBox into root filesystem...");
+    ui::info(
+        "Installing BusyBox into root filesystem..."
+    );
 
-    let busybox_install = p.busybox_build_dir().join("_install");
+    let busybox_install =
+        p.busybox_build_dir()
+            .join("_install");
 
     if !busybox_install.is_dir() {
         bail!(
@@ -172,9 +256,13 @@ pub fn build(p: &Paths) -> Result<()> {
         );
     }
 
-    copy_tree(&busybox_install, &rootfs)?;
+    copy_tree(
+        &busybox_install,
+        &rootfs,
+    )?;
 
-    // BusyBox is copied after the overlay, so verify the DHCP script again.
+    // BusyBox is copied after the overlay, so verify
+    // the DHCP script again.
     if !udhcpc_script.exists() {
         bail!(
             "BusyBox/rootfs assembly removed udhcpc default.script: {}",
@@ -191,11 +279,16 @@ pub fn build(p: &Paths) -> Result<()> {
         "sbin/udhcpc",
         "usr/share/udhcpc/default.script",
     ] {
-        let full = rootfs.join(path);
+        let full =
+            rootfs.join(path);
 
         // symlink_metadata counts symlinks as valid files.
-        // For example: sbin/ifup -> ../bin/busybox.
-        if fs::symlink_metadata(&full).is_err() {
+        //
+        // Example:
+        //   sbin/ifup -> ../bin/busybox
+        if fs::symlink_metadata(&full)
+            .is_err()
+        {
             bail!(
                 "Required network file missing from rootfs: {}",
                 full.display()
@@ -211,22 +304,45 @@ pub fn build(p: &Paths) -> Result<()> {
         "usr/sbin/ip",
     ]
     .iter()
-    .any(|p| fs::symlink_metadata(rootfs.join(p)).is_ok())
-    {
-        bail!("`ip` applet missing from rootfs (check BusyBox install)");
+    .any(|p| {
+        fs::symlink_metadata(
+            rootfs.join(p)
+        )
+        .is_ok()
+    }) {
+        bail!(
+            "`ip` applet missing from rootfs \
+             (check BusyBox install)"
+        );
     }
 
-    // Static partitioning tools used by the installer
-    // (parted/partprobe from GNU Parted, fdisk/sfdisk from util-linux).
-    // They must be static: the rootfs has no libc or shared libraries.
+    // Static partitioning tools used by the installer:
+    //
+    //   parted/partprobe from GNU Parted
+    //   fdisk/sfdisk from util-linux
+    //
+    // They must be static because the rootfs has no libc
+    // or shared libraries.
     for (src, dst) in [
-        (p.parted_binary(), "usr/sbin/parted"),
         (
-            p.parted_build_dir().join("_install/usr/sbin/partprobe"),
+            p.parted_binary(),
+            "usr/sbin/parted",
+        ),
+        (
+            p.parted_build_dir()
+                .join(
+                    "_install/usr/sbin/partprobe"
+                ),
             "usr/sbin/partprobe",
         ),
-        (p.util_linux_fdisk(), "usr/sbin/fdisk"),
-        (p.util_linux_sfdisk(), "usr/sbin/sfdisk"),
+        (
+            p.util_linux_fdisk(),
+            "usr/sbin/fdisk",
+        ),
+        (
+            p.util_linux_sfdisk(),
+            "usr/sbin/sfdisk",
+        ),
     ] {
         if !src.is_file() {
             bail!(
@@ -235,17 +351,32 @@ pub fn build(p: &Paths) -> Result<()> {
             );
         }
 
-        let dest = rootfs.join(dst);
+        let dest =
+            rootfs.join(dst);
 
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent)?;
+        if let Some(parent) =
+            dest.parent()
+        {
+            fs::create_dir_all(
+                parent
+            )?;
         }
 
-        if fs::symlink_metadata(&dest).is_ok() {
-            fs::remove_file(&dest)?;
+        if fs::symlink_metadata(
+            &dest
+        )
+        .is_ok()
+        {
+            fs::remove_file(
+                &dest
+            )?;
         }
 
-        fs::copy(&src, &dest).with_context(|| {
+        fs::copy(
+            &src,
+            &dest,
+        )
+        .with_context(|| {
             format!(
                 "Failed to install {}",
                 src.display()
@@ -254,18 +385,34 @@ pub fn build(p: &Paths) -> Result<()> {
 
         #[cfg(unix)]
         {
-            let mut permissions = fs::metadata(&dest)?.permissions();
+            let mut permissions =
+                fs::metadata(
+                    &dest
+                )?
+                .permissions();
+
             permissions.set_mode(0o755);
-            fs::set_permissions(&dest, permissions)?;
+
+            fs::set_permissions(
+                &dest,
+                permissions,
+            )?;
         }
     }
 
-    ui::info("Installing GRUB rootfs...");
+    // Install the GRUB rootfs.
+    ui::info(
+        "Installing GRUB rootfs..."
+    );
 
-    let grub_rootfs = p.grub_rootfs_dir();
+    let grub_rootfs =
+        p.grub_rootfs_dir();
 
     if grub_rootfs.is_dir() {
-        copy_tree(&grub_rootfs, &rootfs)?;
+        copy_tree(
+            &grub_rootfs,
+            &rootfs,
+        )?;
     } else {
         ui::info(&format!(
             "Warning: GRUB rootfs not found: {}",
@@ -273,8 +420,46 @@ pub fn build(p: &Paths) -> Result<()> {
         ));
     }
 
+    // ========================================================
+    // Install Senbit commands
+    // ========================================================
+    //
+    // cmdtool builds every independent command crate and stages
+    // the resulting binaries in:
+    //
+    //   build/tools/generated/commands/bin
+    //   build/tools/generated/commands/sbin
+    //
+    // They are copied into the final rootfs here.
+    //
+    // Keeping command generation separate from rootfs assembly
+    // prevents rootfs regeneration from deleting the commands.
+    // ========================================================
+
+    ui::info(
+        "Installing Senbit commands..."
+    );
+
+    let commands_rootfs =
+        p.r(
+            "build/tools/generated/commands"
+        );
+
+    if commands_rootfs.is_dir() {
+        copy_tree(
+            &commands_rootfs,
+            &rootfs,
+        )?;
+    } else {
+        ui::info(&format!(
+            "No generated Senbit commands found: {}",
+            commands_rootfs.display()
+        ));
+    }
+
     // Install the Senbit init binary.
-    let init_binary = p.senbit_binary();
+    let init_binary =
+        p.senbit_binary();
 
     if !init_binary.exists() {
         bail!(
@@ -283,11 +468,15 @@ pub fn build(p: &Paths) -> Result<()> {
         );
     }
 
-    fs::create_dir_all(rootfs.join("sbin"))?;
+    fs::create_dir_all(
+        rootfs.join("sbin")
+    )?;
 
     fs::copy(
         &init_binary,
-        rootfs.join("sbin/senbit-init"),
+        rootfs.join(
+            "sbin/senbit-init"
+        ),
     )
     .with_context(|| {
         format!(
@@ -297,10 +486,17 @@ pub fn build(p: &Paths) -> Result<()> {
     })?;
 
     // Create /sbin/init -> senbit-init.
-    let init_link = rootfs.join("sbin/init");
+    let init_link =
+        rootfs.join("sbin/init");
 
-    if fs::symlink_metadata(&init_link).is_ok() {
-        fs::remove_file(&init_link)?;
+    if fs::symlink_metadata(
+        &init_link
+    )
+    .is_ok()
+    {
+        fs::remove_file(
+            &init_link
+        )?;
     }
 
     #[cfg(unix)]
@@ -310,13 +506,20 @@ pub fn build(p: &Paths) -> Result<()> {
     )?;
 
     // Create /init -> sbin/senbit-init.
-    // The kernel looks for /init at the root of the initramfs; without it,
-    // it falls back to mounting a block device as root and panics with
-    // "Unable to mount root fs on unknown-block(0,0)".
-    let root_init = rootfs.join("init");
+    //
+    // The kernel looks for /init at the root of the initramfs.
+    // Without it, the kernel cannot start the userspace init.
+    let root_init =
+        rootfs.join("init");
 
-    if fs::symlink_metadata(&root_init).is_ok() {
-        fs::remove_file(&root_init)?;
+    if fs::symlink_metadata(
+        &root_init
+    )
+    .is_ok()
+    {
+        fs::remove_file(
+            &root_init
+        )?;
     }
 
     #[cfg(unix)]
@@ -325,14 +528,18 @@ pub fn build(p: &Paths) -> Result<()> {
         &root_init,
     )?;
 
-    ui::info("Creating initramfs...");
+    ui::info(
+        "Creating initramfs..."
+    );
 
     initramfs::build(
         p,
         &rootfs,
     )?;
 
-    ui::ok("Root filesystem built successfully.");
+    ui::ok(
+        "Root filesystem built successfully."
+    );
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 [package]
 name = "senbit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [[bin]]
@@ -18,6 +18,7 @@ panic = "abort"
 anyhow = "1.0.104"
 argon2 = "0.6.0"
 colored = "3.1.1"
+crypt-sha512 = { version = "1.0.1", default-features = false, features = ["backend-rust-crypto"] }
 inquire = "0.9.4"
 libc = "0.2.189"
 rand = "0.10.3"
