@@ -1,6 +1,5 @@
 pub mod init;
-pub mod services;
+pub mod local;
 pub mod network;
-pub mod hostname;
+pub mod services;
 pub mod updates;
-pub mod keymaps;
