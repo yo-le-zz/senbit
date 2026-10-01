@@ -20,6 +20,8 @@ permissions:
 jobs:
   rust:
     name: Rust
+    # No need to rebuild when a PR is merely closed
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
 
     steps:
@@ -62,6 +64,7 @@ jobs:
             file \
             xorriso \
             grub-pc-bin \
+            grub-efi-amd64-bin \
             grub-common \
             mtools \
             qemu-system-x86 \
@@ -82,6 +85,7 @@ jobs:
 
   build:
     name: Senbit build
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     needs: rust
 
@@ -125,6 +129,7 @@ jobs:
             file \
             xorriso \
             grub-pc-bin \
+            grub-efi-amd64-bin \
             grub-common \
             mtools \
             qemu-system-x86 \
@@ -137,8 +142,21 @@ jobs:
             gperf \
             texinfo
 
+      # scripts/build.sh no longer exists: devtool replaces it.
+      # Build devtool from source and place it in scripts/, where it
+      # automatically detects the project root.
+      - name: Build devtool
+        run: |
+          cargo build --release --manifest-path devtool/Cargo.toml
+          install -m 755 devtool/target/release/devtool scripts/devtool
+
+      # `devtool build kernel` does not fetch the kernel: only
+      # `devtool get linux` clones the version pinned in config/kernel/version.
+      - name: Fetch pinned kernel
+        run: ./scripts/devtool get linux
+
       - name: Build Senbit
-        run: ./scripts/build.sh
+        run: ./scripts/devtool build
 
   cleanup:
     name: Delete merged branch

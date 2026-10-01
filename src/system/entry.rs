@@ -104,9 +104,22 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
             e
         })?;
 
-    if login(ROOT, &version).is_err() {
-        logln!("{}", "Failed to login.".red());
-        return Err(anyhow::anyhow!("Failed to login"));
+    if let Err(e) = login(ROOT, &version) {
+        logln!(
+            "{}",
+            format!(
+                "Failed to login: {:#}",
+                e
+            )
+            .red()
+        );
+    
+        return Err(
+            anyhow::anyhow!(
+                "Failed to login: {:#}",
+                e
+            )
+        );
     }
     
     Ok(())

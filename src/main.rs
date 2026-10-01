@@ -17,7 +17,7 @@ use filesystem::{fs, disk};
 use installation::install;
 use system::entry;
 
-// wrapper pour clear
+// clear() wrapper
 fn clear() {
     if clear::clear_screen().is_err() {
         clear::clear_screen_ansi();
@@ -62,6 +62,10 @@ fn main() {
         kpanic!(format!("Failed to mount filesystems: {}", e));
     }
     logln!("{}", "Filesystems mounted successfully.".green());
+
+    // Load the console font as early as possible so the installer uses it
+    // too (the shell only loads it after login). /dev must be mounted first.
+    system::shell::prompt::load_font();
 
     // disk detection
     logln!("{}", "Detecting disks...".cyan());

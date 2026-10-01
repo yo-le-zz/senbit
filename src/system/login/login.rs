@@ -4,9 +4,9 @@ use inquire::{Password, Select};
 
 use std::fs;
 use std::path::Path;
-use crate::system::shell::shell::start_shell;
+use crate::system::shell::shell::shell_start;
 
-use crate::system::shell::splash::splash;
+use crate::system::shell::start::splash;
 
 use crate::logln;
 use crate::utils::crypto::hash::verify_password;
@@ -82,7 +82,7 @@ pub fn login(root: &str, version: &str) -> Result<()> {
 
         splash(&version, &username);
 
-        start_shell()?;
+        shell_start()?;
 
         logln!("{}", "Shell exited. Returning to login...".cyan());
     }

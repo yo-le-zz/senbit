@@ -1,5 +1,5 @@
-//! Tous les chemins du projet, calculés depuis ROOT_DIR — reflet direct des
-//! variables en tête de scripts/build.sh et scripts/run.sh.
+//! All project paths, calculated from ROOT_DIR — a direct reflection of the
+//! variables defined at the top of scripts/build.sh and scripts/run.sh.
 
 use std::path::{Path, PathBuf};
 
@@ -8,10 +8,10 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// ROOT_DIR = dossier parent de celui où se trouve l'exécutable `devtool`,
-    /// exactement comme `$(dirname "${BASH_SOURCE[0]}")/..` dans les scripts —
-    /// en supposant que `devtool` vit dans `scripts/`, à la place des .sh.
-    /// Peut être forcé avec `--root` ou `$SENBIT_ROOT`.
+    /// ROOT_DIR = parent directory of the directory containing the `devtool`
+    /// executable, exactly like `$(dirname "${BASH_SOURCE[0]}")/..` in the
+    /// scripts, assuming `devtool` lives in `scripts/` instead of the .sh files.
+    /// Can be overridden with `--root` or `$SENBIT_ROOT`.
     pub fn resolve(explicit: Option<PathBuf>) -> anyhow::Result<Self> {
         if let Some(root) = explicit {
             return Ok(Self { root: root.canonicalize().unwrap_or(root) });
@@ -47,52 +47,178 @@ impl Paths {
     // ---- busybox ----
     pub fn busybox_dir(&self) -> PathBuf { self.r("third_party/busybox") }
     pub fn busybox_build_dir(&self) -> PathBuf { self.r("build/busybox") }
-    pub fn busybox_binary(&self) -> PathBuf { self.busybox_build_dir().join("_install/bin/busybox") }
-    pub fn busybox_version_file(&self) -> PathBuf { self.r("config/busybox/version") }
-    pub fn busybox_config(&self) -> PathBuf { self.r("config/busybox.config") }
-    pub fn busybox_patch_dir(&self) -> PathBuf { self.r("third_party/patches/busybox") }
+    pub fn busybox_binary(&self) -> PathBuf {
+        self.busybox_build_dir().join("_install/bin/busybox")
+    }
+    pub fn busybox_version_file(&self) -> PathBuf {
+        self.r("config/busybox/version")
+    }
+    pub fn busybox_config(&self) -> PathBuf {
+        self.r("config/busybox.config")
+    }
+    pub fn busybox_patch_dir(&self) -> PathBuf {
+        self.r("third_party/patches/busybox")
+    }
     pub const BUSYBOX_REPO: &'static str = "https://git.busybox.net/busybox";
 
     // ---- util-linux ----
-    pub fn util_linux_dir(&self) -> PathBuf { self.r("third_party/util-linux") }
-    pub fn util_linux_build_dir(&self) -> PathBuf { self.r("build/util-linux") }
-    pub fn util_linux_version_file(&self) -> PathBuf { self.r("config/util-linux/version") }
-    pub fn util_linux_fdisk(&self) -> PathBuf { self.util_linux_build_dir().join("fdisk.static") }
-    pub fn util_linux_sfdisk(&self) -> PathBuf { self.util_linux_build_dir().join("sfdisk.static") }
-    pub const UTIL_LINUX_REPO: &'static str = "https://github.com/util-linux/util-linux.git";
+    pub fn util_linux_dir(&self) -> PathBuf {
+        self.r("third_party/util-linux")
+    }
+
+    pub fn util_linux_build_dir(&self) -> PathBuf {
+        self.r("build/util-linux")
+    }
+
+    pub fn util_linux_version_file(&self) -> PathBuf {
+        self.r("config/util-linux/version")
+    }
+
+    pub fn util_linux_fdisk(&self) -> PathBuf {
+        self.util_linux_build_dir().join("fdisk.static")
+    }
+
+    pub fn util_linux_sfdisk(&self) -> PathBuf {
+        self.util_linux_build_dir().join("sfdisk.static")
+    }
+
+    pub const UTIL_LINUX_REPO: &'static str =
+        "https://github.com/util-linux/util-linux.git";
 
     // ---- parted ----
-    pub fn parted_dir(&self) -> PathBuf { self.r("third_party/parted") }
-    pub fn parted_build_dir(&self) -> PathBuf { self.r("build/parted") }
-    pub fn parted_binary(&self) -> PathBuf { self.parted_build_dir().join("_install/usr/sbin/parted") }
-    pub fn parted_version_file(&self) -> PathBuf { self.r("config/parted/version") }
-    pub fn parted_patch_dir(&self) -> PathBuf { self.r("third_party/patches/parted") }
+    pub fn parted_dir(&self) -> PathBuf {
+        self.r("third_party/parted")
+    }
+
+    pub fn parted_build_dir(&self) -> PathBuf {
+        self.r("build/parted")
+    }
+
+    pub fn parted_binary(&self) -> PathBuf {
+        self.parted_build_dir()
+            .join("_install/usr/sbin/parted")
+    }
+
+    pub fn parted_version_file(&self) -> PathBuf {
+        self.r("config/parted/version")
+    }
+
+    pub fn parted_patch_dir(&self) -> PathBuf {
+        self.r("third_party/patches/parted")
+    }
 
     // ---- rust userspace ----
-    pub const RUST_TARGET: &'static str = "x86_64-unknown-linux-musl";
-    /// Nom du binaire produit par le crate racine (renommé de senbit-init à
-    /// senbit).
+    pub const RUST_TARGET: &'static str =
+        "x86_64-unknown-linux-musl";
+
+    /// Name of the binary produced by the root crate
+    /// (renamed from senbit-init to senbit).
     pub fn senbit_binary(&self) -> PathBuf {
-        self.r(&format!("target/{}/release/senbit", Self::RUST_TARGET))
+        self.r(&format!(
+            "target/{}/release/senbit",
+            Self::RUST_TARGET
+        ))
     }
 
     // ---- tools ----
-    pub fn tools_dir(&self) -> PathBuf { self.r("tools") }
-    pub fn keymaps_generated_dir(&self) -> PathBuf { self.r("build/tools/generated/keymaps") }
-    pub fn keymaps_rootfs_dir(&self, rootfs: &Path) -> PathBuf { rootfs.join("usr/share/keymaps") }
+    pub fn tools_dir(&self) -> PathBuf {
+        self.r("tools")
+    }
+
+    pub fn keymaps_generated_dir(&self) -> PathBuf {
+        self.r("build/tools/generated/keymaps")
+    }
+
+    pub fn keymaps_rootfs_dir(
+        &self,
+        rootfs: &Path,
+    ) -> PathBuf {
+        rootfs.join("usr/share/keymaps")
+    }
+
+    // ---- fonts ----
+
+    pub fn console_fonts_dir(&self) -> PathBuf {
+        self.r("build/tools/generated/fonts")
+    }
+    
+    pub fn fonts_cache_dir(&self) -> PathBuf {
+        self.r("build/tools/cache/fonts")
+    }
+
+    // ---- grub ----
+    /// GRUB release built for the live system (grub-install + platform files).
+    pub const GRUB_VERSION: &'static str = "2.12";
+
+    pub fn grub_build_root(&self) -> PathBuf {
+        self.r("build/grub")
+    }
+
+    pub fn grub_cache_dir(&self) -> PathBuf {
+        self.grub_build_root().join("cache")
+    }
+
+    pub fn grub_src_dir(&self) -> PathBuf {
+        self.grub_build_root().join("src")
+    }
+
+    pub fn grub_efi_build_dir(&self) -> PathBuf {
+        self.grub_build_root().join("build-efi")
+    }
+
+    pub fn grub_pc_build_dir(&self) -> PathBuf {
+        self.grub_build_root().join("build-pc")
+    }
+
+    pub fn grub_efi_install_dir(&self) -> PathBuf {
+        self.grub_build_root().join("install-efi")
+    }
+
+    pub fn grub_pc_install_dir(&self) -> PathBuf {
+        self.grub_build_root().join("install-pc")
+    }
+
+    /// GRUB files copied into the rootfs (used by the installer).
+    pub fn grub_rootfs_dir(&self) -> PathBuf {
+        self.r("build/tools/generated/grub/stage")
+    }
 
     // ---- rootfs / initramfs / iso ----
-    pub fn rootfs_dir(&self) -> PathBuf { self.r("build/rootfs") }
-    pub fn senbit_rootfs_overlay(&self) -> PathBuf {self.root.join("rootfs")}
-    pub fn initramfs(&self) -> PathBuf { self.r("build/initramfs.cpio.gz") }
-    pub fn iso_build_dir(&self) -> PathBuf { self.r("build/iso") }
-    pub fn iso_image(&self) -> PathBuf { self.iso_build_dir().join("senbit.iso") }
-    pub fn iso_dist(&self) -> PathBuf { self.r("iso/senbit.iso") }
+    pub fn rootfs_dir(&self) -> PathBuf {
+        self.r("build/rootfs")
+    }
+
+    pub fn senbit_rootfs_overlay(&self) -> PathBuf {
+        self.root.join("rootfs")
+    }
+
+    pub fn initramfs(&self) -> PathBuf {
+        self.r("build/initramfs.cpio.gz")
+    }
+
+    pub fn iso_build_dir(&self) -> PathBuf {
+        self.r("build/iso")
+    }
+
+    pub fn iso_image(&self) -> PathBuf {
+        self.iso_build_dir().join("senbit.iso")
+    }
+
+    pub fn iso_dist(&self) -> PathBuf {
+        self.r("iso/senbit.iso")
+    }
 
     // ---- vm ----
-    pub fn vm_config(&self) -> PathBuf { self.r("config/vm.config") }
-    pub fn vm_dir(&self) -> PathBuf { self.r("build/vm") }
+    pub fn vm_config(&self) -> PathBuf {
+        self.r("config/vm.config")
+    }
 
-    // ---- cache de rebuild intelligent ----
-    pub fn state_file(&self) -> PathBuf { self.r("build/.state/cache.json") }
+    pub fn vm_dir(&self) -> PathBuf {
+        self.r("build/vm")
+    }
+
+    // ---- smart rebuild cache ----
+    pub fn state_file(&self) -> PathBuf {
+        self.r("build/.state/cache.json")
+    }
 }
