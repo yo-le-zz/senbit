@@ -12,16 +12,17 @@ use crate::system::init::updates::{
     update_kernel,
 };
 
-use crate::system::init::hostname::init_hostname;
+use crate::system::init::local::hostname::init_hostname;
 use crate::system::init::init::{
     mount_system,
     fstab_is_ok,
     init_vars,
+    switch_root,
 };
 use crate::system::init::services::start_services;
 use crate::system::init::network::init_network;
 use crate::system::login::login::login;
-use crate::system::init::keymaps::init_keymaps;
+use crate::system::init::local::keymaps::init_keymaps;
 
 const NEW_ROOT: &str = "/newroot";
 const UPDATE_URL: &str = "https://github.com/yo-le-zz/senbit";
@@ -33,12 +34,6 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
     logln!("{}", "Checking fstab...".cyan());
     if !fstab_is_ok(NEW_ROOT) {
         return Err(anyhow::anyhow!("fstab not found"));
-    }
-
-    logln!("{}", "Initializing variables...".cyan());
-    if init_vars(NEW_ROOT).is_err() {
-        logln!("{}", "Failed to initialize variables.".red());
-        return Err(anyhow::anyhow!("Failed to initialize variables"));
     }
 
     logln!("{}", "Initializing hostname...".cyan());
@@ -63,7 +58,7 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
         }
     }
 
-    logln!("{}", "Starting network tests...".cyan());
+    logln!("{}", "Initializing network...".cyan());
     
     if let Err(e) = init_network(NEW_ROOT) {
         logln!("{}", "Failed to initialize network.".red());
@@ -73,6 +68,15 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
         ));
     }
 
+    if switch_root(NEW_ROOT).is_err() {
+        logln!("{}", "Failed to switch root.".red());
+        return Err(anyhow::anyhow!("Failed to switch root"));
+    }
+
+    // new root is /
+    // 
+    const ROOT: &str = "/";
+
     logln!("{}", "Starting services...".cyan());
     if start_services().is_err() {
         logln!("{}", "Failed to start services.".red());
@@ -80,12 +84,27 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
     }
 
     logln!("{}", "Initializing keymaps...".cyan());
-    if init_keymaps(NEW_ROOT).is_err() {
+    if init_keymaps(ROOT).is_err() {
         logln!("{}", "Failed to initialize keymaps.".red());
         return Err(anyhow::anyhow!("Failed to initialize keymaps"));
     }
 
-    if login(NEW_ROOT, &version).is_err() {
+    logln!("{}", "Initializing variables...".cyan());
+    
+    init_vars(ROOT)
+        .map_err(|e| {
+            logln!(
+                "{}",
+                format!(
+                    "Failed to initialize variables: {:#}",
+                    e
+                ).red()
+            );
+    
+            e
+        })?;
+
+    if login(ROOT, &version).is_err() {
         logln!("{}", "Failed to login.".red());
         return Err(anyhow::anyhow!("Failed to login"));
     }

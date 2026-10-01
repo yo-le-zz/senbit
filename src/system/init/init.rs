@@ -1,9 +1,16 @@
-use anyhow::Result;
+use anyhow::{Result, Context};
 
 use std::env::set_var;
 
 use crate::filesystem::fs::mount;
-use crate::system::init::hostname::get_hostname;
+use crate::system::init::local::hostname::get_hostname;
+use crate::system::init::local::lang::get_lang;
+use crate::system::init::local::timezone::get_timezone;
+
+use crate::logln;
+
+use std::ffi::CString;
+use std::os::unix::fs::chroot;
 
 use std::os::unix::fs::symlink;
 
@@ -77,11 +84,78 @@ pub fn fstab_is_ok(root: &str) -> bool {
 }
 
 pub fn init_vars(root: &str) -> Result<()> {
-    let hostname = get_hostname(root)?;
+    logln!("Reading hostname...");
+    let hostname = get_hostname(root)
+        .context("Failed to get hostname")?;
+
+    logln!("Hostname: {}", hostname);
+
+    logln!("Reading language...");
+    let lang = get_lang(root)
+        .context("Failed to get language")?;
+
+    logln!("Language: {}", lang);
+
+    logln!("Reading timezone...");
+    let timezone = get_timezone(root)
+        .context("Failed to get timezone")?;
+
+    logln!("Timezone: {}", timezone);
+
+    logln!("Setting system environment variables...");
 
     unsafe {
-        set_var("HOSTNAME", hostname);
+        set_var("HOSTNAME", &hostname);
+        set_var("TERM", "xterm-256color");
+        set_var(
+            "PATH",
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        );
+        set_var("LANG", &lang);
+        set_var("LC_ALL", &lang);
+        set_var("TZ", &timezone);
+        set_var("SHELL", "/bin/sh");
+        set_var("TERMINFO", "/usr/share/terminfo");
+        set_var("SENBIT_VERSION", env!("CARGO_PKG_VERSION"));
+        set_var("SENBIT_ROOT", root);
+        set_var("PWD", "/");
+        set_var("OLDPWD", "/");
     }
+
+    logln!("System environment initialized.");
+
+    Ok(())
+}
+
+pub fn switch_root(new_root: &str) -> Result<()> {
+    logln!("Switching root to {}...", new_root);
+
+    std::env::set_current_dir(new_root)
+        .with_context(|| format!("failed to chdir to {}", new_root))?;
+
+    let dot = CString::new(".")?;
+    let slash = CString::new("/")?;
+    
+    let ret = unsafe {
+        libc::mount(
+            dot.as_ptr(),
+            slash.as_ptr(),
+            std::ptr::null(),
+            libc::MS_MOVE,
+            std::ptr::null(),
+        )
+    };
+
+    if ret != 0 {
+        anyhow::bail!(
+            "failed to move {} to /: {}",
+            new_root,
+            std::io::Error::last_os_error()
+        );
+    }
+
+    chroot(".").context("failed to chroot")?;
+    std::env::set_current_dir("/").context("failed to chdir to /")?;
 
     Ok(())
 }
