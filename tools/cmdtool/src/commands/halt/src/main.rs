@@ -1,5 +1,12 @@
 use std::env;
-use std::io;
+use std::io::{
+    Read,
+    Write,
+};
+use std::os::unix::net::UnixStream;
+
+const SOCKET_PATH: &str =
+    "/run/senbit.sock";
 
 fn print_help() {
     println!("Usage: halt [OPTIONS]");
@@ -14,11 +21,66 @@ fn print_help() {
 }
 
 fn print_version() {
-    println!("halt 0.1.0");
+    println!(
+        "{} {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+}
+
+fn send_event(
+    event: &str,
+) -> Result<(), String> {
+    let mut stream =
+        UnixStream::connect(
+            SOCKET_PATH,
+        )
+        .map_err(|e| {
+            format!(
+                "failed to connect to {}: {}",
+                SOCKET_PATH,
+                e
+            )
+        })?;
+
+    stream
+        .write_all(event.as_bytes())
+        .map_err(|e| {
+            format!(
+                "failed to send event: {}",
+                e
+            )
+        })?;
+
+    let mut response =
+        String::new();
+
+    stream
+        .read_to_string(&mut response)
+        .map_err(|e| {
+            format!(
+                "failed to read response: {}",
+                e
+            )
+        })?;
+
+    if response.trim() != "ok" {
+        return Err(
+            format!(
+                "system handler returned: {}",
+                response.trim()
+            )
+        );
+    }
+
+    Ok(())
 }
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let args: Vec<String> =
+        env::args()
+            .skip(1)
+            .collect();
 
     for arg in &args {
         match arg.as_str() {
@@ -32,12 +94,28 @@ fn main() {
                 return;
             }
 
-            "-f" => {
-                // Direct syscall below.
+            "-f" | "--force" => {
+                let result = unsafe {
+                    libc::reboot(
+                        libc::RB_HALT_SYSTEM,
+                    )
+                };
+            
+                if result != 0 {
+                    eprintln!(
+                        "halt: {}",
+                        std::io::Error::last_os_error()
+                    );
+                    std::process::exit(1);
+                }
+            
+                return;
             }
 
             "-w" | "--wtmp-only" => {
-                eprintln!("halt: --wtmp-only is not supported yet");
+                eprintln!(
+                    "halt: --wtmp-only is not supported yet"
+                );
                 std::process::exit(1);
             }
 
@@ -54,15 +132,14 @@ fn main() {
         }
     }
 
-    let result = unsafe {
-        libc::reboot(libc::RB_HALT_SYSTEM)
-    };
-
-    if result != 0 {
+    if let Err(error) =
+        send_event("halt")
+    {
         eprintln!(
             "halt: {}",
-            io::Error::last_os_error()
+            error
         );
+
         std::process::exit(1);
     }
 }
