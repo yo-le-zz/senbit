@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use colored::Colorize;
 
-use crate::logln;
+use crate::{log_info, log_error};
 
 use inquire::Text;
 
@@ -25,45 +25,46 @@ use crate::system::init::services::start_services;
 use crate::system::init::network::init_network;
 use crate::system::login::login::login;
 use crate::system::init::local::keymaps::init_keymaps;
+use crate::system::log::init_logs;
 
 const NEW_ROOT: &str = "/newroot";
 const UPDATE_URL: &str = "https://github.com/yo-le-zz/senbit";
 
 pub fn start_system(sys_disk: &str) -> Result<()> {
-    logln!("{}", "Mounting system...".cyan());
+    log_info!("{}", "Mounting system...".cyan());
     mount_system(sys_disk, NEW_ROOT)?;
 
-    logln!("{}", "Checking fstab...".cyan());
+    log_info!("{}", "Checking fstab...".cyan());
     if !fstab_is_ok(NEW_ROOT) {
         return Err(anyhow::anyhow!("fstab not found"));
     }
 
-    logln!("{}", "Initializing hostname...".cyan());
+    log_info!("{}", "Initializing hostname...".cyan());
     if init_hostname(NEW_ROOT).is_err() {
-        logln!("{}", "Failed to initialize hostname.".red());
+        log_error!("{}", "Failed to initialize hostname.".red());
         return Err(anyhow::anyhow!("Failed to initialize hostname"));
     }
 
     let version = get_version(NEW_ROOT)?;
 
-    logln!("{}", "Checking updates...".cyan());
+    log_info!("{}", "Checking updates...".cyan());
     if check_for_updates(&version, UPDATE_URL) {
-        logln!("{}", "Updates found.".cyan());
+        log_info!("{}", "Updates found.".cyan());
 
         let update = Text::new("Update?")
             .with_default("yes")
             .prompt()?;
 
         if update.trim().eq_ignore_ascii_case("yes") {
-            logln!("{}", "Updating...".cyan());
+            log_info!("{}", "Updating...".cyan());
             update_kernel(UPDATE_URL)?;
         }
     }
 
-    logln!("{}", "Initializing network...".cyan());
+    log_info!("{}", "Initializing network...".cyan());
     
     if let Err(e) = init_network(NEW_ROOT) {
-        logln!("{}", "Failed to initialize network.".red());
+        log_error!("{}", "Failed to initialize network.".red());
         return Err(anyhow::anyhow!(
             "Failed to initialize network: {}",
             e
@@ -71,30 +72,35 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
     }
 
     if switch_root(NEW_ROOT).is_err() {
-        logln!("{}", "Failed to switch root.".red());
+        log_error!("{}", "Failed to switch root.".red());
         return Err(anyhow::anyhow!("Failed to switch root"));
+    }
+
+    if init_logs().is_err() {
+        log_error!("{}", "Failed to initialize logs.".red());
+        return Err(anyhow::anyhow!("Failed to initialize logs"));
     }
 
     // new root is /
     const ROOT: &str = "/";
 
-    logln!("{}", "Starting services...".cyan());
+    log_info!("{}", "Starting services...".cyan());
     if start_services().is_err() {
-        logln!("{}", "Failed to start services.".red());
+        log_error!("{}", "Failed to start services.".red());
         return Err(anyhow::anyhow!("Failed to start services"));
     }
 
-    logln!("{}", "Initializing keymaps...".cyan());
+    log_info!("{}", "Initializing keymaps...".cyan());
     if init_keymaps(ROOT).is_err() {
-        logln!("{}", "Failed to initialize keymaps.".red());
+        log_error!("{}", "Failed to initialize keymaps.".red());
         return Err(anyhow::anyhow!("Failed to initialize keymaps"));
     }
 
-    logln!("{}", "Initializing variables...".cyan());
+    log_info!("{}", "Initializing variables...".cyan());
     
     init_vars(ROOT)
         .map_err(|e| {
-            logln!(
+            log_error!(
                 "{}",
                 format!(
                     "Failed to initialize variables: {:#}",
@@ -111,7 +117,7 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
             Ok(listener) => listener,
     
             Err(e) => {
-                logln!(
+                log_error!(
                     "{}",
                     format!(
                         "Failed to setup socket: {:#}",
@@ -131,7 +137,7 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
             listener,
         )
     {
-        logln!(
+        log_error!(
             "{}",
             format!(
                 "Failed to login: {:#}",

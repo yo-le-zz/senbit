@@ -172,7 +172,9 @@ pub fn cleanup_temporary_resources() -> Result<()> {
             "/run/senbit",
         );
 
-    if senbit_runtime.exists() {
+    if fs::symlink_metadata(
+        senbit_runtime,
+    ).is_ok() {
         fs::remove_dir_all(
             senbit_runtime,
         )
@@ -194,11 +196,71 @@ pub fn cleanup_temporary_resources() -> Result<()> {
             "/run/senbit.sock",
         );
 
-    if socket.exists() {
+    if fs::symlink_metadata(
+        socket,
+    ).is_ok() {
         fs::remove_file(socket)
             .context(
                 "failed to remove Senbit event socket",
             )?;
+    }
+
+    /*
+     * Clear /tmp.
+     *
+     * Remove everything inside /tmp, but keep the /tmp
+     * directory itself.
+     *
+     * symlink_metadata() is used so a symbolic link inside
+     * /tmp is removed instead of being followed.
+     */
+
+    let tmp =
+        Path::new("/tmp");
+
+    if tmp.is_dir() {
+        let entries =
+            fs::read_dir(tmp)
+                .context(
+                    "failed to read /tmp",
+                )?;
+
+        for entry in entries {
+            let entry =
+                entry.context(
+                    "failed to read /tmp entry",
+                )?;
+
+            let path =
+                entry.path();
+
+            let metadata =
+                fs::symlink_metadata(&path)
+                    .with_context(|| {
+                        format!(
+                            "failed to inspect {}",
+                            path.display()
+                        )
+                    })?;
+
+            if metadata.file_type().is_dir() {
+                fs::remove_dir_all(&path)
+                    .with_context(|| {
+                        format!(
+                            "failed to remove temporary directory {}",
+                            path.display()
+                        )
+                    })?;
+            } else {
+                fs::remove_file(&path)
+                    .with_context(|| {
+                        format!(
+                            "failed to remove temporary file {}",
+                            path.display()
+                        )
+                    })?;
+            }
+        }
     }
 
     Ok(())

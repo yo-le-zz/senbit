@@ -7,7 +7,7 @@ use crate::system::init::local::hostname::get_hostname;
 use crate::system::init::local::lang::get_lang;
 use crate::system::init::local::timezone::get_timezone;
 
-use crate::logln;
+use crate::log_info;
 
 use std::ffi::CString;
 use std::os::unix::fs::chroot;
@@ -84,25 +84,25 @@ pub fn fstab_is_ok(root: &str) -> bool {
 }
 
 pub fn init_vars(root: &str) -> Result<()> {
-    logln!("Reading hostname...");
+    log_info!("Reading hostname...");
     let hostname = get_hostname(root)
         .context("Failed to get hostname")?;
 
-    logln!("Hostname: {}", hostname);
+    log_info!("Hostname: {}", hostname);
 
-    logln!("Reading language...");
+    log_info!("Reading language...");
     let lang = get_lang(root)
         .context("Failed to get language")?;
 
-    logln!("Language: {}", lang);
+    log_info!("Language: {}", lang);
 
-    logln!("Reading timezone...");
+    log_info!("Reading timezone...");
     let timezone = get_timezone(root)
         .context("Failed to get timezone")?;
 
-    logln!("Timezone: {}", timezone);
+    log_info!("Timezone: {}", timezone);
 
-    logln!("Setting system environment variables...");
+    log_info!("Setting system environment variables...");
 
     unsafe {
         set_var("HOSTNAME", &hostname);
@@ -122,13 +122,13 @@ pub fn init_vars(root: &str) -> Result<()> {
         set_var("OLDPWD", "/");
     }
 
-    logln!("System environment initialized.");
+    log_info!("System environment initialized.");
 
     Ok(())
 }
 
 pub fn switch_root(new_root: &str) -> Result<()> {
-    logln!("Switching root to {}...", new_root);
+    log_info!("Switching root to {}...", new_root);
 
     std::env::set_current_dir(new_root)
         .with_context(|| format!("failed to chdir to {}", new_root))?;

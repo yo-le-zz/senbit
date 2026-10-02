@@ -1,6 +1,6 @@
 // installation/local/local.rs
 
-use crate::logln;
+use crate::log_info;
 use anyhow::Result;
 use colored::Colorize;
 use inquire::Select;
@@ -54,7 +54,7 @@ const LANGUAGES_LIST: &[&str] = &[
 ];
 
 pub fn setup_locale(mount_point: &Path) -> Result<()> {
-    logln!(
+    log_info!(
         "{}",
         "Setting up locale...".green()
     );
@@ -65,7 +65,7 @@ pub fn setup_locale(mount_point: &Path) -> Result<()> {
     )
     .prompt()?;
 
-    logln!(
+    log_info!(
         "{}",
         format!("Language selected: {}", language).green()
     );

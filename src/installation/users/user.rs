@@ -21,7 +21,7 @@ use crate::installation::users::questions::{
     ask_user,
 };
 
-use crate::logln;
+use crate::log_info;
 
 use crate::utils::crypto::hash::hash_shadow_password;
 
@@ -359,7 +359,7 @@ pub fn setup_users(
      * ========================================================
      */
 
-    logln!(
+    log_info!(
         "Creating root account..."
     );
 
@@ -399,7 +399,7 @@ pub fn setup_users(
             )
         })?;
 
-    logln!(
+    log_info!(
         "Root account created."
     );
 
@@ -409,7 +409,7 @@ pub fn setup_users(
      * ========================================================
      */
 
-    logln!(
+    log_info!(
         "Creating user account..."
     );
 
@@ -430,7 +430,7 @@ pub fn setup_users(
             )
         })?;
 
-    logln!(
+    log_info!(
         "User '{}' created successfully (UID {}, GID {}).",
         user.name,
         user.uid,

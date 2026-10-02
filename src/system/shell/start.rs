@@ -1,4 +1,4 @@
-use crate::logln;
+
 use crate::utils::clear::clear_screen_ansi;
 use colored::Colorize;
 
@@ -105,20 +105,12 @@ pub fn set_env(
 
 pub fn splash(version: &str, username: &str) {
     let mode = prepare_console();
-
     clear_screen_ansi();
 
-    logln!(
-        "{}",
-        format!("Welcome to Senbit {}", version).cyan().bold()
-    );
-
-    logln!("{}", format!("Hello, {}!", username).green().bold());
+    println!("{}", format!("Welcome to Senbit {}", version).cyan().bold());
+    println!("{}", format!("Hello, {}!", username).green().bold());
 
     if let Err(e) = set_env(username, mode) {
-        logln!(
-            "{}",
-            format!("Failed to set environment: {:#}", e).red()
-        );
+        eprintln!("{}", format!("Failed to set environment: {:#}", e).red());
     }
 }

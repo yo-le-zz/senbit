@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use inquire::Select;
 
-use crate::logln;
+use crate::log_info;
 
 use crate::filesystem::disk::{
     detect_disks,
@@ -182,7 +182,7 @@ fn zero_disk_edges(
 fn wipe_disk(
     disk: &str,
 ) -> Result<(), String> {
-    logln!(
+    log_info!(
         "Wiping existing filesystem and partition signatures on {}...",
         disk
     );
@@ -203,7 +203,7 @@ fn wipe_disk(
         return Ok(());
     }
 
-    logln!(
+    log_info!(
         "wipefs unavailable, wiping disk edges directly..."
     );
 
@@ -255,7 +255,7 @@ fn reread_partition_table_ioctl(
 fn reload_partition_table(
     disk: &str,
 ) -> Result<(), String> {
-    logln!(
+    log_info!(
         "Reloading partition table on {}...",
         disk
     );
@@ -297,7 +297,7 @@ UEFI partition creation
 pub fn create_uefi_partitions(
     disk: &str,
 ) -> Result<(String, String), String> {
-    logln!(
+    log_info!(
         "Creating GPT partition table on {}...",
         disk
     );
@@ -346,12 +346,12 @@ pub fn create_uefi_partitions(
             2,
         );
 
-    logln!(
+    log_info!(
         "EFI partition: {}",
         efi_partition
     );
 
-    logln!(
+    log_info!(
         "Root partition: {}",
         root_partition
     );
@@ -380,7 +380,7 @@ Legacy BIOS partition creation
 pub fn create_legacy_partitions(
     disk: &str,
 ) -> Result<String, String> {
-    logln!(
+    log_info!(
         "Creating GPT partition table with BIOS Boot partition on {}...",
         disk
     );
@@ -422,7 +422,7 @@ pub fn create_legacy_partitions(
             2,
         );
 
-    logln!(
+    log_info!(
         "BIOS Boot partition: {}",
         partition_path(
             disk,
@@ -430,7 +430,7 @@ pub fn create_legacy_partitions(
         )
     );
 
-    logln!(
+    log_info!(
         "Root partition: {}",
         root_partition
     );
@@ -445,7 +445,7 @@ EFI partition formatting
 pub fn format_efi_partition(
     device: &str,
 ) -> Result<(), String> {
-    logln!(
+    log_info!(
         "Formatting EFI partition {}...",
         device
     );
@@ -575,16 +575,16 @@ Manual partitioning
 pub fn manual_partitioning(
     disk: &str,
 ) -> Result<String, String> {
-    logln!(
+    log_info!(
         "Starting manual partitioning on {}...",
         disk
     );
 
-    logln!(
+    log_info!(
         "Use fdisk to create or modify your partitions."
     );
 
-    logln!(
+    log_info!(
         "When finished, use 'w' to write the changes and exit."
     );
 
@@ -657,7 +657,7 @@ Partition formatting
 pub fn format_partition(
     device: &str,
 ) -> Result<(), String> {
-    logln!(
+    log_info!(
         "Formatting {} as ext4...",
         device
     );

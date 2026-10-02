@@ -5,17 +5,20 @@ use anyhow::{
 
 use colored::Colorize;
 
-use inquire::{
-    Password,
-    Select,
-};
+use inquire::Select;
 
 use std::fs;
+use std::io::{
+    self,
+    Write,
+};
+use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::thread;
+use std::time::Duration;
 
-use crate::logln;
+use crate::log_error;
 
 use crate::system::handler::socket::{
     start_event_listener,
@@ -175,6 +178,88 @@ fn get_password(
 }
 
 /* ============================================================
+   Password input
+============================================================ */
+
+fn read_password() -> Result<String> {
+    let stdin =
+        io::stdin();
+
+    let fd =
+        stdin.as_raw_fd();
+
+    let mut original =
+        unsafe {
+            std::mem::zeroed::<libc::termios>()
+        };
+
+    if unsafe {
+        libc::tcgetattr(
+            fd,
+            &mut original,
+        )
+    } != 0 {
+        return Err(
+            anyhow::anyhow!(
+                "failed to read terminal settings"
+            )
+        );
+    }
+
+    let mut hidden =
+        original;
+
+    hidden.c_lflag &=
+        !libc::ECHO;
+
+    if unsafe {
+        libc::tcsetattr(
+            fd,
+            libc::TCSANOW,
+            &hidden,
+        )
+    } != 0 {
+        return Err(
+            anyhow::anyhow!(
+                "failed to disable password echo"
+            )
+        );
+    }
+
+    print!("Password: ");
+    io::stdout().flush()?;
+
+    let mut password =
+        String::new();
+
+    let result =
+        io::stdin()
+            .read_line(
+                &mut password
+            );
+
+    unsafe {
+        libc::tcsetattr(
+            fd,
+            libc::TCSANOW,
+            &original
+        );
+    }
+
+    println!();
+
+    result?;
+
+    while password.ends_with(
+        &['\n', '\r'],
+    ) {
+        password.pop();
+    }
+
+    Ok(password)
+}
+
+/* ============================================================
    Login
 ============================================================ */
 
@@ -189,9 +274,6 @@ pub fn login(
      * ========================================================
      * System event listener
      * ========================================================
-     *
-     * The listener runs independently from the
-     * login and shell session.
      */
 
     thread::spawn(
@@ -199,7 +281,7 @@ pub fn login(
             if let Err(error) =
                 start_event_listener(listener)
             {
-                logln!(
+                log_error!(
                     "{}",
                     format!(
                         "Event listener stopped: {}",
@@ -218,12 +300,7 @@ pub fn login(
      */
 
     loop {
-        logln!(
-            "{}",
-            "Login screen"
-                .cyan()
-                .bold()
-        );
+        clear_screen_ansi();
 
         let users =
             list_users(root)?;
@@ -244,13 +321,7 @@ pub fn login(
             .prompt()?;
 
         let password =
-            Password::new(
-                "Password:",
-            )
-            .with_display_mode(
-                inquire::PasswordDisplayMode::Masked,
-            )
-            .prompt()?;
+            read_password()?;
 
         let password_hash =
             get_password(
@@ -258,15 +329,26 @@ pub fn login(
                 root,
             )?;
 
-        if !verify_shadow_password(
-            &password,
-            &password_hash,
-        )? {
-            logln!(
+        let authenticated =
+            verify_shadow_password(
+                &password,
+                &password_hash,
+            )?;
+
+        if !authenticated {
+            println!();
+            println!(
                 "{}",
                 "Invalid password."
                     .red()
+                    .bold()
             );
+
+            thread::sleep(
+                Duration::from_secs(2)
+            );
+
+            clear_screen_ansi();
 
             continue;
         }
@@ -276,6 +358,8 @@ pub fn login(
          * User authenticated
          * ====================================================
          */
+
+        clear_screen_ansi();
 
         splash(
             version,
@@ -289,18 +373,13 @@ pub fn login(
             )?;
 
         /*
-         * shell_start() blocks until the shell exits.
+         * shell_start() blocks until
+         * the shell exits.
          */
 
         shell_start(
             uid,
             gid,
         )?;
-
-        logln!(
-            "{}",
-            "Shell exited. Returning to login..."
-                .cyan()
-        );
     }
 }

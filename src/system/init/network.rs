@@ -5,7 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
-use crate::logln;
+use crate::log_info;
 
 use crate::utils::network::{
     detect_network_interfaces,
@@ -215,7 +215,7 @@ fn prepare_dhcp(
 pub fn test_network(
     root: &str,
 ) -> Result<()> {
-    logln!(
+    log_info!(
         "Testing network connection..."
     );
 
@@ -244,7 +244,7 @@ pub fn test_network(
         ));
     }
 
-    logln!(
+    log_info!(
         "Network connection is working."
     );
 
@@ -290,7 +290,7 @@ pub fn configure_network(
                 interface,
             )?;
 
-        logln!(
+        log_info!(
             "Configuring {} using {}...",
             interface,
             mode
@@ -367,7 +367,7 @@ pub fn init_network(root: &str) -> Result<()> {
 
     test_network(root)?;
 
-    logln!(
+    log_info!(
         "Network initialized successfully."
     );
 
