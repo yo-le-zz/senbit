@@ -6,8 +6,6 @@ use inquire::{Password, Text};
 
 use super::user::User;
 
-use crate::logln;
-
 use std::fs;
 use std::path::Path;
 
@@ -52,8 +50,7 @@ fn ask_username(root: &Path) -> Result<String> {
         if !is_valid_username(&name) {
             println!(
                 "{}",
-                "Invalid username (lowercase letters, digits, '_' or '-', \
-                 must not start with a digit)."
+                "Invalid username (lowercase, digits, '_' or '-', max 32)."
                     .red()
             );
             continue;
@@ -72,17 +69,16 @@ fn ask_username(root: &Path) -> Result<String> {
 }
 
 pub fn ask_password(question: &str) -> Result<String> {
-    logln!("{}", question.cyan());
     loop {
         let password = Password::new(&format!(
             "{} ",
-            "Password:".bold().green()
+            if question.is_empty() {
+                "Password:".bold().green()
+            } else {
+                format!("{}:", question).bold().green()
+            }
         ))
         .with_display_mode(inquire::PasswordDisplayMode::Masked)
-        .with_custom_confirmation_message(&format!(
-            "{} ",
-            "Confirmation:".bold().green()
-        ))
         .prompt()?;
 
         if password.is_empty() {
@@ -95,15 +91,6 @@ pub fn ask_password(question: &str) -> Result<String> {
 }
 
 pub fn ask_user(root: &Path) -> Result<User> {
-    println!();
-    println!("{}", "=== User configuration ===".bold().cyan());
-    println!(
-        "{}",
-        "Create the main user that will be used to access Senbit."
-            .dimmed()
-    );
-    println!();
-
     let name = ask_username(root)?;
 
     let password = ask_password("")?;
@@ -115,10 +102,6 @@ pub fn ask_user(root: &Path) -> Result<User> {
     let shell = Text::new(&format!("{} ", "Shell:".bold().green()))
         .with_default("/bin/sh")
         .prompt()?;
-
-    println!();
-    println!("{}", "✓ User configuration completed.".green().bold());
-    println!();
 
     User::new_auto(
         root,

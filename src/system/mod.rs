@@ -7,3 +7,5 @@ pub mod login;
 pub mod shell;
 
 pub mod handler;
+
+pub mod log;

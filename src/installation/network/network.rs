@@ -1,4 +1,4 @@
-use crate::logln;
+use crate::log_info;
 
 use std::path::Path;
 
@@ -117,19 +117,19 @@ pub fn setup_network(mount: &Path) -> Result<()> {
         return Err(anyhow!("No mode selected"));
     }
     
-    logln!("{}", format!("Selected interface: {}", interface).green().bold());
-    logln!("{}", format!("Selected mode: {}", mode).green().bold());
+    log_info!("{}", format!("Selected interface: {}", interface).green().bold());
+    log_info!("{}", format!("Selected mode: {}", mode).green().bold());
 
-    logln!("{}", "Writing network config...".green().bold());
+    log_info!("{}", "Writing network config...".green().bold());
     if write_network_config(mount, &interface, &mode).is_err() {
         return Err(anyhow!("Failed to write network config"));
     }
 
-    logln!("{}", "Preparing network start...".green().bold());
+    log_info!("{}", "Preparing network start...".green().bold());
     if prepare_network_start(mount).is_err() {
         return Err(anyhow!("Failed to prepare network start"));
     }
 
-    logln!("{}", "Network setup complete!".green().bold());    
+    log_info!("{}", "Network setup complete!".green().bold());    
     Ok(())
 }

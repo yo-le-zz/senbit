@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::logln;
+use crate::log_info;
 
 fn get_keymap(root: &str) -> Result<String> {
     let config_path =
@@ -73,7 +73,7 @@ pub fn init_keymaps(root: &str) -> Result<()> {
         );
     }
 
-    logln!(
+    log_info!(
         "Keyboard layout '{}' initialized.",
         keymap
     );

@@ -1,4 +1,4 @@
-use crate::logln;
+use crate::log_info;
 use anyhow::Result;
 use inquire::Select;
 use std::path::Path;
@@ -70,7 +70,7 @@ const TIMEZONES_LIST: &[&str] = &[
 ];
 
 pub fn setup_timezone(mount_point: &Path) -> Result<()> {
-    logln!("{}", "Setting up timezone...".green());
+    log_info!("{}", "Setting up timezone...".green());
 
     let timezone = Select::new(
         "Select a timezone:",
@@ -79,7 +79,7 @@ pub fn setup_timezone(mount_point: &Path) -> Result<()> {
     .prompt()
     .map_err(|e| anyhow::anyhow!("Failed to select timezone: {}", e))?;
 
-    logln!(
+    log_info!(
         "{}",
         format!("Timezone selected: {}", timezone).green()
     );
@@ -87,7 +87,7 @@ pub fn setup_timezone(mount_point: &Path) -> Result<()> {
     write_timezone(&timezone, mount_point)
         .map_err(|e| anyhow::anyhow!("Failed to write timezone: {}", e))?;
 
-    logln!("{}","Setting up timezone...".green());
+    log_info!("{}","Setting up timezone...".green());
 
     Ok(())
 }

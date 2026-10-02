@@ -1,6 +1,6 @@
 use inquire::Confirm;
 
-use crate::logln;
+use crate::log_info;
 
 use std::path::Path;
 
@@ -71,7 +71,7 @@ pub fn install_system() -> Result<(), String> {
 
     match boot_mode {
         BootMode::Efi => {
-            logln!(
+            log_info!(
                 "{}",
                 "Boot mode: UEFI"
                     .cyan()
@@ -80,7 +80,7 @@ pub fn install_system() -> Result<(), String> {
         }
 
         BootMode::Legacy => {
-            logln!(
+            log_info!(
                 "{}",
                 "Boot mode: Legacy BIOS"
                     .cyan()
@@ -105,7 +105,7 @@ pub fn install_system() -> Result<(), String> {
             }
         };
 
-    logln!(
+    log_info!(
         "Installing on {} ({})",
         target.device,
         target.name
@@ -236,7 +236,7 @@ pub fn install_system() -> Result<(), String> {
         if let Some(efi) =
             &efi_partition
         {
-            logln!(
+            log_info!(
                 "Formatting EFI partition {}...",
                 efi
             );
@@ -247,7 +247,7 @@ pub fn install_system() -> Result<(), String> {
         }
     }
 
-    logln!(
+    log_info!(
         "Formatting root partition {}...",
         partition_device
     );
@@ -263,7 +263,7 @@ pub fn install_system() -> Result<(), String> {
     let mount_point =
         Path::new("/mnt");
 
-    logln!(
+    log_info!(
         "Mounting partition on {}...",
         mount_point.display()
     );
@@ -301,7 +301,7 @@ pub fn install_system() -> Result<(), String> {
     // Step 8: rootfs
     // ========================================================
 
-    logln!(
+    log_info!(
         "Installing rootfs..."
     );
 
@@ -317,7 +317,7 @@ pub fn install_system() -> Result<(), String> {
         )
     })?;
 
-    logln!(
+    log_info!(
         "{}",
         "Rootfs setup successfully."
             .green()
@@ -346,7 +346,7 @@ pub fn install_system() -> Result<(), String> {
         )
     })?;
 
-    logln!(
+    log_info!(
         "{}",
         "Hostname set successfully."
             .green()
@@ -399,7 +399,7 @@ pub fn install_system() -> Result<(), String> {
     // Step 14: bootloader
     // ========================================================
 
-    logln!(
+    log_info!(
         "Installing bootloader..."
     );
 
@@ -421,7 +421,7 @@ pub fn install_system() -> Result<(), String> {
     // Step 15: set sys perms
     // ========================================================
 
-    logln!(
+    log_info!(
         "Setting sys perms..."
     );
 
@@ -439,7 +439,7 @@ pub fn install_system() -> Result<(), String> {
     // Step 16: unmount
     // ========================================================
 
-    logln!(
+    log_info!(
         "Unmounting..."
     );
 

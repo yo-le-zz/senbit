@@ -20,7 +20,7 @@ use std::path::Path;
 
 use colored::Colorize;
 
-use crate::logln;
+use crate::{log_info, log_error};
 
 use crate::system::handler::main::{
     handle,
@@ -152,7 +152,7 @@ pub fn setup_socket() -> Result<UnixListener> {
         "failed to set permissions on Senbit socket"
     )?;
 
-    logln!(
+    log_info!(
         "{}",
         "System event socket ready."
             .green()
@@ -254,7 +254,7 @@ fn handle_socket_client(
 pub fn start_event_listener(
     listener: UnixListener,
 ) -> Result<()> {
-    logln!(
+    log_info!(
         "{}",
         "System event listener started."
             .green()
@@ -267,7 +267,7 @@ pub fn start_event_listener(
                 if let Err(error) =
                     handle_socket_client(stream)
                 {
-                    logln!(
+                    log_error!(
                         "{}",
                         format!(
                             "System event error: {}",
@@ -279,7 +279,7 @@ pub fn start_event_listener(
             }
 
             Err(error) => {
-                logln!(
+                log_error!(
                     "{}",
                     format!(
                         "Socket accept error: {}",

@@ -10,8 +10,8 @@
   <a href="#-features">Features</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-current-status">Current Status</a> •
-  <a href="#-roadmap">Roadmap</a> •
   <a href="#-development">Development</a> •
+  <a href="#-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -21,13 +21,13 @@
 
 **Senbit** is a general-purpose **server operating system based on the Linux kernel**, designed around four core principles:
 
-> ⚡ Performance · 🪶 Lightweight · 🧱 Stability · 🚀 Deployment
+> ⚡ Performance · 🪶 Lightweight · 🧱 Stability · 🛡️ Security
 
-Senbit aims to provide a clean, efficient, and secure foundation for servers while preserving the compatibility and ecosystem of Linux.
+Senbit provides a minimal Linux foundation with a **Rust-first userspace** designed specifically for server environments.
 
-The project does not aim to reinvent the Linux ecosystem.
+The project does not attempt to replace the Linux ecosystem.
 
-Instead, Senbit builds modern infrastructure around the Linux kernel, with a lightweight Rust-first userspace designed specifically for server environments.
+Instead, Senbit builds its own system infrastructure around the Linux kernel while maintaining compatibility with existing Linux software and technologies.
 
 ---
 
@@ -35,36 +35,37 @@ Instead, Senbit builds modern infrastructure around the Linux kernel, with a lig
 
 > **Senbit is currently in early development.**
 
-The core operating-system foundation is now functional in QEMU.
+The foundational operating system is functional and can be installed and booted in QEMU using both BIOS and UEFI firmware.
 
-The project currently has a working:
+The current system includes:
 
 * 🐧 Linux kernel
 * 🦀 Rust userspace
-* 📦 Minimal root filesystem
-* 🚀 Senbit init system
+* 🚀 Native Senbit PID 1 / init system
 * 💿 Interactive installation system
 * 🖥️ BIOS and UEFI boot support
-* 💾 Automatic disk partitioning
+* 💾 Automatic and manual partitioning
 * 🌐 DHCP networking
-* 👤 User creation and authentication
-* ⌨️ Persistent keyboard layout configuration
-* 🏠 Hostname configuration
-* 🕐 Locale and timezone configuration
+* 👤 Users and authentication
+* 🔐 Native `sudo`
+* ⚡ Native power-management commands
+* 📋 Native logging system
+* 📝 Native `log` command
+* 🔌 Unix socket IPC
+* 🧹 Clean shutdown infrastructure
 * 🐚 Interactive shell
 * 🧪 QEMU development workflow
+* 🛠️ Native command build system
 
-The current development focus is moving from the initial installation foundation toward a complete boot and service-management system.
+The current development focus is moving from the initial operating-system foundation toward a complete **server userspace and service-management infrastructure**.
 
 ---
 
 # 🎯 Vision
 
-Modern infrastructure can involve anything from a single self-hosted server to thousands of machines.
+Senbit aims to provide a lightweight and predictable operating system for servers ranging from a single self-hosted machine to large-scale infrastructure.
 
-Senbit is designed with both use cases in mind.
-
-The long-term goal is to provide a server operating system that is:
+The long-term goal is to provide a system that is:
 
 * ⚡ Fast and lightweight
 * 🧱 Stable
@@ -72,15 +73,23 @@ The long-term goal is to provide a server operating system that is:
 * 📦 Compatible with existing Linux software
 * 🚀 Easy to deploy
 * 🔄 Easy to update
-* ↩️ Easy to recover and roll back
+* ↩️ Easy to recover
+* 📊 Easy to observe
 * 🖥️ Suitable for physical servers and virtual machines
 * 🌐 Suitable for large-scale deployments
 
 Senbit is intentionally **general-purpose**.
 
-The operating system does not target a single type of server.
+The same foundation should eventually support:
 
-The same Senbit foundation should eventually be usable for web servers, databases, container hosts, storage systems, game servers, internal infrastructure, or other Linux-compatible workloads.
+* Web servers
+* Databases
+* Container hosts
+* Storage systems
+* Game servers
+* Internal infrastructure
+* Virtual machines
+* Other Linux-compatible workloads
 
 ---
 
@@ -88,27 +97,56 @@ The same Senbit foundation should eventually be usable for web servers, database
 
 ## 🪶 Lightweight
 
-Senbit uses a minimal userspace designed specifically for server environments.
+Senbit uses a minimal userspace designed around server workloads.
 
-The base system avoids unnecessary graphical components and applications.
+The base installation avoids unnecessary graphical components and applications.
+
+The system is assembled from a minimal root filesystem containing only the components required to boot and operate the server.
+
+---
 
 ## 🦀 Rust-first Userspace
 
-Senbit's own userspace is primarily written in Rust.
+Senbit's own userspace is primarily written in **Rust**.
 
 The Linux kernel remains independent from the Senbit userspace and provides the low-level operating-system functionality.
 
-## 💿 BIOS & UEFI Boot
+Rust is used for system components such as:
 
-The installation system supports both major x86 boot modes.
+* `senbit-init`
+* Installation
+* Login
+* Shell infrastructure
+* System configuration
+* Native commands
+* Logging
+* Shutdown infrastructure
+* System IPC
+* Future service management
+
+---
+
+# 💿 BIOS & UEFI Boot
+
+Senbit supports both major x86 boot modes.
 
 ### Legacy BIOS
 
-Senbit can automatically create an MBR partition table and install GRUB using the `i386-pc` target.
+The installer can create an MBR partition table and install GRUB using the:
+
+```text
+i386-pc
+```
+
+target.
 
 ### UEFI
 
-Senbit can automatically create a GPT partition table with an EFI System Partition and install GRUB using the `x86_64-efi` target.
+The installer can create a GPT partition table with an EFI System Partition and install GRUB using:
+
+```text
+x86_64-efi
+```
 
 The Senbit ISO itself supports both BIOS and UEFI boot.
 
@@ -126,35 +164,329 @@ The Senbit ISO itself supports both BIOS and UEFI boot.
               Senbit Linux
 ```
 
-## 💾 Installation System
+---
+
+# 💾 Installation System
 
 Senbit includes an interactive installer capable of:
 
 * Detecting the current boot mode
-* Detecting available disks and partitions
+* Detecting available disks
+* Detecting existing partitions
 * Automatically partitioning a disk
 * Manual partitioning through `fdisk`
 * Creating GPT partitions for UEFI
 * Creating MBR partitions for BIOS
+* Creating EFI System Partitions
 * Formatting EFI partitions as FAT32
 * Formatting root partitions as ext4
 * Installing the Senbit root filesystem
-* Configuring users
+* Creating users
+* Configuring passwords
 * Configuring hostname
 * Configuring locale
 * Configuring timezone
+* Configuring keyboard layout
 * Configuring networking
 * Installing the bootloader
 
-The installer also supports installing Senbit onto an existing partition.
+Senbit can also be installed onto an existing partition.
 
-## 🌐 Networking
+---
 
-The current system supports network initialization through DHCP.
+# 🚀 Boot & Initialization
 
-Senbit detects usable network interfaces and configures them using the system's network configuration.
+Senbit uses its own Rust-based initialization system.
 
-The current network stack uses BusyBox networking utilities and `udhcpc`.
+The general boot sequence is:
+
+```text
+Linux Kernel
+     │
+     ▼
+Senbit Init
+     │
+     ▼
+Detect installation
+     │
+     ├── No installation
+     │       │
+     │       ▼
+     │    Installer
+     │
+     └── Installed system
+             │
+             ▼
+        Detect system disk
+             │
+             ▼
+        Mount root filesystem
+             │
+             ▼
+        Mount /proc
+        Mount /sys
+        Mount /dev
+        Mount /run
+             │
+             ▼
+        Verify /etc/fstab
+             │
+             ▼
+        Initialize system configuration
+             │
+             ▼
+        Initialize hostname
+             │
+             ▼
+        Initialize network
+             │
+             ▼
+        Start system infrastructure
+             │
+             ▼
+        Login
+             │
+             ▼
+        User shell
+```
+
+The initialization system is intentionally being built as modular Rust components rather than a collection of unrelated shell scripts.
+
+---
+
+# 🔌 System IPC
+
+Senbit currently uses a Unix domain socket for communication with PID 1.
+
+The socket is:
+
+```text
+/run/senbit.sock
+```
+
+It is restricted to root and is used by native system commands to request privileged system events.
+
+Current events include:
+
+```text
+shutdown
+reboot
+halt
+poweroff
+```
+
+The architecture is:
+
+```text
+Native command
+      │
+      ▼
+/run/senbit.sock
+      │
+      ▼
+Senbit PID 1
+      │
+      ▼
+System handler
+      │
+      ▼
+Shutdown / reboot / halt / poweroff
+```
+
+This provides a foundation for future communication between userspace tools and the Senbit system manager.
+
+---
+
+# ⚡ Native System Commands
+
+Senbit is beginning to provide native userspace commands instead of relying entirely on external implementations.
+
+Current commands include:
+
+```text
+halt
+poweroff
+reboot
+shutdown
+sudo
+log
+```
+
+Commands are built independently and automatically installed by the Senbit command build system.
+
+---
+
+# 🔐 Privilege Management
+
+Senbit includes a native `sudo` implementation.
+
+Current functionality includes:
+
+* Root password authentication
+* Hidden password input
+* SUID root execution
+* Authentication timestamp caching
+* Five-minute authentication timeout
+* Protected timestamp storage
+* Privilege switching
+* Group initialization before privileged execution
+
+Example:
+
+```bash
+sudo command
+```
+
+The privilege-management infrastructure is still evolving and will receive additional hardening as the userspace develops.
+
+---
+
+# 📝 Logging System
+
+Senbit has a native logging infrastructure designed for system observability.
+
+Logs contain structured information such as:
+
+* Timestamp
+* Log level
+* Source module
+* Message
+
+Supported levels include:
+
+```text
+ERROR
+WARN
+INFO
+DEBUG
+TRACE
+```
+
+Senbit maintains both persistent and runtime logs:
+
+```text
+/var/log/senbit/system.log
+/run/log/system.log
+```
+
+The logging architecture is independent from `systemd` and `journald`.
+
+---
+
+# 📋 `log` Command
+
+Senbit provides a native `log` command for inspecting and managing system logs.
+
+It supports:
+
+* Log display
+* Real-time following
+* Boot logs
+* System logs
+* Error filtering
+* Warning filtering
+* Kernel logs
+* Source selection
+* Text search
+* Regular expressions
+* Module filtering
+* Level filtering
+* Time filtering
+* JSON output
+* Raw output
+* Log statistics
+* Log clearing
+* Log rotation
+
+Examples:
+
+```bash
+log
+```
+
+```bash
+log errors
+```
+
+```bash
+log follow
+```
+
+```bash
+log show --grep network
+```
+
+```bash
+log kernel -n 50
+```
+
+```bash
+log stats
+```
+
+The complete command documentation is available in:
+
+```text
+tools/cmdtool/src/commands/log/README.md
+```
+
+---
+
+# 🧹 Shutdown Infrastructure
+
+Senbit is developing a centralized shutdown infrastructure.
+
+The shutdown path is designed to eventually perform:
+
+```text
+Shutdown request
+       │
+       ▼
+Stop services
+       │
+       ▼
+Stop remaining processes
+       │
+       ▼
+Clean temporary resources
+       │
+       ▼
+Invalidate sensitive runtime data
+       │
+       ▼
+Sync filesystems
+       │
+       ▼
+Unmount filesystems
+       │
+       ▼
+Final action
+       │
+       ├── poweroff
+       ├── reboot
+       └── halt
+```
+
+Current infrastructure already includes:
+
+* Process termination
+* Temporary resource cleanup
+* `/tmp` cleanup
+* Runtime socket cleanup
+* Filesystem synchronization
+* Filesystem unmounting
+
+Service-aware shutdown will be completed together with the future service manager.
+
+---
+
+# 🌐 Networking
+
+The current system supports DHCP networking.
+
+The initialization process detects network interfaces and configures them using the current Linux networking utilities.
+
+The current implementation uses BusyBox networking tools and `udhcpc`.
 
 ```text
 Senbit Init
@@ -163,7 +495,7 @@ Senbit Init
 Detect interfaces
     │
     ▼
-Read network configuration
+Network configuration
     │
     ▼
 ifup
@@ -178,16 +510,18 @@ DHCP lease
 Network ready
 ```
 
-Static network configuration is planned for a future stage.
+Static networking is planned.
 
-## 👤 Users & Authentication
+---
+
+# 👤 Users & Authentication
 
 The installer creates:
 
-* The `root` account
-* A configurable main user account
+* `root`
+* A configurable main user
 
-User information is stored using standard Linux account files:
+Standard Linux account files are used:
 
 ```text
 /etc/passwd
@@ -195,21 +529,30 @@ User information is stored using standard Linux account files:
 /etc/group
 ```
 
-Passwords are stored as password hashes rather than plaintext.
+Passwords are stored as password hashes.
 
-After boot, Senbit provides an interactive login system allowing the administrator to select a user and authenticate using their password.
+After boot, Senbit provides an interactive login system:
 
-## ⌨️ Keyboard Configuration
+```text
+Select user:
+Password:
+```
 
-The installer allows the keyboard layout to be selected during installation.
+After successful authentication, the user's shell session is started.
 
-The selected layout is:
+---
 
-1. Loaded immediately during installation.
-2. Stored in `/etc/default/keyboard`.
-3. Restored during system initialization.
+# ⌨️ Keyboard Configuration
 
-For example:
+The installer allows the keyboard layout to be selected.
+
+The configuration is stored in:
+
+```text
+/etc/default/keyboard
+```
+
+Example:
 
 ```ini
 XKBMODEL="pc105"
@@ -218,11 +561,11 @@ XKBVARIANT=""
 XKBOPTIONS=""
 ```
 
-Senbit uses BusyBox `loadkmap` and `.bmap` keymaps for the console.
+The selected console keymap is restored during system initialization.
 
-This ensures that the keyboard layout used during installation can also be restored after reboot.
+---
 
-## 🏠 Hostname
+# 🏠 Hostname
 
 Senbit supports hostname configuration during installation.
 
@@ -232,9 +575,11 @@ The hostname is stored in:
 /etc/hostname
 ```
 
-The system initialization process reads the configured hostname during boot.
+The initialization system reads the hostname during boot and configures the running system accordingly.
 
-## 🌍 Locale & Timezone
+---
+
+# 🌍 Locale & Timezone
 
 The installer provides configuration for:
 
@@ -242,64 +587,64 @@ The installer provides configuration for:
 * Timezone
 * Keyboard layout
 
-These settings are installed into the target filesystem and are intended to persist across reboots.
+These settings are installed into the target filesystem and restored during boot.
 
-## 🐚 Shell
+---
+
+# 🐚 Shell
 
 Senbit currently provides a minimal shell environment based on BusyBox `/bin/sh`.
 
-After successful authentication, the configured user's shell is started.
+After authentication, the configured user's shell is started.
 
 Example:
 
 ```text
-Welcome to Senbit 0.1.0
+Welcome to Senbit 0.2.0
 Hello, user!
 
-~ #
+[user@senbit /]$
 ```
 
-A full TTY/session management system is still under development.
+The shell infrastructure already includes Senbit-specific terminal handling and configuration.
+
+A complete TTY/session and job-control system is still under development.
 
 ---
 
 # 🏗️ Architecture
 
-Senbit is built **around the Linux kernel**, rather than attempting to replace it.
+Senbit is built **around the Linux kernel**.
 
 ```text
-┌────────────────────────────────────────────────┐
-│              Server Applications               │
-│                                                │
-│ Docker · Podman · nginx · databases · ...     │
-├────────────────────────────────────────────────┤
-│                 Senbit Userspace               │
-│                                                │
-│ Rust services · system tools · login · init   │
-├────────────────────────────────────────────────┤
-│            Senbit System Infrastructure        │
-│                                                │
-│ Installation · networking · updates           │
-│ configuration · services · recovery            │
-├────────────────────────────────────────────────┤
-│                  Linux Kernel                   │
-│                                                │
-│ Processes · memory · networking · drivers     │
-│ filesystems · security · virtualization       │
-└────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│                  Server Applications                │
+│                                                    │
+│ Docker · Podman · nginx · databases · ...         │
+├────────────────────────────────────────────────────┤
+│                   Senbit Userspace                 │
+│                                                    │
+│ Rust commands · login · shell · sudo · log         │
+├────────────────────────────────────────────────────┤
+│              Senbit System Infrastructure          │
+│                                                    │
+│ PID 1 · IPC · networking · logging · installation  │
+│ shutdown · configuration · services               │
+├────────────────────────────────────────────────────┤
+│                    Linux Kernel                    │
+│                                                    │
+│ Processes · memory · networking · drivers         │
+│ filesystems · security · virtualization           │
+└────────────────────────────────────────────────────┘
 ```
-
-The Linux kernel provides the low-level operating-system functionality.
-
-Senbit focuses on the userspace and infrastructure surrounding it.
 
 ---
 
 # 🐧 Linux Kernel
 
-Senbit uses the Linux kernel as its foundation.
+The Linux kernel provides the low-level operating-system functionality required by Senbit.
 
-This provides access to the mature Linux ecosystem, including:
+This includes:
 
 * CPU scheduling
 * Memory management
@@ -307,207 +652,164 @@ This provides access to the mature Linux ecosystem, including:
 * Storage
 * Filesystems
 * Hardware drivers
-* Security primitives
-* Virtualization
 * Process management
 * System calls
-* Multiple CPU architectures
+* Security primitives
+* Virtualization
 
-Senbit does not aim to rewrite functionality that Linux already provides reliably.
+Senbit does not attempt to rewrite functionality already provided by Linux.
 
-Instead, the project maintains its own kernel configuration and may introduce carefully scoped patches when there is a concrete reason to do so.
+Instead, the project focuses on building a lightweight and specialized server userspace around it.
 
 ---
 
-# 🦀 Rust-first Userspace
+# 🦀 Rust Userspace
 
-Senbit's own system components are primarily written in **Rust**.
+Senbit's own system components are primarily written in Rust.
 
-The current userspace includes components for:
+Current architecture includes:
 
 ```text
 src/
 ├── filesystem/
 ├── installation/
+├── kernel/
 ├── system/
+│   ├── handler/
 │   ├── init/
-│   └── login/
-├── utils/
-└── ...
+│   ├── login/
+│   ├── log/
+│   └── shell/
+└── utils/
 ```
 
-The system initialization architecture is being developed around dedicated components for:
+The userspace is being progressively separated into dedicated subsystems.
 
-* Filesystem initialization
-* Hostname
-* Keyboard configuration
-* Networking
-* Services
-* Updates
-* Login
-
-The goal is to keep system functionality modular rather than placing the entire operating system initialization logic into one executable module.
+This allows components such as logging, networking, services, authentication, and shutdown handling to evolve independently.
 
 ---
 
-# 🚀 Boot & Initialization
+# 📦 Native Command System
 
-The current Senbit boot process follows this general flow:
+Senbit includes a dedicated command build system called `cmdtool`.
+
+Commands are organized independently:
 
 ```text
-Linux Kernel
-     │
-     ▼
-Senbit Init
-     │
-     ▼
-Detect installation
-     │
-     ├── No installation
-     │       ↓
-     │    Installer
-     │
-     └── Installed system
-             ↓
-        Mount root filesystem
-             ↓
-        Mount proc/sys/dev/run
-             ↓
-        Verify fstab
-             ↓
-        Initialize hostname
-             ↓
-        Restore keyboard layout
-             ↓
-        Check system configuration
-             ↓
-        Initialize network
-             ↓
-        Start services
-             ↓
-        Login
-             ↓
-        User shell
+tools/cmdtool/src/commands/
+├── halt/
+├── log/
+├── poweroff/
+├── reboot/
+├── shutdown/
+└── sudo/
 ```
 
-The initialization system is still evolving.
+Each command can define its installation location through package metadata.
 
-The next major step is to turn the current initialization sequence into a complete service-management system.
+For example:
 
----
+```toml
+[package.metadata.senbit]
+install = "bin"
+```
 
-# 📦 Linux Software Ecosystem
+or:
 
-Senbit intentionally does not create a completely new application ecosystem.
+```toml
+[package.metadata.senbit]
+install = "sbin"
+```
 
-The long-term goal is to integrate with existing Linux software and package ecosystems rather than forcing applications to be rewritten specifically for Senbit.
-
-The project intends to support Debian packages and APT.
-
-Potential applications include:
-
-* 🐳 Docker
-* 📦 Podman
-* ☸️ Kubernetes
-* 🌐 nginx
-* 🔐 OpenSSH
-* 🗄️ PostgreSQL
-* 🐬 MariaDB
-* and many other Linux-compatible applications
-
-These applications are not installed by default.
+The command builder automatically discovers, builds, and installs the commands into the generated root filesystem.
 
 ---
 
 # 🛠️ Development
 
-Senbit includes a dedicated development tool called **`devtool`**.
+Senbit provides a dedicated development tool:
 
-The development workflow is designed around building the kernel, userspace, root filesystem, initramfs, GRUB, and ISO while keeping the individual build components organized.
+```text
+devtool
+```
 
-## Install development dependencies
+The development workflow manages the major components required to build and run Senbit.
+
+## Install dependencies
 
 ```bash
 ./install.sh
 ```
 
-Installs the required development dependencies.
+## Run Senbit
 
-## Development tool
-
-The recommended development workflow uses:
-
-```bash
-./scripts/devtool
-```
-
-The tool manages common development operations such as building and running Senbit.
-
-For example, to rebuild the system and launch it in QEMU:
+The recommended development command is:
 
 ```bash
 ./scripts/devtool run --force
 ```
 
-This performs the required rebuild before starting the virtual machine.
+This performs the required rebuild and launches Senbit in QEMU.
 
-## Build system
+For a completely fresh VM disk:
 
-The Senbit build process assembles:
-
-```text
-Linux Kernel
-     │
-     ▼
-BusyBox
-     │
-     ▼
-Senbit Rust Userspace
-     │
-     ▼
-GRUB
-     │
-     ▼
-Root Filesystem
-     │
-     ▼
-Initramfs
-     │
-     ▼
-ISO
+```bash
+./scripts/devtool run --force --new
 ```
 
-The build system is designed to rebuild only the components that require rebuilding when possible.
+The `--new` option is useful when testing the installation process from scratch.
 
 ---
 
-# 🧪 Current Development Environment
+# 🏗️ Build Pipeline
 
-Senbit is currently developed and tested primarily using:
+The Senbit build system assembles the operating system through multiple stages:
 
-* x86_64
-* Linux hosts
-* QEMU
-* BIOS firmware
-* UEFI/OVMF firmware
+```text
+Linux Kernel
+      │
+      ▼
+BusyBox
+      │
+      ▼
+Util-linux / Parted
+      │
+      ▼
+Senbit Rust Userspace
+      │
+      ▼
+Native Commands
+      │
+      ▼
+GRUB
+      │
+      ▼
+Root Filesystem
+      │
+      ▼
+Initramfs
+      │
+      ▼
+ISO
+```
 
-The project currently prioritizes reliable virtual-machine testing before expanding testing to physical hardware.
+The build system is designed to avoid rebuilding components unnecessarily.
 
 ---
 
 # 🧪 Testing
 
-The current system has been tested in QEMU using both BIOS and UEFI firmware.
+Senbit is currently tested primarily in QEMU.
 
-Implemented and tested functionality includes:
+Current tested functionality includes:
 
 * [x] Linux kernel boot
-* [x] Senbit init
+* [x] Senbit PID 1
 * [x] Root filesystem mounting
-* [x] `/proc` mounting
-* [x] `/sys` mounting
-* [x] `/dev` mounting
-* [x] `/run` mounting
+* [x] `/proc`
+* [x] `/sys`
+* [x] `/dev`
+* [x] `/run`
 * [x] Installation detection
 * [x] BIOS installation
 * [x] UEFI installation
@@ -518,353 +820,227 @@ Implemented and tested functionality includes:
 * [x] Root filesystem installation
 * [x] `/etc/fstab`
 * [x] `/etc/senbit-release`
-* [x] Hostname configuration
-* [x] Locale configuration
-* [x] Timezone configuration
+* [x] Hostname
+* [x] Locale
+* [x] Timezone
 * [x] DHCP networking
-* [x] Root account creation
-* [x] User account creation
+* [x] User creation
 * [x] Password authentication
-* [x] Keyboard layout persistence
-* [x] User shell startup
+* [x] Keyboard persistence
+* [x] Shell startup
+* [x] Native `sudo`
+* [x] Native power-management commands
+* [x] System Unix socket
+* [x] Logging
+* [x] Native `log` command
+* [x] Clean shutdown infrastructure
 * [x] QEMU BIOS testing
 * [x] QEMU UEFI testing
 
-Current areas still being developed:
+Current development areas:
 
 * [ ] Complete TTY/session management
 * [ ] Proper shell job control
 * [ ] Service manager
 * [ ] Static networking
 * [ ] SSH
-* [ ] System update implementation
+* [ ] Package management
+* [ ] System updates
 * [ ] Recovery mode
-
----
-
-# 🧩 Multi-Architecture
-
-Senbit is designed to support multiple architectures suitable for server workloads.
-
-The initial development priority is:
-
-```text
-x86_64
-```
-
-Additional architectures are planned when they provide practical value for server deployments.
-
-The project should avoid unnecessary architectural assumptions that would make future portability difficult.
-
----
-
-# 🔄 Updates
-
-Senbit is designed around reliable system updates.
-
-The current userspace contains the initial update infrastructure and version detection, while the complete update mechanism remains under development.
-
-Planned capabilities include:
-
-## 🌐 Online updates
-
-Systems should eventually retrieve updates from configured sources through the network.
-
-## 💾 Offline updates
-
-Systems should also be able to receive updates without an Internet connection.
-
-For example, an administrator could provide a new Senbit image or update media through a USB drive.
-
-## 🧩 Component updates
-
-The update infrastructure is intended to replace only the components that actually changed whenever possible.
-
-A kernel update should not unnecessarily require unrelated system components to be replaced.
-
----
-
-# ↩️ Snapshots & Recovery
-
-Senbit is designed around the idea that important system changes should be recoverable.
-
-Future snapshot infrastructure may support:
-
-```text
-Current System
-      │
-      ▼
-   Snapshot
-      │
-      ▼
-    Update
-      │
-      ├───────────────┐
-      │               │
-      ▼               ▼
-   ✅ Success       ❌ Failure
-      │               │
-      ▼               ▼
- Continue          Rollback
-```
-
-Planned capabilities include:
-
-* Automatic snapshots
-* Snapshot retention
-* Configurable snapshot storage
-* Rollback
-* Failed-update recovery
-* Boot recovery
-
----
-
-# 🛡️ Security
-
-Security is a core Senbit objective.
-
-A fresh installation should contain only what is necessary for the operating system itself.
-
-Planned security infrastructure includes:
-
-* 🔥 Firewall management
-* 🔎 Security auditing
-* 📊 System monitoring
-* 🔏 File integrity verification
-* 🧩 Per-application file tracking
-* 🔐 Permission management
-* 🔄 Update verification
-
-Security functionality will be introduced progressively as the underlying system infrastructure matures.
-
----
-
-# 📊 Monitoring & Auditing
-
-Senbit is intended to provide administrators with useful information about the state of their systems.
-
-Planned monitoring and auditing capabilities include:
-
-* System activity
-* Resource usage
-* Service status
-* Security events
-* File integrity
-* Software changes
-* Package updates
-* Configuration changes
-* Administrative actions
-
-The goal is to make the basic state of a server visible without requiring a large collection of unrelated tools for fundamental system information.
-
----
-
-# 🏎️ Performance
-
-Senbit approaches performance primarily through simplicity.
-
-The goal is not to blindly optimize every component.
-
-Instead, Senbit aims to reduce unnecessary software, services, overhead, and duplication while keeping the mature Linux kernel underneath.
-
-```text
-Minimal Base System
-        +
-Efficient Userspace
-        +
-Linux Hardware Support
-        +
-Efficient Updates
-        +
-Deployment Automation
-        │
-        ▼
-Efficient Server Platform
-```
-
-Performance claims will eventually be backed by reproducible benchmarks.
+* [ ] Snapshots and rollback
 
 ---
 
 # 🗺️ Roadmap
 
-The roadmap focuses on capabilities rather than fixed release dates.
+The roadmap focuses on system capabilities rather than fixed release dates.
 
 ## Phase 0 — Foundation 🏗️
 
 * [x] Repository structure
 * [x] Build system
-* [x] Development environment
 * [x] Linux kernel integration
-* [x] Senbit kernel configuration
 * [x] Minimal root filesystem
-* [x] Senbit init
+* [x] Senbit PID 1
 * [x] QEMU boot
-* [x] Console access
 * [x] BIOS boot
 * [x] UEFI boot
 * [x] Installation system
 * [x] User authentication
 * [x] Basic networking
 * [x] Interactive shell
+* [x] Native command system
+* [x] Logging system
+* [x] Shutdown infrastructure
 * [ ] Complete TTY/session management
-* [ ] Clean shutdown
 
-## Phase 1 — Basic Server 🖥️
+## Phase 1 — Server Userspace 🖥️
 
-* [x] Networking
-* [x] DHCP configuration
-* [x] Storage initialization
-* [x] Filesystem support
-* [x] Users and groups
-* [x] Basic system initialization
+* [x] Native `sudo`
+* [x] Native power-management commands
+* [x] Native logging
+* [x] `log` command
+* [x] Unix socket IPC
+* [ ] Service definition format
+* [ ] Service manager
+* [ ] Service dependencies
+* [ ] Service lifecycle management
+* [ ] `systemctl`
+* [ ] `senbitctl`
 * [ ] Static networking
 * [ ] SSH
-* [ ] Service management
 
 ## Phase 2 — Package Ecosystem 📦
 
+* [ ] Define Senbit package format
+* [ ] Study APT/dpkg reuse
 * [ ] Debian package compatibility
-* [ ] APT integration
 * [ ] Package installation
 * [ ] Package removal
 * [ ] Package updates
-* [ ] Automatic update configuration
+* [ ] Dependency management
+* [ ] Repository management
+* [ ] Package signatures
+* [ ] `senbit-pkg`
 
 ## Phase 3 — System Updates 🔄
 
-* [ ] System update infrastructure
-* [ ] Kernel updates
+* [ ] Version management
+* [ ] Update detection
+* [ ] Update download
+* [ ] Integrity verification
+* [ ] Authenticity verification
+* [ ] Snapshot before update
 * [ ] Component-level updates
 * [ ] Offline updates
-* [ ] USB / installation-media updates
-* [ ] Update verification
-* [ ] Recovery mechanisms
+* [ ] Automatic rollback
+* [ ] `senbit update`
 
 ## Phase 4 — Snapshots & Recovery ↩️
 
-* [ ] Automatic snapshots
-* [ ] Snapshot retention
-* [ ] Configurable snapshot storage
-* [ ] Rollback
-* [ ] Failed-update recovery
+* [ ] Snapshot system
+* [ ] Configuration snapshots
+* [ ] Package snapshots
+* [ ] Service snapshots
+* [ ] Snapshot restoration
+* [ ] Snapshot integrity verification
+* [ ] Recovery mode
 * [ ] Boot recovery
+* [ ] Automatic rollback
 
 ## Phase 5 — Security & Monitoring 🛡️
 
-* [ ] Firewall integration
+* [ ] Firewall
+* [ ] Linux capabilities management
 * [ ] Security auditing
-* [ ] System monitoring
+* [ ] Service exposure auditing
 * [ ] File integrity tracking
-* [ ] Application-level file association
-* [ ] Integrity verification
 * [ ] Security event management
+* [ ] Configuration validation
+* [ ] Security hardening
 
 ## Phase 6 — Deployment 🚀
 
-* [ ] Configuration-based installation
+* [ ] Declarative configuration
+* [ ] Automated installation
 * [ ] Automated system configuration
 * [ ] Automated package installation
-* [ ] Reproducible deployment
-* [ ] Server fleet deployment
-* [ ] Remote administration improvements
+* [ ] Reproducible server deployment
+* [ ] Server fleet management
+* [ ] Remote administration
 
 ## Phase 7 — Multi-Architecture 🌍
 
-* [x] x86_64
-* [ ] ARM64
-* [ ] Additional server architectures
-* [ ] Architecture-specific optimizations
+### x86_64
+
+* [x] Initial support
+
+### ARM64
+
+* [ ] Kernel support
+* [ ] Userspace build
+* [ ] Initramfs build
+* [ ] QEMU support
+* [ ] Image generation
+* [ ] Installation testing
+
+### Other architectures
+
+* [ ] Evaluate RISC-V
+* [ ] Evaluate ARM32
+* [ ] Define officially supported architectures
 
 ---
 
 # 🔭 Long-Term Vision
 
-Senbit's long-term objective is to provide more than a minimal Linux distribution.
+The long-term goal is to make Senbit a complete server operating platform.
 
-The goal is to create a **server operating platform** where the complete lifecycle of a machine can be managed predictably:
+A server should eventually be manageable through a predictable lifecycle:
 
 ```text
-          Deploy
-            │
-            ▼
-        Configure
-            │
-            ▼
-           Run
-            │
-            ▼
-         Monitor
-            │
-            ▼
-          Update
-            │
-            ▼
-          Verify
-            │
-            ▼
-         Recover
-            │
-            ▼
-       Deploy Again
+             Deploy
+               │
+               ▼
+           Configure
+               │
+               ▼
+              Run
+               │
+               ▼
+           Monitor
+               │
+               ▼
+            Update
+               │
+               ▼
+            Verify
+               │
+          ┌────┴────┐
+          ▼         ▼
+       Success    Failure
+          │         │
+          ▼         ▼
+       Continue   Rollback
 ```
 
-Senbit should make these operations:
+Senbit should make server operations:
 
 * Predictable
 * Automatable
 * Observable
 * Recoverable
-* Suitable for both individual servers and large infrastructures
+* Reproducible
 
-The project will continue to build around the Linux ecosystem instead of replacing it.
+The project will continue building around the Linux ecosystem rather than attempting to replace it.
 
 ---
 
 # 🤝 Contributing
 
-Senbit is built in the open.
+Senbit is developed openly.
 
-Contributions are welcome, including:
+Contributions are welcome in:
 
 * 💻 Code
-* 🐧 Linux kernel work
 * 🦀 Rust development
+* 🐧 Linux kernel work
 * 🧪 Testing
 * 📚 Documentation
 * 🐛 Bug reports
-* 💡 Ideas
+* 💡 Architecture proposals
 * 🔐 Security research
-* 🏗️ Architecture discussions
+* 🏗️ Build infrastructure
 
-Before contributing, please read:
+Before contributing, read:
 
-👉 [`CONTRIBUTING.md`](CONTRIBUTING.md)
+* [`CONTRIBUTING.md`](CONTRIBUTING.md)
+* [`SECURITY.md`](SECURITY.md)
+* [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 
-For security vulnerabilities:
+The `main` branch is protected.
 
-👉 [`SECURITY.md`](SECURITY.md)
-
-For community guidelines:
-
-👉 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
-
----
-
-# 💬 Community
-
-GitHub Discussions is the main place for project discussions.
-
-Available categories include:
-
-* 📢 Announcements
-* 💡 Ideas & Proposals
-* 🛠️ Development
-* ❓ Q&A
-* 🐛 Help & Troubleshooting
-* 💬 General
-
-Technical discussions, architectural proposals, questions, and project ideas are welcome.
+Development changes should be made on dedicated branches and merged through pull requests.
 
 ---
 
@@ -876,7 +1052,7 @@ Senbit's original code is licensed under the:
 
 The Linux kernel and third-party components retain their respective licenses.
 
-Senbit can therefore contain components under different licenses depending on their origin.
+Those components remain under their respective licenses.
 
 See [`LICENSE`](LICENSE) for the license covering Senbit's original code.
 
@@ -884,14 +1060,14 @@ See [`LICENSE`](LICENSE) for the license covering Senbit's original code.
 
 # ⭐ Support Senbit
 
-If you are interested in the project:
+If you are interested in Senbit:
 
-⭐ Star the repository
-💬 Join the Discussions
-🐛 Report bugs
-💡 Propose ideas
-🧑‍💻 Contribute code
-📚 Improve the documentation
+* ⭐ Star the repository
+* 💬 Join discussions
+* 🐛 Report bugs
+* 💡 Propose improvements
+* 🧑‍💻 Contribute code
+* 📚 Improve documentation
 
 ---
 

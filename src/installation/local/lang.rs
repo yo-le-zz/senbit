@@ -1,7 +1,7 @@
 // installation/lang.rs
 
 use inquire::Select;
-use crate::{elogln, logln};
+use crate::{log_error, log_info};
 
 use std::path::Path;
 
@@ -32,7 +32,7 @@ pub fn keyboard_select() -> String {
     let options = get_keymap();
 
     if options.is_empty() {
-        elogln!("Aucun keymap disponible dans /usr/share/keymaps/");
+        log_error!("Aucun keymap disponible dans /usr/share/keymaps/");
         return "us".to_string();
     }
 
@@ -46,7 +46,7 @@ pub fn set_keyboard_layout(lang: &str) -> Result<()> {
     let path = format!("/usr/share/keymaps/{}.bmap", keymap);
 
     if !std::path::Path::new(&path).exists() {
-        elogln!(
+        log_error!(
             "Failed to set keyboard layout '{}': Keyboard layout '{}' not found. (us fallback)",
             lang, keymap
         );
@@ -123,7 +123,7 @@ pub fn setup_lang() -> anyhow::Result<()> {
     let lang = keyboard_select();
 
     if lang.is_empty() {
-        logln!(
+        log_error!(
             "{}",
             "Failed to set keyboard layout. ( qwerty fallback )".red()
         );
@@ -135,7 +135,7 @@ pub fn setup_lang() -> anyhow::Result<()> {
     }
 
     if let Err(e) = set_keyboard_layout(&lang) {
-        logln!(
+        log_error!(
             "{}",
             format!(
                 "Failed to set keyboard layout '{}': {}. ( qwerty fallback )",
@@ -145,7 +145,7 @@ pub fn setup_lang() -> anyhow::Result<()> {
         );
 
         if let Err(e) = set_keyboard_layout("en") {
-            logln!(
+            log_error!(
                 "{}",
                 format!("Failed to set fallback keyboard layout: {}", e).red()
             );

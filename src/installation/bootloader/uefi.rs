@@ -8,7 +8,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::logln;
+use crate::log_info;
 
 const EFI_BOOTLOADER_ID: &str = "Senbit";
 const GRUB_EFI_PLATFORM_DIR: &str = "/usr/lib/grub/x86_64-efi";
@@ -158,7 +158,7 @@ fn mount_efi_partition(
     fs::create_dir_all(&efi_directory)
         .context("Failed to create /boot/efi")?;
 
-    logln!(
+    log_info!(
         "{}",
         format!(
             "Mounting EFI partition {} on {}...",
@@ -219,7 +219,7 @@ fn install_grub(
 
     let boot_directory = mount_point.join("boot");
 
-    logln!(
+    log_info!(
         "{}",
         "Installing GRUB for x86_64 UEFI...".cyan()
     );
@@ -300,7 +300,7 @@ fn create_fallback_loader(efi_directory: &Path) -> Result<()> {
 }
 
 fn unmount_efi_partition(efi_directory: &Path) -> Result<()> {
-    logln!(
+    log_info!(
         "{}",
         "Unmounting EFI partition...".cyan()
     );
@@ -323,21 +323,21 @@ pub fn install_uefi(
     mount_point: &Path,
     disk: &Path,
 ) -> Result<()> {
-    logln!(
+    log_info!(
         "{}",
         "Setting up UEFI bootloader...".cyan().bold()
     );
 
     check_uefi_environment()?;
 
-    logln!(
+    log_info!(
         "{}",
         "Searching for EFI System Partition...".cyan()
     );
 
     let efi_partition = find_efi_partition(disk)?;
 
-    logln!(
+    log_info!(
         "{}",
         format!(
             "EFI System Partition found: {}",
@@ -362,7 +362,7 @@ pub fn install_uefi(
 
     unmount_efi_partition(&efi_directory)?;
 
-    logln!(
+    log_info!(
         "{}",
         "UEFI bootloader installed successfully!"
             .green()

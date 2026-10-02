@@ -25,7 +25,7 @@ fn clear() {
 }
 
 fn yes_installation(sys_disk: &str) {
-    logln!("{}", "Starting system initialization...".cyan());
+    log_info!("{}", "Starting system initialization...".cyan());
 
     if let Err(e) = entry::start_system(sys_disk) {
         kpanic!("Failed to start system: {}", e);
@@ -33,13 +33,13 @@ fn yes_installation(sys_disk: &str) {
 }
 
 fn no_installation() {
-    logln!("{}", "Starting system installation...".cyan());
+    log_info!("{}", "Starting system installation...".cyan());
 
     if let Err(e) = install::install_system() {
         kpanic!("Failed to install: {}", e);
     }
 
-    logln!("{}", "Installation completed successfully.".green());
+    log_info!("{}", "Installation completed successfully.".green());
 }
 
 fn main() {
@@ -54,30 +54,30 @@ fn main() {
     clear();
 
     // start different steps
-    logln!("{}", "Senbit init starting...".cyan());
+    log_info!("{}", "Senbit init starting...".cyan());
 
     // mount filesystems
-    logln!("{}", "Mounting filesystems...".cyan());
+    log_info!("{}", "Mounting filesystems...".cyan());
     if let Err(e) = fs::mount_filesystems() {
         kpanic!(format!("Failed to mount filesystems: {}", e));
     }
-    logln!("{}", "Filesystems mounted successfully.".green());
+    log_info!("{}", "Filesystems mounted successfully.".green());
 
     // Load the console font as early as possible so the installer uses it
     // too (the shell only loads it after login). /dev must be mounted first.
     system::shell::prompt::load_font();
 
     // disk detection
-    logln!("{}", "Detecting disks...".cyan());
+    log_info!("{}", "Detecting disks...".cyan());
     
     let installed = disk::detect_installation();
     match installed {
         Some(p) => {
-            logln!("{}", format!("Senbit installed on {}", p).green());
+            log_info!("{}", format!("Senbit installed on {}", p).green());
             yes_installation(&p);
         }
         None => {
-            logln!("{}", "No Senbit installation found.".red());
+            log_error!("{}", "No Senbit installation found.".red());
             no_installation();
         }
     }

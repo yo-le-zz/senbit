@@ -10,7 +10,7 @@ use std::path::{
     PathBuf,
 };
 
-use crate::logln;
+use crate::log_info;
 
 use crate::installation::bootloader::uefi;
 
@@ -214,7 +214,7 @@ fn check_legacy_layout(
         }
     }
 
-    logln!(
+    log_info!(
         "Partition table on {}: {} (BIOS Boot partition: {})",
         disk.display(),
         if table.is_empty() {
@@ -249,7 +249,7 @@ fn install_legacy(
     disk: &Path,
 ) -> Result<()> {
     // Marker: proves the freshly built binary is the one running.
-    logln!(
+    log_info!(
         "[bootloader v2] legacy install"
     );
 
@@ -273,7 +273,7 @@ fn install_legacy(
         &boot_directory,
     )?;
 
-    logln!(
+    log_info!(
         "Installing GRUB on {}...",
         disk.display()
     );
@@ -329,7 +329,7 @@ fn install_bootloader(
 ) -> Result<()> {
     match mode {
         BootMode::Legacy => {
-            logln!(
+            log_info!(
                 "{}",
                 "Installing GRUB in Legacy mode..."
                     .cyan()
@@ -342,7 +342,7 @@ fn install_bootloader(
         }
 
         BootMode::Efi => {
-            logln!(
+            log_info!(
                 "{}",
                 "Installing GRUB in EFI mode..."
                     .cyan()
@@ -422,7 +422,7 @@ pub fn setup_bootloader(
 
     match mode {
         BootMode::Legacy => {
-            logln!(
+            log_info!(
                 "{}",
                 "Boot mode: Legacy"
                     .cyan()
@@ -430,7 +430,7 @@ pub fn setup_bootloader(
         }
 
         BootMode::Efi => {
-            logln!(
+            log_info!(
                 "{}",
                 "Boot mode: EFI"
                     .cyan()
