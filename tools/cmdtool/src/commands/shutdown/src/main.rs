@@ -1,5 +1,9 @@
 use std::env;
-use std::io;
+use std::io::{
+    Read,
+    Write,
+};
+use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::Duration;
 
@@ -9,6 +13,9 @@ enum Action {
     Poweroff,
     Reboot,
 }
+
+const SOCKET_PATH: &str =
+    "/run/senbit.sock";
 
 fn print_help() {
     println!("Usage: shutdown [OPTIONS] TIME [MESSAGE]");
@@ -31,45 +38,93 @@ fn print_help() {
 }
 
 fn print_version() {
-    println!("shutdown 0.1.0");
+    println!(
+        "{} {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
 }
 
 fn fail(message: &str) -> ! {
-    eprintln!("shutdown: {}", message);
+    eprintln!(
+        "shutdown: {}",
+        message
+    );
+
     std::process::exit(1);
 }
 
-fn execute(action: Action) -> ! {
-    let command = match action {
-        Action::Halt => libc::RB_HALT_SYSTEM,
-        Action::Poweroff => libc::RB_POWER_OFF,
-        Action::Reboot => libc::RB_AUTOBOOT,
-    };
+fn send_event(
+    action: Action,
+) -> Result<(), String> {
+    let event =
+        match action {
+            Action::Halt => "halt",
+            Action::Poweroff => "poweroff",
+            Action::Reboot => "reboot",
+        };
 
-    let result = unsafe {
-        libc::reboot(command)
-    };
+    let mut stream =
+        UnixStream::connect(
+            SOCKET_PATH,
+        )
+        .map_err(|e| {
+            format!(
+                "failed to connect to {}: {}",
+                SOCKET_PATH,
+                e
+            )
+        })?;
 
-    if result != 0 {
-        eprintln!(
-            "shutdown: {}",
-            io::Error::last_os_error()
+    stream
+        .write_all(event.as_bytes())
+        .map_err(|e| {
+            format!(
+                "failed to send event: {}",
+                e
+            )
+        })?;
+
+    let mut response =
+        String::new();
+
+    stream
+        .read_to_string(
+            &mut response,
+        )
+        .map_err(|e| {
+            format!(
+                "failed to read response: {}",
+                e
+            )
+        })?;
+
+    if response.trim() != "ok" {
+        return Err(
+            format!(
+                "system handler returned: {}",
+                response.trim()
+            )
         );
-        std::process::exit(1);
     }
 
-    unreachable!();
+    Ok(())
 }
 
-fn parse_delay(time: &str) -> Result<u64, String> {
+fn parse_delay(
+    time: &str,
+) -> Result<u64, String> {
     if time == "now" {
         return Ok(0);
     }
 
-    if let Some(minutes) = time.strip_prefix('+') {
+    if let Some(minutes) =
+        time.strip_prefix('+')
+    {
         if minutes.is_empty() {
             return Err(
-                "invalid time specification".to_string()
+                "invalid time specification"
+                    .to_string()
             );
         }
 
@@ -77,7 +132,8 @@ fn parse_delay(time: &str) -> Result<u64, String> {
             minutes
                 .parse()
                 .map_err(|_| {
-                    "invalid time specification".to_string()
+                    "invalid time specification"
+                        .to_string()
                 })?;
 
         return Ok(minutes);
@@ -100,30 +156,41 @@ fn main() {
         return;
     }
 
-    let mut action = Action::Poweroff;
-    let mut time: Option<String> = None;
-    let mut force = false;
+    let mut action =
+        Action::Poweroff;
 
-    let mut index = 0;
+    let mut time:
+        Option<String> = None;
+
+    let mut force =
+        false;
+
+    let mut index =
+        0;
 
     while index < args.len() {
-        let arg = &args[index];
+        let arg =
+            &args[index];
 
         match arg.as_str() {
             "-H" => {
-                action = Action::Halt;
+                action =
+                    Action::Halt;
             }
 
             "-P" | "-h" => {
-                action = Action::Poweroff;
+                action =
+                    Action::Poweroff;
             }
 
             "-r" => {
-                action = Action::Reboot;
+                action =
+                    Action::Reboot;
             }
 
             "-f" | "--force" => {
-                force = true;
+                force =
+                    true;
             }
 
             "-V" | "--version" => {
@@ -143,8 +210,9 @@ fn main() {
                 return;
             }
 
-            value if value.starts_with('-')
-                && value != "-" =>
+            value
+                if value.starts_with('-')
+                    && value != "-" =>
             {
                 fail(&format!(
                     "unrecognized option '{}'",
@@ -158,7 +226,8 @@ fn main() {
                         value.to_string()
                     );
                 } else {
-                    // Remaining arguments form the optional message.
+                    // Remaining arguments form
+                    // the optional message.
                     break;
                 }
             }
@@ -167,22 +236,61 @@ fn main() {
         index += 1;
     }
 
-    let time = match time {
-        Some(time) => time,
-        None => {
-            fail(
-                "time is required. Try 'shutdown --help'."
-            );
-        }
-    };
+    let time =
+        match time {
+            Some(time) => time,
+
+            None => {
+                fail(
+                    "time is required. Try 'shutdown --help'."
+                );
+            }
+        };
 
     let delay_minutes =
-        match parse_delay(&time) {
+        match parse_delay(
+            &time,
+        ) {
             Ok(delay) => delay,
+
             Err(error) => {
                 fail(&error);
             }
         };
+
+    if force {
+        let result = unsafe {
+            match action {
+                Action::Halt => {
+                    libc::reboot(
+                        libc::RB_HALT_SYSTEM,
+                    )
+                }
+    
+                Action::Poweroff => {
+                    libc::reboot(
+                        libc::RB_POWER_OFF,
+                    )
+                }
+    
+                Action::Reboot => {
+                    libc::reboot(
+                        libc::RB_AUTOBOOT,
+                    )
+                }
+            }
+        };
+    
+        if result != 0 {
+            eprintln!(
+                "shutdown: {}",
+                std::io::Error::last_os_error()
+            );
+            std::process::exit(1);
+        }
+    
+        return;
+    }
 
     if delay_minutes > 0 {
         println!(
@@ -195,11 +303,20 @@ fn main() {
                 delay_minutes * 60
             )
         );
-    } else if !force {
+    } else {
         println!(
             "System shutdown initiated."
         );
     }
 
-    execute(action);
+    if let Err(error) =
+        send_event(action)
+    {
+        eprintln!(
+            "shutdown: {}",
+            error
+        );
+
+        std::process::exit(1);
+    }
 }

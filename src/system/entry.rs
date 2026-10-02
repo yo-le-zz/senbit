@@ -6,6 +6,8 @@ use crate::logln;
 
 use inquire::Text;
 
+use crate::system::handler::socket::setup_socket;
+
 use crate::system::init::updates::{
     get_version,
     check_for_updates,
@@ -74,7 +76,6 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
     }
 
     // new root is /
-    // 
     const ROOT: &str = "/";
 
     logln!("{}", "Starting services...".cyan());
@@ -98,13 +99,38 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
                 format!(
                     "Failed to initialize variables: {:#}",
                     e
-                ).red()
+                )
+                .red()
             );
     
             e
         })?;
-
-    if let Err(e) = login(ROOT, &version) {
+    
+    let listener =
+        match setup_socket() {
+            Ok(listener) => listener,
+    
+            Err(e) => {
+                logln!(
+                    "{}",
+                    format!(
+                        "Failed to setup socket: {:#}",
+                        e
+                    )
+                    .red()
+                );
+    
+                return Err(e);
+            }
+        };
+    
+    if let Err(e) =
+        login(
+            ROOT,
+            &version,
+            listener,
+        )
+    {
         logln!(
             "{}",
             format!(
