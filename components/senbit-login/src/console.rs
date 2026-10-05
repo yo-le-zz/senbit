@@ -1,4 +1,6 @@
-use std::env;
+//! Linux console handling: screen, controlling terminal, palette, font and
+//! shell prompt.
+
 use std::io::Write;
 
 // Linux console ioctls (linux/kd.h)
@@ -7,19 +9,17 @@ const KDSKBMODE: u32 = 0x4B45;
 const K_UNICODE: libc::c_int = 0x03;
 
 // ============================================================
-// Couleurs
+// Colors
 // ============================================================
 //
 // The Linux console (VGA / framebuffer) does NOT support truecolor
 // (ESC[38;2;r;g;bm): it maps every color to the nearest of its 16 palette
-// entries, which turned the prompt red and then grey. What we can do is
-// REPROGRAM that palette (sequence ESC ] P n RRGGBB) and then use plain ANSI
-// codes.
+// entries. What we can do is REPROGRAM that palette (ESC ] P n RRGGBB) and
+// then use plain ANSI codes.
 //
-// We redefine entries 8, 9, 11, 12 and 13. Note: `.bold()` on the Linux
-// console selects the bright variant (bold green = entry 10, bold cyan =
-// entry 14). Entries 10 and 14 are therefore left untouched, otherwise
-// "Hello, user!" (bold green) would take the host color.
+// Entries 8, 9, 11, 12 and 13 are redefined. `.bold()` on the Linux console
+// selects the bright variant (bold green = entry 10, bold cyan = entry 14),
+// so entries 10 and 14 are left untouched.
 // On a real terminal (serial port, SSH...), truecolor is kept.
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -56,17 +56,30 @@ fn paint(text: &str, tint: Tint, bold: bool, mode: ColorMode) -> String {
 }
 
 // ============================================================
-// Console
+// Screen
 // ============================================================
+
+pub fn clear() {
+    print!("\x1b[2J\x1b[1;1H");
+    let _ = std::io::stdout().flush();
+}
+
+/// Makes /dev/console (our stdin) the controlling terminal of this process.
+/// Best effort: it fails harmlessly if we already own it.
+pub fn acquire_controlling_tty() {
+    unsafe {
+        libc::ioctl(libc::STDIN_FILENO, libc::TIOCSCTTY as _, 1);
+    }
+}
 
 fn is_linux_vt() -> bool {
     let mut mode: libc::c_int = 0;
     unsafe { libc::ioctl(libc::STDOUT_FILENO, KDGETMODE as _, &mut mode) == 0 }
 }
 
-/// Prepares the console before the shell and returns the color mode to use.
+/// Prepares the console before a session and returns the color mode to use.
 /// On a Linux console: UTF-8 mode, Unicode keyboard, custom palette.
-pub fn prepare_console() -> ColorMode {
+pub fn prepare() -> ColorMode {
     if !is_linux_vt() {
         return ColorMode::TrueColor;
     }
@@ -96,9 +109,10 @@ pub fn prepare_console() -> ColorMode {
 // ============================================================
 //
 // In VGA text mode (BIOS), the console uses the VGA ROM font, not the
-// kernel's: CONFIG_FONT_* and fbcon=font: have no effect. A PSF font must be
-// loaded with `setfont` (BusyBox applet, CONFIG_SETFONT).
-// If no font is found, the default one is kept.
+// kernel's: a PSF font must be loaded with `setfont` (BusyBox applet).
+// If no font is found, the default one is kept. The font is normally
+// already loaded by senbit-init early in the boot; this only makes sure it
+// is still active.
 
 const FONT_CANDIDATES: [&str; 4] = [
     "/usr/share/consolefonts/Uni3-Terminus16.psf.gz",
@@ -107,35 +121,28 @@ const FONT_CANDIDATES: [&str; 4] = [
     "/usr/share/consolefonts/default.psf.gz",
 ];
 
-pub fn load_font() {
-    for path in FONT_CANDIDATES {
-        if !std::path::Path::new(path).exists() {
-            continue;
-        }
+fn load_font() {
+    let Some(path) = FONT_CANDIDATES
+        .iter()
+        .copied()
+        .find(|p| std::path::Path::new(p).exists())
+    else {
+        return;
+    };
 
-        // PID 1 has no controlling terminal, so BusyBox setfont cannot open
-        // its default /dev/tty ("No such device or address"). Target the
-        // console explicitly with -C instead.
-        for tty in ["/dev/tty0", "/dev/console"] {
-            match std::process::Command::new("setfont")
-                .args(["-C", tty, path])
-                .status()
-            {
-                Ok(status) if status.success() => return,
-                Ok(status) => {
-                    eprintln!("setfont -C {tty} {path} failed: {status}");
-                }
-                Err(e) => {
-                    eprintln!("cannot run setfont: {e}");
-                    return;
-                }
+    for tty in ["/dev/tty0", "/dev/console"] {
+        match std::process::Command::new("setfont")
+            .args(["-C", tty, path])
+            .status()
+        {
+            Ok(status) if status.success() => return,
+            Ok(status) => log_warn!("setfont -C {tty} {path} failed: {status}"),
+            Err(error) => {
+                log_warn!("cannot run setfont: {error}");
+                return;
             }
         }
-
-        return;
     }
-
-    eprintln!("no console font found in /usr/share/consolefonts");
 }
 
 pub fn term_for(mode: ColorMode) -> &'static str {
@@ -150,16 +157,13 @@ pub fn term_for(mode: ColorMode) -> &'static str {
 // ============================================================
 
 /// Builds PS1. The path (`\w`) and the symbol (`\$`) are left to ash so they
-/// update on every `cd`; the old prompt froze the path at login time.
-pub fn build_prompt(mode: ColorMode) -> String {
-    let user = env::var("USER").unwrap_or_else(|_| "user".to_string());
-    let hostname = env::var("HOSTNAME").unwrap_or_else(|_| "Senbit".to_string());
-
+/// update on every `cd`.
+pub fn build_prompt(mode: ColorMode, user: &str, hostname: &str) -> String {
     format!(
         "{}{}{} {}{}{} ",
         paint("[", BRACKET, false, mode),
-        paint(&user, USER, true, mode),
-        paint(&format!("@{}", hostname), HOST, true, mode),
+        paint(user, USER, true, mode),
+        paint(&format!("@{hostname}"), HOST, true, mode),
         paint("\\w", PATH, false, mode),
         paint("]", BRACKET, false, mode),
         paint("\\$", SYMBOL, true, mode),

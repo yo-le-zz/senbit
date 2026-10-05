@@ -4,6 +4,7 @@ pub mod kernel;
 pub mod parted;
 pub mod rootfs;
 pub mod rust_build;
+pub mod systemd;
 pub mod tools;
 pub mod util_linux;
 pub mod initramfs;
@@ -31,6 +32,7 @@ pub enum Target {
     Busybox,
     UtilLinux,
     Parted,
+    Systemd,
     Rust,
     Tools,
     Rootfs,
@@ -62,6 +64,7 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
             Busybox => run_step("BusyBox", || busybox::build(p, &mut cache, jobs)),
             UtilLinux => run_step("util-linux", || util_linux::build(p, &mut cache, jobs)),
             Parted => run_step("GNU Parted", || parted::build(p, &mut cache, jobs)),
+            Systemd => run_step("systemd", || systemd::build(p, &mut cache, jobs)),
             Rust => run_step("Senbit Rust Userspace", || rust_build::build(p, &mut cache, jobs)),
             Tools => run_step("Senbit Build Tools", || tools::build(p, jobs)),
             Rootfs => run_step("Senbit Root Filesystem", || rootfs::build(p)),
@@ -71,6 +74,7 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
                 run_step("BusyBox", || busybox::build(p, &mut cache, jobs))?;
                 run_step("util-linux", || util_linux::build(p, &mut cache, jobs))?;
                 run_step("GNU Parted", || parted::build(p, &mut cache, jobs))?;
+                run_step("systemd", || systemd::build(p, &mut cache, jobs))?;
                 run_step("Senbit Rust Userspace", || rust_build::build(p, &mut cache, jobs))?;
                 run_step("Senbit Build Tools", || tools::build(p, jobs))?;
                 run_step("Senbit Root Filesystem", || rootfs::build(p))?;

@@ -1,3 +1,4 @@
+pub mod debug;
 pub mod level;
 pub mod record;
 pub mod rotation;

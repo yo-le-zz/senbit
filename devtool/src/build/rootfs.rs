@@ -10,7 +10,7 @@ use crate::ui;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
+pub(crate) fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
     if !src.exists() {
         bail!(
             "Source path does not exist: {}",
@@ -400,6 +400,11 @@ pub fn build(p: &Paths) -> Result<()> {
         }
     }
 
+    // systemd (PID 1 after Senbit's init exec()s it) + its shared libraries,
+    // after BusyBox so systemd's own halt/reboot/... links take precedence.
+    ui::info("Installing systemd...");
+    crate::build::systemd::install_into_rootfs(p, &rootfs)?;
+
     // Install the GRUB rootfs.
     ui::info(
         "Installing GRUB rootfs..."
@@ -526,6 +531,63 @@ pub fn build(p: &Paths) -> Result<()> {
     std::os::unix::fs::symlink(
         "sbin/senbit-init",
         &root_init,
+    )?;
+
+    // ========================================================
+    // Install senbit-login (run by senbit-login.service)
+    // ========================================================
+    //
+    // The login is NOT part of senbit-init: it is an independent
+    // component started by systemd. The unit file comes from the rootfs
+    // overlay (usr/lib/systemd/system/senbit-login.service) and its
+    // ExecStart must point to this path.
+
+    let login_binary =
+        p.login_binary();
+
+    if !login_binary.is_file() {
+        bail!(
+            "senbit-login binary does not exist: {}\n\
+             Run: devtool build rust",
+            login_binary.display()
+        );
+    }
+
+    let login_dest =
+        rootfs.join(
+            "sbin/senbit-login"
+        );
+
+    fs::copy(
+        &login_binary,
+        &login_dest,
+    )
+    .with_context(|| {
+        format!(
+            "Failed to install login binary {}",
+            login_binary.display()
+        )
+    })?;
+
+    #[cfg(unix)]
+    {
+        let mut permissions =
+            fs::metadata(
+                &login_dest
+            )?
+            .permissions();
+
+        permissions.set_mode(0o755);
+
+        fs::set_permissions(
+            &login_dest,
+            permissions,
+        )?;
+    }
+
+    // Everything systemd needs, every path used by Senbit's units.
+    crate::build::systemd::verify_rootfs(
+        &rootfs,
     )?;
 
     ui::info(

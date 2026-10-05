@@ -2,11 +2,11 @@ use anyhow::Result;
 
 use colored::Colorize;
 
+use std::convert::Infallible;
+
 use crate::{log_info, log_error};
 
 use inquire::Text;
-
-use crate::system::handler::socket::setup_socket;
 
 use crate::system::init::updates::{
     get_version,
@@ -18,19 +18,27 @@ use crate::system::init::local::hostname::init_hostname;
 use crate::system::init::init::{
     mount_system,
     fstab_is_ok,
-    init_vars,
     switch_root,
+    exec_systemd,
 };
-use crate::system::init::services::start_services;
 use crate::system::init::network::init_network;
-use crate::system::login::login::login;
 use crate::system::init::local::keymaps::init_keymaps;
 use crate::system::log::init_logs;
 
 const NEW_ROOT: &str = "/newroot";
 const UPDATE_URL: &str = "https://github.com/yo-le-zz/senbit";
 
-pub fn start_system(sys_disk: &str) -> Result<()> {
+/// Boots an installed system.
+///
+/// senbit-init is only the transition init (it runs from the initramfs):
+/// it mounts the installed root, prepares what has to be done before
+/// userspace starts, switches to the new root, then REPLACES itself with
+/// systemd (exec). From then on PID 1 is systemd; the login, the system
+/// event socket and every other service are started by systemd units
+/// (see rootfs/usr/lib/systemd/system/senbit-login.service).
+///
+/// This function never returns Ok: it either execs systemd or fails.
+pub fn start_system(sys_disk: &str) -> Result<Infallible> {
     log_info!("{}", "Mounting system...".cyan());
     mount_system(sys_disk, NEW_ROOT)?;
 
@@ -62,7 +70,7 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
     }
 
     log_info!("{}", "Initializing network...".cyan());
-    
+
     if let Err(e) = init_network(NEW_ROOT) {
         log_error!("{}", "Failed to initialize network.".red());
         return Err(anyhow::anyhow!(
@@ -71,9 +79,9 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
         ));
     }
 
-    if switch_root(NEW_ROOT).is_err() {
+    if let Err(e) = switch_root(NEW_ROOT) {
         log_error!("{}", "Failed to switch root.".red());
-        return Err(anyhow::anyhow!("Failed to switch root"));
+        return Err(e.context("Failed to switch root"));
     }
 
     if init_logs().is_err() {
@@ -81,78 +89,14 @@ pub fn start_system(sys_disk: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Failed to initialize logs"));
     }
 
-    // new root is /
-    const ROOT: &str = "/";
-
-    log_info!("{}", "Starting services...".cyan());
-    if start_services().is_err() {
-        log_error!("{}", "Failed to start services.".red());
-        return Err(anyhow::anyhow!("Failed to start services"));
-    }
-
+    // The keyboard layout is console state kept by the kernel: it survives
+    // the exec. A bad layout must not prevent the system from booting.
     log_info!("{}", "Initializing keymaps...".cyan());
-    if init_keymaps(ROOT).is_err() {
-        log_error!("{}", "Failed to initialize keymaps.".red());
-        return Err(anyhow::anyhow!("Failed to initialize keymaps"));
+    if let Err(e) = init_keymaps("/") {
+        log_error!("{}", format!("Keymap not loaded: {:#}", e).red());
     }
 
-    log_info!("{}", "Initializing variables...".cyan());
-    
-    init_vars(ROOT)
-        .map_err(|e| {
-            log_error!(
-                "{}",
-                format!(
-                    "Failed to initialize variables: {:#}",
-                    e
-                )
-                .red()
-            );
-    
-            e
-        })?;
-    
-    let listener =
-        match setup_socket() {
-            Ok(listener) => listener,
-    
-            Err(e) => {
-                log_error!(
-                    "{}",
-                    format!(
-                        "Failed to setup socket: {:#}",
-                        e
-                    )
-                    .red()
-                );
-    
-                return Err(e);
-            }
-        };
-    
-    if let Err(e) =
-        login(
-            ROOT,
-            &version,
-            listener,
-        )
-    {
-        log_error!(
-            "{}",
-            format!(
-                "Failed to login: {:#}",
-                e
-            )
-            .red()
-        );
-    
-        return Err(
-            anyhow::anyhow!(
-                "Failed to login: {:#}",
-                e
-            )
-        );
-    }
-    
-    Ok(())
+    log_info!("{}", "Starting systemd (PID 1)...".cyan());
+
+    Err(exec_systemd())
 }

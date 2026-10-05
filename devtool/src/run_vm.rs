@@ -507,6 +507,14 @@ pub fn run(
                 debug_log.display()
             ),
         ]);
+
+        // Debug flag for the guest (read by senbit-init through
+        // /sys/firmware/qemu_fw_cfg): the whole boot is mirrored to the kernel
+        // log, hence to the serial console captured in the log above.
+        cmd.args([
+            "-fw_cfg",
+            "name=opt/senbit/debug,string=1",
+        ]);
     }
 
     let status =

@@ -16,6 +16,7 @@ pub enum Component {
     Linux,
     Busybox,
     UtilLinux,
+    Systemd,
 }
 
 /// Équivalent de getlinux.sh : clone/checkout la version épinglée dans
@@ -153,6 +154,7 @@ pub fn run(p: &Paths, component: Component) -> Result<()> {
     match component {
         Component::Linux => get_linux(p),
         Component::UtilLinux => get_util_linux(p),
+        Component::Systemd => crate::build::systemd::fetch(p),
         // Réutilise exactement la logique de mise à jour utilisée par
         // `devtool build busybox` (récupère toujours la dernière version),
         // sans lancer la compilation.

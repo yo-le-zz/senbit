@@ -96,7 +96,20 @@ pub fn recursive_copy(
 
         let dest_path = std::path::Path::new(dest).join(&file_name);
 
-        if source_path.is_dir() {
+        let file_type = file.file_type()?;
+
+        if file_type.is_symlink() {
+            let target = std::fs::read_link(&source_path)
+                .context("failed to read symlink")?;
+
+            if std::fs::symlink_metadata(&dest_path).is_ok() {
+                std::fs::remove_file(&dest_path)
+                    .context("failed to replace symlink")?;
+            }
+
+            std::os::unix::fs::symlink(&target, &dest_path)
+                .context("failed to create symlink")?;
+        } else if file_type.is_dir() {
             recursive_copy(
                 &source_path_str,
                 &dest_path.to_string_lossy(),

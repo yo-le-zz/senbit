@@ -13,3 +13,6 @@
 [submodule "tools/keymaps/kbd"]
 	path = tools/keymaps/kbd
 	url = https://github.com/legionus/kbd.git
+[submodule "external/systemd"]
+	path = external/systemd
+	url = https://github.com/systemd/systemd.git

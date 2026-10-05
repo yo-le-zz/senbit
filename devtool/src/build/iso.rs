@@ -14,7 +14,7 @@ set default=0
 terminal_output console
 
 menuentry "Senbit" {
-    linux /boot/bzImage console=ttyS0,115200 console=tty0 quiet loglevel=3
+    linux /boot/bzImage console=ttyS0,115200 console=tty0 loglevel=3
     initrd /boot/initramfs.cpio.gz
 }
 "#;

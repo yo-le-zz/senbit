@@ -27,8 +27,13 @@ fn clear() {
 fn yes_installation(sys_disk: &str) {
     log_info!("{}", "Starting system initialization...".cyan());
 
-    if let Err(e) = entry::start_system(sys_disk) {
-        kpanic!("Failed to start system: {}", e);
+    // start_system() replaces this process with systemd (exec): it can only
+    // come back with an error.
+    match entry::start_system(sys_disk) {
+        Err(e) => {
+            kpanic!("Failed to start system: {:#}", e);
+        }
+        Ok(never) => match never {},
     }
 }
 
@@ -65,7 +70,7 @@ fn main() {
 
     // Load the console font as early as possible so the installer uses it
     // too (the shell only loads it after login). /dev must be mounted first.
-    system::shell::prompt::load_font();
+    system::init::console::load_font();
 
     // disk detection
     log_info!("{}", "Detecting disks...".cyan());
