@@ -1,0 +1,46 @@
+# Senbit console login.
+#
+# Runs /sbin/senbit-login (components/senbit-login) on the system console. It
+# replaces getty: getty@.service, serial-getty@.service and
+# console-getty.service are masked by the build (devtool/src/build/systemd.rs).
+#
+# senbit-login also owns the system event socket (/run/senbit.sock) used by
+# the reboot / shutdown / halt / poweroff commands.
+
+[Unit]
+Description=Senbit console login
+Documentation=https://github.com/yo-le-zz/senbit
+After=systemd-journald.service local-fs.target systemd-user-sessions.service
+# Never give up restarting: a dead console would lock the machine.
+StartLimitIntervalSec=0
+
+[Service]
+# Type=idle delays the start until the other boot jobs are done, so systemd's
+# status lines do not get printed over the login menu.
+Type=idle
+ExecStart=/sbin/senbit-login
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# The console is the service's controlling terminal (same settings as
+# systemd's own console-getty.service). StandardError MUST be the tty too: the
+# interactive menu (inquire) draws on stderr. senbit-login sends its own
+# diagnostics to the kernel log (/dev/kmsg -> journal), never to the screen.
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/console
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=no
+
+# Restart on any exit (crash, fatal error, or even a clean exit): the login
+# must always come back. User shells live in this unit's cgroup and are
+# stopped with it.
+Restart=always
+RestartSec=2
+KillMode=control-group
+SendSIGHUP=yes
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

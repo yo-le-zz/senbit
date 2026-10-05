@@ -439,6 +439,9 @@ pub fn install_system() -> Result<(), String> {
     // Step 16: unmount
     // ========================================================
 
+    // Make sure everything is on the disk before the unmount.
+    let _ = std::process::Command::new("sync").status();
+
     log_info!(
         "Unmounting..."
     );
@@ -454,6 +457,16 @@ pub fn install_system() -> Result<(), String> {
             e
         )
     })?;
+
+    // Check the new filesystem (best effort: e2fsck may not be installed).
+    // Exit codes 0 and 1 (= errors corrected) are fine.
+    match std::process::Command::new("e2fsck")
+        .args(["-f", "-y", &partition_device])
+        .status()
+    {
+        Ok(status) => log_info!("e2fsck finished: {}", status),
+        Err(e) => log_info!("e2fsck not run: {}", e),
+    }
 
     Ok(())
 }

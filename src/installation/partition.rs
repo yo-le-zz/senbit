@@ -662,24 +662,31 @@ pub fn format_partition(
         device
     );
 
+    // The installer needs the real e2fsprogs (busybox only makes a journal-less
+    // ext2). mkfs.ext4 is mke2fs; the fallback forces "-t ext4" explicitly.
+    let args = [
+        "-F",
+        // Zero the inode tables and the journal now: never rely on lazy
+        // initialisation (stale data from a previous install must not survive
+        // on a reused disk).
+        "-E",
+        "lazy_itable_init=0,lazy_journal_init=0",
+    ];
+
     let status =
-        if Command::new("mkfs.ext4")
-            .arg("--version")
+        match Command::new("mkfs.ext4")
+            .args(args)
+            .arg(device)
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
         {
-            Command::new("mkfs.ext4")
-                .arg("-F")
-                .arg(device)
-                .status()
-        } else {
-            Command::new("mke2fs")
-                .args([
-                    "-F",
-                    device,
-                ])
-                .status()
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Command::new("mke2fs")
+                    .args(["-t", "ext4"])
+                    .args(args)
+                    .arg(device)
+                    .status()
+            }
+            other => other,
         }
         .map_err(|e| {
             format!(

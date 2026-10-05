@@ -16,7 +16,8 @@ const PACKAGES: &[&str] = &[
     "bzip2", "git", "wget", "curl", "rsync", "file", "kbd", "python3",
     "xorriso", "grub-pc-bin", "grub-common", "grub-efi-amd64-bin", "ovmf",
     "mtools", "qemu-system-x86", "qemu-utils", "rustc", "cargo",
-    "gcc-multilib",
+    "gcc-multilib", "meson", "ninja-build", "libcap-dev", "libmount-dev",
+    "libcrypt-dev", "python3-jinja2",
 ];
 
 pub fn run_install(p: &Paths) -> Result<()> {

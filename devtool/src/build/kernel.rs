@@ -13,6 +13,86 @@ use crate::paths::Paths;
 use crate::proc::run_quiet;
 use crate::{gitutil, ui};
 
+/// Options forcées par-dessus `x86_64_defconfig`.
+///
+/// Le defconfig amont n'active plus aucun pilote d'affichage généraliste
+/// (ni CONFIG_FB, ni FRAMEBUFFER_CONSOLE, ni SIMPLEDRM). En BIOS le texte VGA
+/// sauve la mise, mais en UEFI il n'y a PAS de mode texte VGA : sans
+/// framebuffer le noyau tourne "à l'aveugle" (écran noir, aucun println!).
+const REQUIRED_CONFIG: &[&str] = &[
+    // console virtuelle + console sur framebuffer
+    "VT",
+    "VT_CONSOLE",
+    "FB",
+    "FRAMEBUFFER_CONSOLE",
+    "FONTS",
+    "FONT_8x16",
+    // framebuffer laissé par le firmware UEFI (GOP)
+    "FB_EFI",
+    "SYSFB_SIMPLEFB",
+    "DRM_SIMPLEDRM",
+    "DRM_FBDEV_EMULATION",
+    // GPU émulés courants (QEMU std VGA, VirtualBox)
+    "DRM_BOCHS",
+    "DRM_VBOXVIDEO",
+    // requis par systemd (PID 1) - déjà dans le defconfig actuel, épinglés
+    // ici pour qu'un changement amont ne les retire pas en silence
+    // `devtool run --debug` passes its flag to the guest through QEMU fw_cfg
+    "FW_CFG_SYSFS",
+    "DEVTMPFS",
+    "CGROUPS",
+    "CGROUP_PIDS",
+    "INOTIFY_USER",
+    "SIGNALFD",
+    "TIMERFD",
+    "EPOLL",
+    "FHANDLE",
+    "TMPFS",
+    "TMPFS_XATTR",
+    "TMPFS_POSIX_ACL",
+    "AUTOFS_FS",
+    "NAMESPACES",
+    // utilisés par l'installeur
+    "ISO9660_FS",
+    "VFAT_FS",
+    "NLS_CODEPAGE_437",
+    "NLS_ISO8859_1",
+];
+
+fn apply_required_config(p: &Paths) -> Result<()> {
+    let build_dir = p.kernel_build_dir();
+    let config = build_dir.join(".config");
+    let script = p.kernel_dir().join("scripts/config");
+
+    let mut cmd = Command::new(&script);
+    cmd.arg("--file").arg(&config);
+    for opt in REQUIRED_CONFIG {
+        cmd.arg("-e").arg(opt);
+    }
+    run_quiet(&mut cmd)?;
+
+    let o = format!("O={}", build_dir.display());
+    run_quiet(Command::new("make").arg("-C").arg(p.kernel_dir()).arg(&o).arg("olddefconfig"))?;
+
+    // olddefconfig supprime silencieusement une option dont une dépendance
+    // manque : on vérifie qu'elles sont toutes réellement à "=y".
+    let text = std::fs::read_to_string(&config)?;
+    let missing: Vec<&str> = REQUIRED_CONFIG
+        .iter()
+        .copied()
+        .filter(|opt| !text.lines().any(|l| l == format!("CONFIG_{opt}=y")))
+        .collect();
+
+    if !missing.is_empty() {
+        bail!(
+            "kernel options could not be enabled (missing dependency?):\n  {}",
+            missing.join("\n  ")
+        );
+    }
+
+    Ok(())
+}
+
 fn update(p: &Paths) -> Result<()> {
     let dir = p.kernel_dir();
     if !gitutil::is_repo(&dir) {
@@ -37,7 +117,9 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
 
     let dir = p.kernel_dir();
     let image = p.kernel_image();
-    let fp = git_fingerprint(&dir);
+    // La liste d'options fait partie de l'empreinte : la modifier relance la
+    // compilation même si les sources du noyau n'ont pas bougé.
+    let fp = format!("{}|cfg:{}", git_fingerprint(&dir), REQUIRED_CONFIG.join(","));
 
     if cache.is_fresh("kernel", &fp, &[&image]) {
         println!();
@@ -56,8 +138,8 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     }
 
     println!();
-    ui::info("Updating kernel configuration...");
-    run_quiet(Command::new("make").arg("-C").arg(&dir).arg(&o).arg("olddefconfig"))?;
+    ui::info("Updating kernel configuration (framebuffer console for UEFI)...");
+    apply_required_config(p)?;
 
     println!();
     ui::info("Building Linux kernel...");

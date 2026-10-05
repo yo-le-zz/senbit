@@ -8,15 +8,21 @@ use anyhow::{Result, Context};
 use crate::installation::partition::{DiskKind, DiskOption};
 use crate::filesystem::fs::{unmount, mount};
 use crate::utils::files::file_exists;
+use crate::log_info;
 
 pub fn detect_installation() -> Option<String> {
     let partitions = detect_partitions();
+
+    log_info!("Candidate partitions: {:?}", partitions);
 
     for p in &partitions {
         let device = format!("/dev/{}", p);
         let mount_point = "/mnt";
 
+        log_info!("Probing {}...", device);
+
         if mount_partition(&device, mount_point).is_err() {
+            log_info!("  {}: not mountable, skipped", device);
             continue;
         }
 
@@ -24,6 +30,8 @@ pub fn detect_installation() -> Option<String> {
         let installed = file_exists(&marker);
 
         let _ = unmount_partition(mount_point);
+
+        log_info!("  {}: installed={}", device, installed);
 
         if installed {
             return Some(p.clone());
@@ -98,6 +106,15 @@ pub fn detect_partitions() -> Vec<String> {
         }
 
         let name = parts[3];
+
+        // sr0 (CD/DVD), loop, ram... are not partitions that can hold an
+        // installation: probing them only wastes time (or blocks).
+        if ["sr", "loop", "ram", "zram", "nbd", "dm-"]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+        {
+            continue;
+        }
 
         if !is_disk_name(name) {
             partitions.push(name.to_string());

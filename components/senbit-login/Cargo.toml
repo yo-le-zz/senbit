@@ -1,0 +1,24 @@
+[package]
+name = "senbit-login"
+version = "0.1.0"
+edition = "2021"
+description = "Senbit console login service (run by systemd as senbit-login.service)"
+publish = false
+
+# Own workspace root: this crate is built on its own (devtool), never as a
+# member of the root crate's workspace.
+[workspace]
+
+[dependencies]
+anyhow = "1.0.104"
+colored = "3.1.1"
+# Pure-Rust backend: no C library, builds as a static musl binary.
+crypt-sha512 = { version = "1.0.1", default-features = false, features = ["backend-rust-crypto"] }
+inquire = "0.9.4"
+libc = "0.2.190"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

@@ -107,6 +107,17 @@ impl Paths {
         self.r("third_party/patches/parted")
     }
 
+    // ---- systemd ----
+    pub fn systemd_dir(&self) -> PathBuf { self.r("external/systemd") }
+    pub fn systemd_build_dir(&self) -> PathBuf { self.r("build/systemd") }
+    pub fn systemd_install_dir(&self) -> PathBuf { self.systemd_build_dir().join("_install") }
+    pub fn systemd_binary(&self) -> PathBuf {
+        self.systemd_install_dir().join("usr/lib/systemd/systemd")
+    }
+    pub fn systemd_version_file(&self) -> PathBuf { self.r("config/systemd/version") }
+    pub fn systemd_sha_file(&self) -> PathBuf { self.r("config/systemd/sha") }
+    pub const SYSTEMD_REPO: &'static str = "https://github.com/systemd/systemd.git";
+
     // ---- rust userspace ----
     pub const RUST_TARGET: &'static str =
         "x86_64-unknown-linux-musl";
@@ -116,6 +127,22 @@ impl Paths {
     pub fn senbit_binary(&self) -> PathBuf {
         self.r(&format!(
             "target/{}/release/senbit",
+            Self::RUST_TARGET
+        ))
+    }
+
+    // ---- senbit-login (independent crate, run by systemd) ----
+    pub fn login_dir(&self) -> PathBuf {
+        self.r("components/senbit-login")
+    }
+
+    pub fn login_target_dir(&self) -> PathBuf {
+        self.r("build/login/target")
+    }
+
+    pub fn login_binary(&self) -> PathBuf {
+        self.login_target_dir().join(format!(
+            "{}/release/senbit-login",
             Self::RUST_TARGET
         ))
     }

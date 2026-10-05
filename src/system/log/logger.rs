@@ -51,6 +51,8 @@ impl Logger {
             message: message.to_string(),
         };
 
+        super::debug::mirror(&record.format());
+
         let writer =
             match self.writer.lock() {
                 Ok(writer) => writer,
@@ -110,6 +112,13 @@ pub fn log(
         }
 
         None => {
+            super::debug::mirror(&format!(
+                "[{}] {}: {}",
+                level.as_str(),
+                component,
+                message
+            ));
+
             eprintln!(
                 "[{}] {}: {}",
                 level.as_str(),

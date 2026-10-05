@@ -44,6 +44,13 @@ fn make_sysconfig(dest: &Path, root_uuid: &str) -> Result<()> {
 
     
 
+    // /etc/machine-id
+    //
+    // An EMPTY file tells systemd this is the first boot: it generates the
+    // machine id and writes it here. Without the file, systemd would fall
+    // back to a transient id that changes at every boot.
+    std::fs::write(dest.join("etc/machine-id"), "")?;
+
     // /etc/senbit-release
     let version = env!("CARGO_PKG_VERSION");
 

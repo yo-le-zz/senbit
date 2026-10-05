@@ -367,6 +367,210 @@ fn install_bootloader(
 }
 
 /* ============================================================
+Boot files (kernel + initramfs)
+============================================================ */
+
+/*
+ * The live system is an initramfs held in RAM (a tmpfs capped at 50% of
+ * the RAM): it cannot also carry a kernel and a copy of itself. The
+ * installer therefore fetches both from the boot medium (the ISO, which
+ * holds /boot/bzImage and /boot/initramfs.cpio.gz) and copies them to
+ * the target as /boot/vmlinuz and /boot/initramfs.cpio.gz.
+ *
+ * The installed system boots the very same initramfs as the live one:
+ * its init detects the installation on disk and switches root.
+ */
+const KERNEL_FILE: &str = "boot/vmlinuz";
+const INITRAMFS_FILE: &str = "boot/initramfs.cpio.gz";
+const ISO_KERNEL: &str = "boot/bzImage";
+const ISO_INITRAMFS: &str = "boot/initramfs.cpio.gz";
+const ISO_MOUNT: &str = "/iso";
+
+fn mount_iso9660(
+    source: &Path,
+    target: &Path,
+) -> bool {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let (Ok(src), Ok(tgt), Ok(fstype)) = (
+        CString::new(source.as_os_str().as_bytes()),
+        CString::new(target.as_os_str().as_bytes()),
+        CString::new("iso9660"),
+    ) else {
+        return false;
+    };
+
+    // Silent on failure: most candidates are not ISO images.
+    unsafe {
+        libc::mount(
+            src.as_ptr(),
+            tgt.as_ptr(),
+            fstype.as_ptr(),
+            libc::MS_RDONLY,
+            std::ptr::null(),
+        ) == 0
+    }
+}
+
+fn umount_path(target: &Path) {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    if let Ok(tgt) =
+        CString::new(target.as_os_str().as_bytes())
+    {
+        unsafe {
+            libc::umount(tgt.as_ptr());
+        }
+    }
+}
+
+fn install_boot_files(
+    mount_point: &Path,
+) -> Result<()> {
+    let iso_dir =
+        Path::new(ISO_MOUNT);
+
+    std::fs::create_dir_all(
+        iso_dir,
+    )?;
+
+    // Optical drives first (sr0...), then every other block device
+    // (ISO written to a USB stick appears as sdX).
+    let mut names: Vec<String> =
+        std::fs::read_dir(
+            "/sys/class/block",
+        )
+        .context(
+            "Failed to list block devices",
+        )?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            e.file_name()
+                .to_str()
+                .map(String::from)
+        })
+        .filter(|n| {
+            ![
+                "loop", "ram", "zram",
+                "nbd", "dm-", "md",
+            ]
+            .iter()
+            .any(|p| n.starts_with(p))
+        })
+        .collect();
+
+    names.sort_by_key(|n| {
+        (!n.starts_with("sr"), n.clone())
+    });
+
+    let boot_directory =
+        mount_point.join("boot");
+
+    std::fs::create_dir_all(
+        &boot_directory,
+    )?;
+
+    for name in &names {
+        let device =
+            Path::new("/dev")
+                .join(name);
+
+        if !device.exists()
+            || !mount_iso9660(
+                &device,
+                iso_dir,
+            )
+        {
+            continue;
+        }
+
+        let kernel =
+            iso_dir.join(ISO_KERNEL);
+
+        let initramfs =
+            iso_dir.join(ISO_INITRAMFS);
+
+        let found =
+            kernel.is_file()
+                && initramfs.is_file();
+
+        if found {
+            log_info!(
+                "Boot files found on {}",
+                device.display()
+            );
+
+            let result = (|| -> Result<()> {
+                std::fs::copy(
+                    &kernel,
+                    mount_point
+                        .join(KERNEL_FILE),
+                )
+                .context(
+                    "Failed to copy the kernel",
+                )?;
+
+                std::fs::copy(
+                    &initramfs,
+                    mount_point
+                        .join(INITRAMFS_FILE),
+                )
+                .context(
+                    "Failed to copy the initramfs",
+                )?;
+
+                Ok(())
+            })();
+
+            umount_path(iso_dir);
+
+            return result;
+        }
+
+        umount_path(iso_dir);
+    }
+
+    anyhow::bail!(
+        "Could not find the Senbit boot medium (an ISO9660 device \
+         containing /{} and /{}). Candidates tried: {}",
+        ISO_KERNEL,
+        ISO_INITRAMFS,
+        names.join(", ")
+    )
+}
+
+fn verify_boot_files(
+    mount_point: &Path,
+) -> Result<()> {
+    for rel in [KERNEL_FILE, INITRAMFS_FILE] {
+        let path =
+            mount_point.join(rel);
+
+        let size =
+            std::fs::metadata(&path)
+                .map(|m| m.len())
+                .unwrap_or(0);
+
+        if size == 0 {
+            anyhow::bail!(
+                "Boot file missing or empty on the target: {}",
+                path.display()
+            );
+        }
+
+        log_info!(
+            "Boot file OK: /{} ({} KiB)",
+            rel,
+            size / 1024
+        );
+    }
+
+    Ok(())
+}
+
+/* ============================================================
 GRUB configuration
 ============================================================ */
 
@@ -391,7 +595,7 @@ terminal_output console
 set gfxpayload=keep
 
 menuentry "Senbit" {{
-    linux /boot/vmlinuz root=UUID={} ro console=tty0 console=ttyS0,115200
+    linux /boot/vmlinuz root=UUID={} rw console=ttyS0,115200 console=tty0 loglevel=3
     initrd /boot/initramfs.cpio.gz
 }}
 "#,
@@ -437,6 +641,14 @@ pub fn setup_bootloader(
             );
         }
     }
+
+    install_boot_files(
+        mount_point,
+    )?;
+
+    verify_boot_files(
+        mount_point,
+    )?;
 
     install_bootloader(
         &mode,
