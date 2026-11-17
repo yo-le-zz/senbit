@@ -1,8 +1,8 @@
 //! Cache de build : ne recompile un composant que si son empreinte (commit git,
 //! statut "dirty", ou version épinglée) a changé depuis la dernière build réussie.
 
-use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeMap;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -43,14 +43,14 @@ impl Cache {
     }
 
     pub fn record(&mut self, key: &str, fingerprint: &str) -> Result<()> {
-        self.entries.insert(key.to_string(), fingerprint.to_string());
+        self.entries
+            .insert(key.to_string(), fingerprint.to_string());
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(&self.path, serde_json::to_string_pretty(&self.entries)?)?;
         Ok(())
     }
-
 }
 
 /// Empreinte d'un dépôt git : commit courant + présence de modifications

@@ -7,6 +7,13 @@ use std::io::Write;
 const KDGETMODE: u32 = 0x4B3B;
 const KDSKBMODE: u32 = 0x4B45;
 const K_UNICODE: libc::c_int = 0x03;
+const KDGKBLED: u32 = 0x4B64;
+const KDSKBLED: u32 = 0x4B65;
+const KDSETLED: u32 = 0x4B32;
+/// Flag NumLock of the keyboard LED state.
+const LED_NUM: libc::c_int = 0x02;
+/// KDSETLED argument: let the LEDs follow the flags again.
+const LED_SHOW_FLAGS: libc::c_ulong = 0xFF;
 
 // ============================================================
 // Colors
@@ -42,16 +49,27 @@ const SYMBOL: Tint = Tint { rgb: (148, 96, 56), slot: 13 };
 
 const PALETTE: [Tint; 5] = [BRACKET, USER, HOST, PATH, SYMBOL];
 
-fn paint(text: &str, tint: Tint, bold: bool, mode: ColorMode) -> String {
-    match mode {
+/// Colors `text`. With `bash` the escape sequences are wrapped in `\[` `\]`:
+/// bash needs them to know that they take no room on screen, otherwise a long
+/// command wraps at the wrong column. ash does not know them, so the plain
+/// prompt (PS1) and the bash one (SENBIT_PS1_BASH) are two different strings.
+fn paint(text: &str, tint: Tint, bold: bool, mode: ColorMode, bash: bool) -> String {
+    let (open, close) = match mode {
         ColorMode::TrueColor => {
             let (r, g, b) = tint.rgb;
             let weight = if bold { "1;" } else { "" };
-            format!("\x1b[{weight}38;2;{r};{g};{b}m{text}\x1b[0m")
+            (format!("\x1b[{weight}38;2;{r};{g};{b}m"), "\x1b[0m".to_string())
         }
-        ColorMode::Palette => {
-            format!("\x1b[{}m{}\x1b[0m", 90 + tint.slot - 8, text)
-        }
+        ColorMode::Palette => (
+            format!("\x1b[{}m", 90 + tint.slot - 8),
+            "\x1b[0m".to_string(),
+        ),
+    };
+
+    if bash {
+        format!("\\[{open}\\]{text}\\[{close}\\]")
+    } else {
+        format!("{open}{text}{close}")
     }
 }
 
@@ -156,16 +174,53 @@ pub fn term_for(mode: ColorMode) -> &'static str {
 // Prompt
 // ============================================================
 
-/// Builds PS1. The path (`\w`) and the symbol (`\$`) are left to ash so they
-/// update on every `cd`.
+/// Builds PS1. The path (`\w`) and the symbol (`\$`) are left to the shell so
+/// they update on every `cd`.
 pub fn build_prompt(mode: ColorMode, user: &str, hostname: &str) -> String {
+    prompt(mode, user, hostname, false)
+}
+
+/// Same prompt for bash (escape sequences wrapped in `\[` `\]`).
+pub fn build_prompt_bash(mode: ColorMode, user: &str, hostname: &str) -> String {
+    prompt(mode, user, hostname, true)
+}
+
+fn prompt(mode: ColorMode, user: &str, hostname: &str, bash: bool) -> String {
     format!(
         "{}{}{} {}{}{} ",
-        paint("[", BRACKET, false, mode),
-        paint(user, USER, true, mode),
-        paint(&format!("@{hostname}"), HOST, true, mode),
-        paint("\\w", PATH, false, mode),
-        paint("]", BRACKET, false, mode),
-        paint("\\$", SYMBOL, true, mode),
+        paint("[", BRACKET, false, mode, bash),
+        paint(user, USER, true, mode, bash),
+        paint(&format!("@{hostname}"), HOST, true, mode, bash),
+        paint("\\w", PATH, false, mode, bash),
+        paint("]", BRACKET, false, mode, bash),
+        paint("\\$", SYMBOL, true, mode, bash),
     )
+}
+
+/// Turns NumLock on by default on the Linux console (VGA / framebuffer).
+///
+/// KDSKBLED sets the flags AND the defaults (applied to every virtual
+/// terminal), KDSETLED then makes the keyboard lights follow them. A serial
+/// console has no keyboard: the ioctl fails and nothing happens.
+pub fn enable_numlock() {
+    unsafe {
+        let fd = libc::open(
+            b"/dev/console\0".as_ptr() as *const libc::c_char,
+            libc::O_RDWR | libc::O_NOCTTY,
+        );
+        if fd < 0 {
+            return;
+        }
+
+        let mut flags: libc::c_char = 0;
+        if libc::ioctl(fd, KDGKBLED as _, &mut flags as *mut libc::c_char) == 0 {
+            let flags = flags as libc::c_int;
+            let current = (flags & 0x07) | LED_NUM;
+            let default = ((flags >> 4) & 0x07) | LED_NUM;
+            libc::ioctl(fd, KDSKBLED as _, (current | (default << 4)) as libc::c_ulong);
+            libc::ioctl(fd, KDSETLED as _, LED_SHOW_FLAGS);
+        }
+
+        libc::close(fd);
+    }
 }

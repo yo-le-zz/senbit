@@ -2,8 +2,8 @@
 //! commit attendu config/systemd/sha). Compilé avec meson, installé dans
 //! build/systemd/_install puis copié dans le rootfs avec ses bibliothèques.
 
-use std::collections::BTreeSet;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeSet;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -13,30 +13,82 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 
 use crate::cache::Cache;
+use crate::host;
 use crate::paths::Paths;
-use crate::proc::{capture, run_quiet};
+use crate::proc::run_quiet;
 use crate::{gitutil, ui};
 
 const OPTIONS: &[&str] = &[
-    "-Dmode=release", "-Dsplit-bin=true", "-Dlibdir=lib", "-Dsysconfdir=/etc",
-    "-Dlocalstatedir=/var", "-Dfallback-default-target=multi-user.target",
-    "-Dman=disabled", "-Dhtml=disabled", "-Dtranslations=false", "-Dtests=false",
-    "-Dinstall-tests=false", "-Dbootloader=disabled", "-Defi=false", "-Dukify=disabled",
-    "-Dkernel-install=false", "-Danalyze=false", "-Dseccomp=disabled",
-    "-Dselinux=disabled", "-Dapparmor=disabled", "-Dpolkit=disabled", "-Dacl=disabled",
-    "-Daudit=disabled", "-Dpam=disabled", "-Dkmod=disabled", "-Dmicrohttpd=disabled",
-    "-Dlibcryptsetup=disabled", "-Dlibcurl=disabled", "-Dopenssl=disabled",
-    "-Dgcrypt=disabled", "-Dgnutls=disabled", "-Dp11kit=disabled", "-Dlibfido2=disabled",
-    "-Dtpm2=disabled", "-Delfutils=disabled", "-Dzlib=disabled", "-Dbzip2=disabled",
-    "-Dxz=disabled", "-Dlz4=disabled", "-Dzstd=disabled", "-Dpcre2=disabled",
-    "-Dglib=disabled", "-Ddbus=disabled", "-Dlibarchive=disabled", "-Dqrencode=disabled",
-    "-Dxkbcommon=disabled", "-Dbpf-framework=disabled", "-Dlibidn2=disabled",
-    "-Dpwquality=disabled", "-Dpasswdqc=disabled", "-Dremote=disabled", "-Dimds=disabled",
-    "-Dhomed=disabled", "-Dnspawn=disabled", "-Dvmspawn=disabled", "-Dimportd=disabled",
-    "-Drepart=disabled", "-Dsysupdate=disabled", "-Dfdisk=disabled", "-Dlibcrypt=disabled",
-    "-Dblkid=disabled", "-Dnetworkd=false", "-Dresolve=false", "-Dtimesyncd=false",
-    "-Dhwdb=false", "-Dfirstboot=false", "-Dportabled=false", "-Dmachined=false",
-    "-Duserdb=false", "-Dcoredump=false", "-Doomd=false", "-Dsysext=false",
+    "-Dmode=release",
+    "-Dsplit-bin=true",
+    "-Dlibdir=lib",
+    "-Dsysconfdir=/etc",
+    "-Dlocalstatedir=/var",
+    "-Dman=disabled",
+    "-Dhtml=disabled",
+    "-Dtranslations=false",
+    "-Dtests=false",
+    "-Dinstall-tests=false",
+    "-Dbootloader=disabled",
+    "-Defi=false",
+    "-Dukify=disabled",
+    "-Dkernel-install=false",
+    "-Danalyze=false",
+    "-Dseccomp=disabled",
+    "-Dselinux=disabled",
+    "-Dapparmor=disabled",
+    "-Dpolkit=disabled",
+    "-Dacl=disabled",
+    "-Daudit=disabled",
+    "-Dpam=disabled",
+    "-Dkmod=disabled",
+    "-Dmicrohttpd=disabled",
+    "-Dlibcryptsetup=disabled",
+    "-Dlibcurl=disabled",
+    "-Dopenssl=disabled",
+    "-Dgcrypt=disabled",
+    "-Dgnutls=disabled",
+    "-Dp11kit=disabled",
+    "-Dlibfido2=disabled",
+    "-Dtpm2=disabled",
+    "-Delfutils=disabled",
+    "-Dzlib=disabled",
+    "-Dbzip2=disabled",
+    "-Dxz=disabled",
+    "-Dlz4=disabled",
+    "-Dzstd=disabled",
+    "-Dpcre2=disabled",
+    "-Dglib=disabled",
+    "-Ddbus=disabled",
+    "-Dlibarchive=disabled",
+    "-Dqrencode=disabled",
+    "-Dxkbcommon=disabled",
+    "-Dbpf-framework=disabled",
+    "-Dlibidn2=disabled",
+    "-Dpwquality=disabled",
+    "-Dpasswdqc=disabled",
+    "-Dremote=disabled",
+    "-Dimds=disabled",
+    "-Dhomed=disabled",
+    "-Dnspawn=disabled",
+    "-Dvmspawn=disabled",
+    "-Dimportd=disabled",
+    "-Drepart=disabled",
+    "-Dsysupdate=disabled",
+    "-Dfdisk=disabled",
+    "-Dlibcrypt=disabled",
+    "-Dblkid=disabled",
+    "-Dnetworkd=false",
+    "-Dresolve=false",
+    "-Dtimesyncd=false",
+    "-Dhwdb=false",
+    "-Dfirstboot=false",
+    "-Dportabled=false",
+    "-Dmachined=false",
+    "-Duserdb=false",
+    "-Dcoredump=false",
+    "-Doomd=false",
+    "-Dsysext=false",
 ];
 
 /// Unités à masquer : le login Senbit remplace getty, et busybox n'a pas agetty ;
@@ -49,6 +101,38 @@ const MASKED_UNITS: &[&str] = &[
     "console-getty.service",
     "systemd-logind.service",
     "systemd-logind-varlink.socket",
+    // The keyboard layout is loaded by senbit-init (BusyBox loadkmap, .bmap
+    // files in /usr/share/keymaps) before systemd starts. systemd's own unit
+    // needs a `loadkeys` that BusyBox does not provide: it failed at every boot.
+    "systemd-vconsole-setup.service",
+];
+
+/// Units enabled at build time: (".wants" directory, link name, unit file).
+/// A template instance (`senbit-dhcp@eth0`) links to the template file.
+const ENABLED_UNITS: &[(&str, &str, &str)] = &[
+    (
+        "multi-user.target.wants",
+        "senbit-dhcp@eth0.service",
+        "senbit-dhcp@.service",
+    ),
+    // systemd's own ldconfig.service, made unconditional by the drop-in
+    // ldconfig.service.d/10-senbit.conf: the library cache is rebuilt at every
+    // boot and the service shows as "active (exited)". (It replaces Senbit's
+    // senbit-ldconfig.service: both ran at once and one failed renaming
+    // ld.so.cache~.)
+    (
+        "sysinit.target.wants",
+        "ldconfig.service",
+        "ldconfig.service",
+    ),
+    // Downloads the apt package lists as soon as the network is up (and retries
+    // until it is): `apt install curl` fails with "Unable to locate package"
+    // while /var/lib/apt/lists is empty. Never blocks the boot.
+    (
+        "multi-user.target.wants",
+        "senbit-apt-update.service",
+        "senbit-apt-update.service",
+    ),
 ];
 
 /// Outils de l'hôte copiés dans le rootfs avec leurs bibliothèques. busybox
@@ -66,7 +150,10 @@ fn read_trimmed(file: &Path, what: &str) -> Result<String> {
     if !file.is_file() {
         bail!("systemd {what} file not found:\n  {}", file.display());
     }
-    let v: String = fs::read_to_string(file)?.chars().filter(|c| !c.is_whitespace()).collect();
+    let v: String = fs::read_to_string(file)?
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     if v.is_empty() {
         bail!("systemd {what} is empty:\n  {}", file.display());
     }
@@ -78,7 +165,10 @@ fn read_trimmed(file: &Path, what: &str) -> Result<String> {
 fn verify(p: &Paths) -> Result<(String, String)> {
     let dir = p.systemd_dir();
     if !gitutil::is_repo(&dir) {
-        bail!("systemd source tree not found:\n  {}\n\nRun:\n  devtool get systemd", dir.display());
+        bail!(
+            "systemd source tree not found:\n  {}\n\nRun:\n  devtool get systemd",
+            dir.display()
+        );
     }
     let version = read_trimmed(&p.systemd_version_file(), "version")?;
     let expected = read_trimmed(&p.systemd_sha_file(), "SHA")?.to_lowercase();
@@ -99,63 +189,98 @@ fn verify(p: &Paths) -> Result<(String, String)> {
     Ok((version, head))
 }
 
-/// `devtool get systemd` : clone / met à jour vers le tag épinglé, puis
-/// vérifie le SHA.
-pub(crate) fn fetch(p: &Paths) -> Result<()> {
-    let dir = p.systemd_dir();
-    let version = read_trimmed(&p.systemd_version_file(), "version")?;
+/// Names of the meson options the pinned systemd actually defines
+/// (`meson.options`, or `meson_options.txt` before v257).
+///
+/// OPTIONS below was written for one systemd version; options are added and
+/// removed between releases and meson fails on an unknown one. Filtering by
+/// what the source declares makes changing the pinned version safe.
+fn known_options(source: &Path) -> BTreeSet<String> {
+    let text = ["meson.options", "meson_options.txt"]
+        .iter()
+        .find_map(|f| fs::read_to_string(source.join(f)).ok())
+        .unwrap_or_default();
 
-    if !gitutil::is_repo(&dir) {
-        if dir.exists() {
-            bail!("{} exists but is not a Git repository.", dir.display());
+    let mut names = BTreeSet::new();
+    for line in text.lines() {
+        if let Some(rest) = line.trim_start().strip_prefix("option(") {
+            let rest = rest.trim_start().trim_start_matches(['\'', '"']);
+            if let Some(end) = rest.find(['\'', '"']) {
+                names.insert(rest[..end].to_string());
+            }
         }
-        ui::info(format!("Downloading systemd {version}..."));
-        let spin = ui::spinner(&format!("Cloning systemd {version} (depth 1)..."));
-        let result = gitutil::clone_tag(Paths::SYSTEMD_REPO, &version, &dir);
-        spin.finish_and_clear();
-        result?;
-    } else if gitutil::describe_exact(&dir) != version {
-        let status = gitutil::status_porcelain(&dir);
-        if !status.is_empty() {
-            bail!("systemd source tree contains local modifications:\n\n{status}");
-        }
-        ui::info(format!("Updating systemd to {version}..."));
-        gitutil::fetch_tags(&dir)?;
-        gitutil::checkout_detach(&dir, &version)?;
     }
-
-    verify(p)?;
-    ui::ok(format!("systemd {version} is ready."));
-    Ok(())
+    names
 }
 
-fn fingerprint(sha: &str) -> String {
+/// Options built into meson itself: never declared in systemd's meson options.
+const MESON_BUILTIN: &[&str] = &[
+    "libdir",
+    "sysconfdir",
+    "localstatedir",
+    "prefix",
+    "bindir",
+    "sbindir",
+    "datadir",
+];
+
+/// (options to pass, options skipped because this systemd does not know them).
+fn usable_options(source: &Path) -> (Vec<&'static str>, Vec<&'static str>) {
+    let known = known_options(source);
+    if known.is_empty() {
+        // Could not read the declaration: pass everything, meson will complain.
+        return (OPTIONS.to_vec(), Vec::new());
+    }
+    OPTIONS.iter().copied().partition(|opt| {
+        let name = opt.trim_start_matches("-D").split('=').next().unwrap_or("");
+        MESON_BUILTIN.contains(&name) || known.contains(name)
+    })
+}
+
+fn fingerprint(sha: &str, opts: &[&str], patches: &str) -> String {
     let mut h = DefaultHasher::new();
-    OPTIONS.hash(&mut h);
-    format!("{sha}:opts={:016x}", h.finish())
+    opts.hash(&mut h);
+    format!("{sha}:opts={:016x}:patches={patches}", h.finish())
 }
 
-fn meson_command() -> Command {
-    let mut cmd = Command::new("/usr/bin/meson");
+/// meson on a clean environment, tools found on the host (no /usr/bin/...).
+fn meson_command() -> Result<Command> {
+    let meson = host::find_tool("meson")
+        .context("meson not found. Run `devtool doctor` to see what to install.")?;
+    let cc = host::find_first(&["cc", "gcc"]).context("no C compiler found (cc/gcc)")?;
+    let cxx = host::find_first(&["c++", "g++"]).unwrap_or_else(|| cc.clone());
 
+    let mut cmd = Command::new(meson);
     cmd.env_clear()
         .env(
             "PATH",
             "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         )
-        .env("CC", "/usr/bin/cc")
-        .env("CXX", "/usr/bin/c++");
-
-    cmd
+        .env(
+            "HOME",
+            std::env::var("HOME").unwrap_or_else(|_| "/tmp".into()),
+        )
+        .env("LANG", "C.UTF-8")
+        .env("CC", cc)
+        .env("CXX", cxx);
+    Ok(cmd)
 }
 
 pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     let (_, sha) = verify(p)?;
+    crate::patches::apply(p, "systemd", "systemd", &p.systemd_dir())?;
+    let (options, skipped) = usable_options(&p.systemd_dir());
+    if !skipped.is_empty() {
+        ui::detail(format!(
+            "meson options unknown to this systemd (skipped): {}",
+            skipped.join(" ")
+        ));
+    }
     let dir = p.systemd_dir();
     let build_dir = p.systemd_build_dir();
     let install = p.systemd_install_dir();
     let binary = p.systemd_binary();
-    let fp = fingerprint(&sha);
+    let fp = fingerprint(&sha, &options, &crate::patches::fingerprint(p, "systemd"));
 
     if cache.is_fresh("systemd", &fp, &[&binary]) {
         println!();
@@ -166,34 +291,36 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
 
     fs::create_dir_all(&build_dir)?;
 
-    let mut setup = meson_command();
-    
-    setup
-        .arg("setup")
-        .env("CC", "cc")
-        .env("CXX", "c++");
-    
+    let mut setup = meson_command()?;
+
+    setup.arg("setup");
+
     if build_dir.join("build.ninja").is_file() {
         setup.arg("--reconfigure");
     }
-    
+
     setup
         .arg(&build_dir)
         .arg(&dir)
         .arg("--prefix=/usr")
-        .args(OPTIONS);
-    
+        .args(&options);
+
     ui::info("Configuring systemd...");
     run_quiet(&mut setup)?;
 
     let spin = ui::spinner("Compiling systemd...");
-    let result = run_quiet(meson_command().args(["compile", "-C"]).arg(&build_dir).arg(format!("-j{jobs}")));
+    let result = run_quiet(
+        meson_command()?
+            .args(["compile", "-C"])
+            .arg(&build_dir)
+            .arg(format!("-j{jobs}")),
+    );
     spin.finish_and_clear();
     result?;
 
     let _ = fs::remove_dir_all(&install);
     run_quiet(
-        meson_command()
+        meson_command()?
             .args(["install", "--no-rebuild", "-C"])
             .arg(&build_dir)
             .arg("--destdir")
@@ -215,7 +342,10 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
 fn is_elf(path: &Path) -> bool {
     use std::io::Read;
     let mut magic = [0u8; 4];
-    fs::File::open(path).and_then(|mut f| f.read_exact(&mut magic)).is_ok() && magic == *b"\x7fELF"
+    fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut magic))
+        .is_ok()
+        && magic == *b"\x7fELF"
 }
 
 fn collect_elfs(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<()> {
@@ -241,8 +371,8 @@ const DLOPEN_LIBS: &[(&str, bool)] = &[
 ];
 
 /// Absolute path of a x86-64 library known to the host's ld.so cache.
-fn host_library(soname: &str) -> Option<String> {
-    let out = Command::new("ldconfig").arg("-p").output().ok()?;
+pub(crate) fn host_library(soname: &str) -> Option<String> {
+    let out = host::command("ldconfig").arg("-p").output().ok()?;
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .filter(|l| l.trim_start().starts_with(soname))
@@ -280,7 +410,7 @@ fn shared_libs(install: &Path) -> Result<BTreeSet<String>> {
     let mut libs = extra;
 
     for elf in elfs {
-        let out = Command::new("ldd")
+        let out = host::command("ldd")
             .env("LD_LIBRARY_PATH", &lib_path)
             .arg(&elf)
             .output()
@@ -297,7 +427,11 @@ fn shared_libs(install: &Path) -> Result<BTreeSet<String>> {
                 Some((_, rhs)) => rhs,
                 None => line,
             };
-            if let Some(path) = target.split_whitespace().next().filter(|t| t.starts_with('/')) {
+            if let Some(path) = target
+                .split_whitespace()
+                .next()
+                .filter(|t| t.starts_with('/'))
+            {
                 if !Path::new(path).starts_with(install) {
                     libs.insert(path.to_string());
                 }
@@ -317,13 +451,35 @@ fn force_symlink(target: &str, link: &Path) -> Result<()> {
     symlink(target, link).with_context(|| format!("failed to create symlink {}", link.display()))
 }
 
+/// Vrai si les deux chemins désignent le même dossier (liens suivis).
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
+}
+
 /// Real (non-script) executable named `name` on the build host.
 fn host_tool(name: &str) -> Option<std::path::PathBuf> {
-    let dirs = ["/usr/sbin", "/sbin", "/usr/bin", "/bin", "/usr/local/sbin", "/usr/local/bin"];
+    let dirs = [
+        "/usr/sbin",
+        "/sbin",
+        "/usr/bin",
+        "/bin",
+        "/usr/local/sbin",
+        "/usr/local/bin",
+    ];
     for dir in dirs {
         let path = Path::new(dir).join(name);
-        let Ok(real) = fs::canonicalize(&path) else { continue };
-        let Ok(bytes) = fs::read(&real).map(|mut b| { b.truncate(4); b }) else { continue };
+        let Ok(real) = fs::canonicalize(&path) else {
+            continue;
+        };
+        let Ok(bytes) = fs::read(&real).map(|mut b| {
+            b.truncate(4);
+            b
+        }) else {
+            continue;
+        };
         if bytes == b"\x7fELF" {
             return Some(real);
         }
@@ -358,15 +514,30 @@ fn install_host_tools(rootfs: &Path) -> Result<()> {
             continue;
         };
 
-        let target = if *name == "ldconfig.real" { "ldconfig" } else { name };
+        let target = if *name == "ldconfig.real" {
+            "ldconfig"
+        } else {
+            name
+        };
         copy_file_exec(&tool, &rootfs.join("sbin").join(target))?;
 
         // systemd only searches /usr/sbin:/usr/bin (+ /usr/local) for commands
         // written without a path (ExecStart=ldconfig -X): make the tool
         // reachable there too. Senbit keeps /sbin and /usr/sbin apart.
-        force_symlink(&format!("/sbin/{target}"), &rootfs.join("usr/sbin").join(target))?;
+        //
+        // With the merged-/usr layout /sbin IS /usr/sbin: the tool is already
+        // there, and a link to itself would delete it.
+        if !same_dir(&rootfs.join("sbin"), &rootfs.join("usr/sbin")) {
+            force_symlink(
+                &format!("/sbin/{target}"),
+                &rootfs.join("usr/sbin").join(target),
+            )?;
+        }
 
-        let out = Command::new("ldd").arg(&tool).output().context("failed to run ldd")?;
+        let out = host::command("ldd")
+            .arg(&tool)
+            .output()
+            .context("failed to run ldd")?;
         for line in String::from_utf8_lossy(&out.stdout).lines() {
             if line.contains("not found") {
                 bail!("missing library for {}: {}", tool.display(), line.trim());
@@ -382,10 +553,22 @@ fn install_host_tools(rootfs: &Path) -> Result<()> {
         copy_file_exec(Path::new(&lib), &rootfs.join(lib.trim_start_matches('/')))?;
     }
 
+    if fs::symlink_metadata(rootfs.join("sbin/ldconfig")).is_err() {
+        bail!(
+            "ldconfig not found on the build host (glibc tools).\n\nRun `devtool doctor` to see what to install."
+        );
+    }
+
     // mkfs.ext4 & co: the real names of mke2fs / e2fsck.
     for fs_name in ["ext2", "ext3", "ext4"] {
-        force_symlink("mke2fs", &rootfs.join("sbin").join(format!("mkfs.{fs_name}")))?;
-        force_symlink("e2fsck", &rootfs.join("sbin").join(format!("fsck.{fs_name}")))?;
+        force_symlink(
+            "mke2fs",
+            &rootfs.join("sbin").join(format!("mkfs.{fs_name}")),
+        )?;
+        force_symlink(
+            "e2fsck",
+            &rootfs.join("sbin").join(format!("fsck.{fs_name}")),
+        )?;
     }
 
     // Dynamic linker configuration: packages (apt) drop their library
@@ -416,7 +599,10 @@ fn install_host_tools(rootfs: &Path) -> Result<()> {
 pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
     let install = p.systemd_install_dir();
     if !p.systemd_binary().is_file() {
-        bail!("systemd has not been built: {}\n\nRun:\n  devtool build systemd", p.systemd_binary().display());
+        bail!(
+            "systemd has not been built: {}\n\nRun:\n  devtool build systemd",
+            p.systemd_binary().display()
+        );
     }
 
     crate::build::rootfs::copy_tree(&install, rootfs)?;
@@ -435,21 +621,26 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
 
     install_host_tools(rootfs)?;
 
-    // systemd's mount units run /usr/bin/mount and /usr/bin/umount (path fixed
-    // at build time). Senbit's busybox provides them elsewhere: point the
-    // expected paths at them. A real util-linux installed later by apt simply
-    // replaces these links.
+    // systemd's mount units run /usr/sbin/mount and /usr/bin/mount (the path is
+    // fixed when systemd is built and depends on the build host: the boot log
+    // said "Failed at step EXEC spawning /usr/sbin/mount"). Merged-/usr only
+    // merges /bin into /usr/bin and /sbin into /usr/sbin: /usr/bin and
+    // /usr/sbin stay two directories. Senbit's busybox provides the applets in
+    // one of them: make both paths work. A real util-linux installed later by
+    // apt simply replaces these links.
     for name in ["mount", "umount"] {
-        let expected = rootfs.join("usr/bin").join(name);
-        if fs::symlink_metadata(&expected).is_ok() {
-            continue;
-        }
-        let found = ["bin", "sbin", "usr/sbin"]
-            .iter()
-            .find(|dir| fs::symlink_metadata(rootfs.join(dir).join(name)).is_ok());
-        match found {
-            Some(dir) => force_symlink(&format!("/{dir}/{name}"), &expected)?,
-            None => bail!("{name} not found in the rootfs (busybox applet missing?): systemd's mount units need it"),
+        for expected_dir in ["usr/bin", "usr/sbin"] {
+            let expected = rootfs.join(expected_dir).join(name);
+            if fs::symlink_metadata(&expected).is_ok() {
+                continue;
+            }
+            let found = ["bin", "sbin", "usr/bin", "usr/sbin"].iter().find(|dir| {
+                fs::symlink_metadata(rootfs.join(dir).join(name)).is_ok()
+            });
+            match found {
+                Some(dir) => force_symlink(&format!("/{dir}/{name}"), &expected)?,
+                None => bail!("{name} not found in the rootfs (busybox applet missing?): systemd's mount units need it"),
+            }
         }
     }
 
@@ -464,13 +655,36 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
     }
 
     let system = rootfs.join("etc/systemd/system");
-    force_symlink("/usr/lib/systemd/system/multi-user.target", &system.join("default.target"))?;
+    force_symlink(
+        "/usr/lib/systemd/system/multi-user.target",
+        &system.join("default.target"),
+    )?;
     force_symlink(
         &format!("/{unit}"),
         &system.join("multi-user.target.wants/senbit-login.service"),
     )?;
+    for (wants, link, unit_file) in ENABLED_UNITS {
+        let unit_path = format!("usr/lib/systemd/system/{unit_file}");
+        if !rootfs.join(&unit_path).is_file() {
+            bail!("unit missing from rootfs overlay: rootfs/{unit_path}");
+        }
+        force_symlink(&format!("/{unit_path}"), &system.join(wants).join(link))?;
+    }
     for name in MASKED_UNITS {
         force_symlink("/dev/null", &system.join(name))?;
+    }
+
+    // Scripts of the overlay must be executable whatever the way the sources
+    // reached the build host (a zip archive does not always keep the mode).
+    for script in [
+        "usr/lib/systemd/systemd-sysv-install",
+        "usr/bin/ldd",
+        "usr/bin/getconf",
+    ] {
+        let path = rootfs.join(script);
+        if path.is_file() {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+        }
     }
 
     // /etc/os-release -> /usr/lib/os-release (the file itself comes from the
@@ -487,6 +701,7 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
     for dir in [
         "etc/systemd/system",
         "etc/systemd/system/multi-user.target.wants",
+        "etc/systemd/system/sysinit.target.wants",
         "usr/lib/systemd/system",
         "usr/local/lib/systemd/system",
         "var/lib/systemd",
@@ -496,9 +711,8 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
     }
 
     // Vérification finale : le chargeur ELF doit exister sinon PID 1 ne démarre pas.
-    let out = capture(Command::new("file").arg(rootfs.join("usr/lib/systemd/systemd")))?;
-    if !out.contains("ELF") {
-        bail!("installed systemd is not an ELF binary: {out}");
+    if !is_elf(&rootfs.join("usr/lib/systemd/systemd")) {
+        bail!("installed systemd is not an ELF binary");
     }
     Ok(())
 }
@@ -527,6 +741,17 @@ const REQUIRED_PATHS: &[&str] = &[
     "usr/lib/systemd/system/poweroff.target",
     "usr/lib/systemd/system/halt.target",
     "usr/lib/systemd/system/senbit-login.service",
+    "usr/lib/systemd/system/senbit-dhcp@.service",
+    "usr/lib/systemd/system/ldconfig.service.d/10-senbit.conf",
+    "usr/lib/systemd/system/ldconfig.service",
+    "usr/lib/systemd/systemd-sysv-install",
+    "usr/bin/ldd",
+    "usr/bin/getconf",
+    "usr/lib/sysusers.d/senbit.conf",
+    "usr/lib/tmpfiles.d/senbit.conf",
+    "etc/nsswitch.conf",
+    "etc/shells",
+    "sbin/ldconfig",
     "etc/systemd/system/default.target",
     "etc/systemd/system/multi-user.target.wants/senbit-login.service",
     "usr/lib/os-release",
@@ -535,16 +760,98 @@ const REQUIRED_PATHS: &[&str] = &[
     "sbin/senbit-init",
     "sbin/senbit-login",
     "bin/sh",
+    // sysusers / link overrides of the overlay (accounts for apt, interface names)
+    "usr/lib/systemd/system/systemd-sysusers.service.d/10-senbit.conf",
+    "etc/systemd/network/00-senbit.link",
+    "usr/lib/systemd/system/senbit-apt-update.service",
+    "etc/profile.d/senbit-bootreport.sh",
+    // service management (`systemctl`, `journalctl`)
+    "usr/bin/journalctl",
+    // mount units
+    "usr/bin/mount",
+    "usr/bin/umount",
+    "usr/sbin/mount",
+    "usr/sbin/umount",
+    // apt / dpkg and what maintainer scripts call
+    "usr/bin/apt-get",
+    "usr/bin/apt",
+    "usr/bin/dpkg",
+    "usr/bin/dpkg-deb",
+    "usr/bin/update-alternatives",
+    "usr/lib/apt/methods/https",
+    "usr/lib/apt/methods/http",
+    "usr/bin/perl",
+    "usr/bin/deb-systemd-helper",
+    "usr/bin/deb-systemd-invoke",
+    "usr/share/keyrings/debian-archive-keyring.gpg",
+    "etc/ssl/certs/ca-certificates.crt",
+    "etc/apt/sources.list.d/senbit.sources",
+    "var/lib/dpkg/status",
+    // Senbit commands (commands/)
+    "usr/bin/sudo",
+    "usr/bin/bootreport",
+    "usr/bin/getent",
+    "usr/sbin/adduser",
+    "usr/sbin/useradd",
+    "usr/sbin/reboot",
+    "usr/sbin/poweroff",
 ];
 
-/// ELF interpreter ("/lib64/ld-linux-x86-64.so.2") of a binary, from `file`.
-fn elf_interpreter(binary: &Path) -> Result<Option<String>> {
-    let out = capture(Command::new("file").arg("-L").arg(binary))?;
-    Ok(out
-        .split("interpreter ")
-        .nth(1)
-        .and_then(|rest| rest.split(',').next())
-        .map(|s| s.trim().to_string()))
+/// Merged-/usr links: (link, target). The rootfs must have them, or Debian
+/// packages install their files in the wrong place and systemd reports
+/// "unmerged-usr".
+const MERGED_USR_LINKS: &[(&str, &str)] = &[
+    ("bin", "usr/bin"),
+    ("sbin", "usr/sbin"),
+    ("lib", "usr/lib"),
+    ("lib64", "usr/lib64"),
+];
+
+/// ELF interpreter ("/lib64/ld-linux-x86-64.so.2") of a 64-bit binary, read
+/// from its PT_INTERP program header (no dependency on the `file` command).
+/// `None` for a static binary. Symlinks are followed.
+pub(crate) fn elf_interpreter(binary: &Path) -> Result<Option<String>> {
+    let data = fs::read(binary).with_context(|| format!("cannot read {}", binary.display()))?;
+    parse_elf_interpreter(&data)
+}
+
+fn parse_elf_interpreter(data: &[u8]) -> Result<Option<String>> {
+    let u16_at = |o: usize| {
+        data.get(o..o + 2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]) as usize)
+    };
+    let u32_at = |o: usize| {
+        data.get(o..o + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let u64_at = |o: usize| {
+        data.get(o..o + 8)
+            .map(|b| u64::from_le_bytes(b.try_into().expect("8 bytes")) as usize)
+    };
+
+    if data.get(..4) != Some(b"\x7fELF") || data.get(4) != Some(&2) || data.get(5) != Some(&1) {
+        bail!("not a little-endian ELF64 binary");
+    }
+    let (Some(phoff), Some(phentsize), Some(phnum)) = (u64_at(0x20), u16_at(0x36), u16_at(0x38))
+    else {
+        bail!("truncated ELF header");
+    };
+
+    for i in 0..phnum {
+        let ph = phoff + i * phentsize;
+        if u32_at(ph) == Some(3) {
+            // PT_INTERP
+            let (Some(offset), Some(size)) = (u64_at(ph + 8), u64_at(ph + 32)) else {
+                bail!("truncated ELF program header");
+            };
+            let raw = data
+                .get(offset..offset + size)
+                .context("PT_INTERP out of range")?;
+            let end = raw.iter().position(|b| *b == 0).unwrap_or(raw.len());
+            return Ok(Some(String::from_utf8_lossy(&raw[..end]).to_string()));
+        }
+    }
+    Ok(None)
 }
 
 /// Commands run by a unit: first word of every Exec*= line, without the
@@ -581,6 +888,20 @@ pub fn verify_rootfs(rootfs: &Path) -> Result<()> {
         );
     }
 
+    for (link, target) in MERGED_USR_LINKS {
+        match fs::read_link(rootfs.join(link)) {
+            Ok(t) if t == Path::new(target) => {}
+            Ok(t) => bail!(
+                "/{link} points to {} instead of {target}: the merged-/usr layout is broken",
+                t.display()
+            ),
+            Err(_) => bail!(
+                "/{link} is not a link to {target}: the merged-/usr layout is broken \
+                 (systemd would report \"unmerged-usr\")"
+            ),
+        }
+    }
+
     // The dynamic loader of systemd must exist at its absolute path, or the
     // kernel answers ENOENT to exec() and PID 1 never starts.
     if let Some(interpreter) = elf_interpreter(&rootfs.join("usr/lib/systemd/systemd"))? {
@@ -594,7 +915,10 @@ pub fn verify_rootfs(rootfs: &Path) -> Result<()> {
     let units = rootfs.join("usr/lib/systemd/system");
     for entry in fs::read_dir(&units)? {
         let path = entry?.path();
-        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
 
         if !name.starts_with("senbit-") || !name.ends_with(".service") {
             continue;
@@ -619,11 +943,48 @@ pub fn verify_rootfs(rootfs: &Path) -> Result<()> {
     // senbit-login is a musl binary and must stay fully static: its shell
     // sessions and the installed system do not ship the glibc libraries it
     // would otherwise need.
-    let login = capture(Command::new("file").arg(rootfs.join("sbin/senbit-login")))?;
-    if !(login.contains("statically linked") || login.contains("static-pie")) {
-        ui::warn(format!("senbit-login does not look static: {login}"));
+    if let Some(interpreter) = elf_interpreter(&rootfs.join("sbin/senbit-login"))? {
+        ui::warn(format!(
+            "senbit-login is dynamically linked (interpreter {interpreter})"
+        ));
     }
 
     ui::ok("systemd integration verified.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_interpreter_of_a_real_binary() {
+        // /bin/sh is a dynamic ELF on every glibc distribution.
+        let sh = host::find_tool("sh").expect("sh");
+        let real = fs::canonicalize(sh).unwrap();
+        if is_elf(&real) {
+            let interp = elf_interpreter(&real).unwrap();
+            assert!(interp.map(|i| i.contains("ld")).unwrap_or(true));
+        }
+    }
+
+    #[test]
+    fn meson_builtin_options_are_never_filtered() {
+        let dir = std::env::temp_dir().join("senbit-opts-test");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("meson_options.txt"),
+            "option('mode', type : 'combo')\n",
+        )
+        .unwrap();
+        let (used, skipped) = usable_options(&dir);
+        assert!(used.contains(&"-Dmode=release"));
+        assert!(used.contains(&"-Dlibdir=lib"));
+        assert!(skipped.contains(&"-Dman=disabled"));
+    }
+
+    #[test]
+    fn rejects_non_elf() {
+        assert!(parse_elf_interpreter(b"#!/bin/sh\n").is_err());
+    }
 }

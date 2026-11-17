@@ -1,4 +1,5 @@
 NAME="Senbit"
 PRETTY_NAME="Senbit"
 ID=senbit
+ID_LIKE=debian
 HOME_URL="https://github.com/yo-le-zz/senbit"

@@ -36,6 +36,9 @@ fn run() -> Result<()> {
     // (best effort) so that Ctrl+C / job control work in the login prompt.
     console::acquire_controlling_tty();
 
+    // NumLock on by default (best effort, VGA / framebuffer console only).
+    console::enable_numlock();
+
     let listener = events::bind().context("failed to create the system event socket")?;
 
     std::thread::Builder::new()

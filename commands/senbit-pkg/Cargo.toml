@@ -1,0 +1,10 @@
+[package]
+name = "senbit-pkg"
+version = "0.1.0"
+edition = "2024"
+description = "Senbit package manager: Debian packages (.deb) through apt/dpkg, repositories and signature keys"
+
+[package.metadata.senbit]
+install = "bin"
+
+[dependencies]

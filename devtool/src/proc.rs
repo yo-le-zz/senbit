@@ -15,7 +15,9 @@ fn describe(cmd: &Command) -> String {
 
 /// stdin/stdout/stderr branchés au terminal (équivalent d'un appel direct en bash).
 pub fn run(cmd: &mut Command) -> Result<()> {
-    let status = cmd.status().with_context(|| format!("failed to run `{}`", describe(cmd)))?;
+    let status = cmd
+        .status()
+        .with_context(|| format!("failed to run `{}`", describe(cmd)))?;
     if !status.success() {
         bail!("`{}` exited with {status}", describe(cmd));
     }
@@ -58,7 +60,9 @@ pub fn succeeds(cmd: &mut Command) -> bool {
 }
 
 pub fn nproc() -> usize {
-    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
 }
 
 /// Comme `run`, mais capture toute la sortie au lieu de la laisser s'afficher.

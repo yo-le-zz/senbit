@@ -1,0 +1,8 @@
+# Senbit system-wide shell profile (read by login shells).
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+umask 022
+
+for script in /etc/profile.d/*.sh; do
+    [ -r "$script" ] && . "$script"
+done
+unset script

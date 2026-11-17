@@ -1,0 +1,11 @@
+[package]
+name = "poweroff"
+version = "0.1.0"
+edition = "2024"
+description = "Power off the system"
+
+[package.metadata.senbit]
+install = "sbin"
+
+[dependencies]
+libc = "0.2"

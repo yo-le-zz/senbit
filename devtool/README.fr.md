@@ -76,7 +76,7 @@ qu'il se trouve dans un dossier `scripts/`. Sinon :
 
 Équivalent de `scripts/build.sh [cible]`. Cibles disponibles :
 `all` (défaut), `fast`, `kernel`, `busybox`, `util-linux`, `parted`,
-`rust`, `tools`, `rootfs`, `iso`.
+`rust`, `commands`, `tools`, `rootfs`, `iso`.
 
 ```
 devtool build            # tout compiler (identique à ./scripts/build.sh)
@@ -84,11 +84,12 @@ devtool build kernel     # une seule étape
 devtool build rootfs
 devtool build --jobs 4   # limiter le parallélisme au lieu de tous les CPU
 devtool build --force    # ignorer le cache, tout recompiler
-devtool build fast       # rust + tools + rootfs + iso seulement
+devtool build fast       # rust + commands + tools + rootfs + iso seulement
+devtool commands         # liste les commandes natives (commands index : régénère commands/INDEX.md)
 ```
 
 `all` construit dans l'ordre : noyau → BusyBox → util-linux → Parted →
-userspace Rust → outils (`tools/`, y compris la génération des keymaps) →
+userspace Rust → commandes natives (`commands/`, une crate par commande, détectées automatiquement : `./newcmds.sh <nom>`) → outils (`tools/`, y compris la génération des keymaps) →
 rootfs/initramfs → ISO. `tools` et `rootfs` sont liés : le rootfs a besoin
 des `.bmap` générés par les outils sous `build/tools/generated/keymaps/`.
 
@@ -158,12 +159,17 @@ BOOT=bios
 ```
 devtool run             # build + lance la VM existante
 devtool run --new       # supprime l'état de la VM et recrée le disque
-devtool run --debug     # sortie série redirigée vers build/vm/qemu.log
+devtool run --debug     # log série (build/vm/qemu.log) + diagnostics UEFI, logs OVMF/QEMU, qemu-cmdline.txt
 devtool run --fast      # reconstruit juste userspace/tools/rootfs/iso, puis lance
 ```
 
-`BOOT=uefi` démarre la VM via un microgiciel OVMF (détecté automatiquement
-sous `/usr/share/OVMF` ou `/usr/share/ovmf`) au lieu du BIOS historique.
+`BOOT=uefi` démarre la VM via un microgiciel OVMF au lieu du BIOS historique.
+Le couple CODE/VARS est choisi de façon cohérente (descripteurs de firmware
+QEMU dans `/usr/share/qemu/firmware`, sinon les deux fichiers d'un même
+dossier comme `/usr/share/OVMF`), et la NVRAM UEFI de la VM
+(`build/vm/OVMF_VARS.fd`) est comparée au modèle du firmware à chaque
+lancement (recréée si elle ne correspond pas ; l'ancienne est conservée en
+`OVMF_VARS.fd.stale`).
 L'ISO n'a pas besoin d'être reconstruite pour changer de mode — c'est déjà
 une image hybride, ce réglage change seulement la façon dont QEMU la
 démarre.
@@ -189,6 +195,16 @@ démarre.
   exister dans `build/tools/generated/keymaps/`.
 * **`BOOT=uefi` échoue avec "no OVMF firmware found"** : `sudo apt-get
   install ovmf` (déjà inclus dans `devtool install`).
+* **La fenêtre QEMU affiche « Guest has not initialized the display (yet) » et
+  `build/vm/qemu.log` est vide** : c'est le firmware UEFI lui-même qui n'a pas
+  démarré, donc ni GRUB ni le noyau n'ont été atteints (les réglages
+  série/console ne sont pas en cause). Lancez `devtool run --debug` : il
+  affiche le couple de firmwares, l'état de la NVRAM et si l'ISO possède une
+  entrée de démarrage EFI. `devtool run` répare maintenant seul une NVRAM
+  incompatible ; `devtool run --new` la réinitialise aussi. Si la fenêtre
+  montre plutôt un shell UEFI ou un menu de démarrage, l'ISO n'a pas
+  d'entrée EFI (installez `grub-efi-amd64-bin` et `mtools`, puis reconstruisez
+  l'ISO).
 * **Une étape échoue et j'ai besoin de la sortie complète du
   compilateur/outil** : elle est automatiquement affichée en entier en cas
   d'échec (seules les étapes réussies restent silencieuses).

@@ -14,6 +14,34 @@ use crate::paths::Paths;
 use crate::proc::run_quiet;
 use crate::{gitutil, ui};
 
+/// Configure le compilateur C et le linker pour les builds Rust ciblant musl.
+pub(crate) fn configure_rust_command(cmd: &mut Command, target: &str) -> Result<()> {
+    if target == "x86_64-unknown-linux-musl" {
+        let compiler = "musl-gcc";
+
+        let available = Command::new(compiler)
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+
+        if !available {
+            bail!(
+                "Missing musl C compiler: {compiler}\n\
+                 Install it with: sudo dnf install musl-gcc musl-libc-static"
+            );
+        }
+
+        cmd.env("CC_x86_64_unknown_linux_musl", compiler);
+        cmd.env(
+            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER",
+            compiler,
+        );
+    }
+
+    Ok(())
+}
+
 pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     build_senbit(p, cache, jobs)?;
     build_login(p, cache, jobs)
@@ -28,6 +56,7 @@ fn build_senbit(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     }
 
     let binary = p.senbit_binary();
+
     // Le code source vit dans le même dépôt (pas de sous-module) : on utilise
     // l'état git de la racine du projet comme empreinte.
     let fp = gitutil::describe(&p.root) + &gitutil::status_porcelain(&p.root);
@@ -40,19 +69,29 @@ fn build_senbit(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     }
 
     let spin = ui::spinner("Compiling Senbit Rust userspace (cargo build --release)...");
-    let result = run_quiet(Command::new("cargo").current_dir(&p.root).args([
+
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(&p.root).args([
         "build",
         "--release",
         "--target",
-        Paths::RUST_TARGET,
+        p.rust_target(),
         "-j",
         &jobs.to_string(),
-    ]));
+    ]);
+
+    configure_rust_command(&mut cmd, p.rust_target())?;
+
+    let result = run_quiet(&mut cmd);
+
     spin.finish_and_clear();
     result?;
 
     if !binary.is_file() {
-        bail!("Senbit init binary was not produced:\n  {}", binary.display());
+        bail!(
+            "Senbit init binary was not produced:\n  {}",
+            binary.display()
+        );
     }
 
     println!();
@@ -78,6 +117,7 @@ fn hash_tree(dir: &Path, hasher: &mut DefaultHasher) -> Result<()> {
             if name == "target" {
                 continue;
             }
+
             name.hash(hasher);
             hash_tree(&path, hasher)?;
         } else {
@@ -104,9 +144,11 @@ fn build_login(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     ui::info("Building senbit-login (systemd login component)...");
 
     let binary = p.login_binary();
+
     let mut hasher = DefaultHasher::new();
     hash_tree(&dir, &mut hasher)?;
-    let fp = format!("login:{:016x}:{}", hasher.finish(), Paths::RUST_TARGET);
+
+    let fp = format!("login:{:016x}:{}", hasher.finish(), p.rust_target());
 
     if cache.is_fresh("login", &fp, &[&binary]) {
         println!();
@@ -116,20 +158,27 @@ fn build_login(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     }
 
     let spin = ui::spinner("Compiling senbit-login (cargo build --release)...");
-    let result = run_quiet(
-        Command::new("cargo")
-            .current_dir(&dir)
-            .env("CARGO_TARGET_DIR", p.login_target_dir())
-            .args(["build", "--release", "--target", Paths::RUST_TARGET, "-j"])
-            .arg(jobs.to_string())
-            .arg("--manifest-path")
-            .arg(&manifest),
-    );
+
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(&dir)
+        .env("CARGO_TARGET_DIR", p.login_target_dir())
+        .args(["build", "--release", "--target", p.rust_target(), "-j"])
+        .arg(jobs.to_string())
+        .arg("--manifest-path")
+        .arg(&manifest);
+
+    configure_rust_command(&mut cmd, p.rust_target())?;
+
+    let result = run_quiet(&mut cmd);
+
     spin.finish_and_clear();
     result?;
 
     if !binary.is_file() {
-        bail!("senbit-login binary was not produced:\n  {}", binary.display());
+        bail!(
+            "senbit-login binary was not produced:\n  {}",
+            binary.display()
+        );
     }
 
     println!();

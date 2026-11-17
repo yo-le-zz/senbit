@@ -102,3 +102,53 @@ Le noyau force (et vérifie) les options requises par systemd et la console UEFI
 
 Le mode debug fonctionne aussi bien pendant l'installation que sur le système
 installé, tant que la VM est lancée avec `--debug`.
+
+---
+
+## "Failed to mount API filesystems" (fixed)
+
+**Symptom.** `[!!!!!!] Failed to mount API filesystems.` then
+`systemd[1]: Freezing execution.`, with no other message.
+
+**Why there was no cause.** The GRUB entries use `loglevel=3`. systemd writes
+its detailed errors ("Failed to mount cgroup2 at /sys/fs/cgroup: ...") to the
+kernel log at level *error* (3), which `loglevel=3` hides. Only the final
+emergency message was visible.
+
+**What changed.**
+
+* `senbit-init` now mounts, with `mount(2)` and the exact flags of systemd's
+  `mount_setup()`, everything systemd treats as mandatory: `/proc`, `/sys`,
+  `/dev`, `/run`, `/dev/shm`, `/dev/pts` and `/sys/fs/cgroup` (cgroup v2, with
+  the same option fallbacks). systemd then finds them mounted and skips them.
+* If one of them fails, `senbit-init` prints the errno itself, on the console,
+  whatever the kernel loglevel (e.g. `mount cgroup2 ...: No such device
+  (kernel without CONFIG_CGROUPS)`).
+* systemd is started with `--log-target=console --log-level=err` (unless
+  `systemd.log_level=` / `systemd.log_target=` is on the kernel command line), so
+  its own errors always reach the screen. `devtool run --debug` still sends
+  everything to `build/vm/qemu.log`.
+* The initramfs' API mounts are detached before `switch_root`; they no longer
+  stay stacked under the new root.
+* The kernel build enables the full systemd option set (cgroup v2 controllers,
+  devpts / unix98 ptys, namespaces, seccomp, BPF cgroups, crypto API...) and
+  reports any that this kernel does not have.
+* Versions are pinned to a known-good, stable set (Linux 6.18 LTS + systemd 257).
+
+If the message comes back, the line just above it now names the real cause.
+
+## Boot sequence and services
+
+```
+GRUB -> kernel -> initramfs -> senbit-init (PID 1)
+        mount root (ext4) on /newroot, mount API filesystems
+        network (first DHCP lease), hostname, fstab
+        switch_root -> exec /usr/lib/systemd/systemd
+systemd: sysusers -> tmpfiles -> journald, udevd
+         ldconfig (library cache)          senbit-dhcp@eth0 (lease renewal)
+         senbit-login (console login; shell with the user's groups)
+```
+
+Permissions and accounts: `usr/lib/sysusers.d/senbit.conf` (groups `shadow`,
+`sudo`, `nogroup`..., user `_apt`), `usr/lib/tmpfiles.d/senbit.conf`
+(`/root` 0700, `/tmp` 1777, `/etc/shadow` 0600, apt sandbox directories).

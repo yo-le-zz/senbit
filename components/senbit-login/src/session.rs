@@ -81,6 +81,11 @@ impl Session {
             env("SENBIT_VERSION", &self.version),
             env("SENBIT_ROOT", "/"),
             env("PS1", &console::build_prompt(mode, &account.name, &self.hostname)),
+            // The same prompt for bash (see /etc/profile.d/senbit.sh).
+            env(
+                "SENBIT_PS1_BASH",
+                &console::build_prompt_bash(mode, &account.name, &self.hostname),
+            ),
         ]
     }
 }

@@ -1,0 +1,10 @@
+[package]
+name = "bootreport"
+version = "0.1.0"
+edition = "2024"
+description = "Boot report: what worked, what failed (network...), systemd logs of the current boot"
+
+[package.metadata.senbit]
+install = "bin"
+
+[dependencies]

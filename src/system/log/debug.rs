@@ -12,8 +12,8 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::Path;
 use std::os::unix::process::CommandExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::Once;
 

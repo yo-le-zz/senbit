@@ -12,13 +12,17 @@ use crate::ui;
 /// Name of the binary produced by a crate, via `cargo metadata` (first
 /// package, first binary) — avoids depending on python3 as build.sh did.
 fn binary_name(manifest: &std::path::Path) -> Result<String> {
-    let out = capture(Command::new("cargo").args([
-        "metadata",
-        "--format-version",
-        "1",
-        "--no-deps",
-        "--manifest-path",
-    ]).arg(manifest))?;
+    let out = capture(
+        Command::new("cargo")
+            .args([
+                "metadata",
+                "--format-version",
+                "1",
+                "--no-deps",
+                "--manifest-path",
+            ])
+            .arg(manifest),
+    )?;
 
     let json: serde_json::Value = serde_json::from_str(&out)?;
     let packages = json["packages"].as_array().cloned().unwrap_or_default();
@@ -34,7 +38,10 @@ fn binary_name(manifest: &std::path::Path) -> Result<String> {
             }
         }
     }
-    bail!("unable to determine compiled binary name for {}", manifest.display())
+    bail!(
+        "unable to determine compiled binary name for {}",
+        manifest.display()
+    )
 }
 
 pub fn build(p: &Paths, jobs: usize) -> Result<()> {
@@ -61,12 +68,14 @@ pub fn build(p: &Paths, jobs: usize) -> Result<()> {
         ui::info("Compiling...");
 
         let spin = ui::spinner(&format!("Compiling tool '{name}'..."));
-        let result = run_quiet(Command::new("cargo")
-            .current_dir(&p.root)
-            .args(["build", "--release", "--manifest-path"])
-            .arg(&manifest)
-            .arg("-j")
-            .arg(jobs.to_string()));
+        let result = run_quiet(
+            Command::new("cargo")
+                .current_dir(&p.root)
+                .args(["build", "--release", "--manifest-path"])
+                .arg(&manifest)
+                .arg("-j")
+                .arg(jobs.to_string()),
+        );
         spin.finish_and_clear();
         result?;
 
@@ -74,7 +83,10 @@ pub fn build(p: &Paths, jobs: usize) -> Result<()> {
         let binary_path = tool_dir.join("target/release").join(&binary_name);
 
         if !binary_path.is_file() {
-            bail!("compiled tool binary not found:\n  {}", binary_path.display());
+            bail!(
+                "compiled tool binary not found:\n  {}",
+                binary_path.display()
+            );
         }
 
         ui::info("Running...");

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,18 +16,14 @@ struct Keymap {
     path: String,
 }
 
-const KERNEL_DEFKEYMAP: &str =
-    "kernel/linux/drivers/tty/vt/defkeymap.map";
+const KERNEL_DEFKEYMAP: &str = "kernel/linux/drivers/tty/vt/defkeymap.map";
 
 pub fn compile(config_path: &str, output_path: &str) -> Result<()> {
-    let content = fs::read_to_string(config_path)
-        .context("Impossible de lire config.toml")?;
+    let content = fs::read_to_string(config_path).context("Impossible de lire config.toml")?;
 
-    let config: Config = toml::from_str(&content)
-        .context("Impossible de parser config.toml")?;
+    let config: Config = toml::from_str(&content).context("Impossible de parser config.toml")?;
 
-    let root = std::env::current_dir()
-        .context("Impossible de déterminer la racine du projet")?;
+    let root = std::env::current_dir().context("Impossible de déterminer la racine du projet")?;
 
     let output_root = root.join(output_path);
 
@@ -37,10 +33,7 @@ pub fn compile(config_path: &str, output_path: &str) -> Result<()> {
     let local_defkeymap = output_root.join("defkeymap.map");
 
     if !kernel_defkeymap.exists() {
-        bail!(
-            "defkeymap.map introuvable: {}",
-            kernel_defkeymap.display()
-        );
+        bail!("defkeymap.map introuvable: {}", kernel_defkeymap.display());
     }
 
     if !local_defkeymap.exists() {
@@ -66,12 +59,7 @@ pub fn compile(config_path: &str, output_path: &str) -> Result<()> {
 
         println!("Compiling {}...", keymap.name);
 
-        compile_keymap(
-            &loadkeys,
-            &input,
-            &output,
-            &output_root,
-        )?;
+        compile_keymap(&loadkeys, &input, &output, &output_root)?;
     }
 
     Ok(())
@@ -83,10 +71,7 @@ fn find_loadkeys() -> Result<PathBuf> {
     let path = root.join("tools/keymaps/kbd-install/bin/loadkeys");
 
     if !path.exists() {
-        bail!(
-            "loadkeys Senbit introuvable: {}",
-            path.display()
-        );
+        bail!("loadkeys Senbit introuvable: {}", path.display());
     }
 
     Ok(path)
@@ -106,8 +91,8 @@ fn is_up_to_date(input: &Path, output: &Path) -> Result<bool> {
 }
 
 fn newest_source_time(path: &Path) -> Result<SystemTime> {
-    let metadata = fs::metadata(path)
-        .with_context(|| format!("Impossible de lire {}", path.display()))?;
+    let metadata =
+        fs::metadata(path).with_context(|| format!("Impossible de lire {}", path.display()))?;
 
     let mut newest = metadata
         .modified()
@@ -127,21 +112,13 @@ fn newest_source_time(path: &Path) -> Result<SystemTime> {
     Ok(newest)
 }
 
-fn compile_keymap(
-    loadkeys: &Path,
-    input: &Path,
-    output: &Path,
-    keymap_root: &Path,
-) -> Result<()> {
+fn compile_keymap(loadkeys: &Path, input: &Path, output: &Path, keymap_root: &Path) -> Result<()> {
     let input = absolute_path(input)?;
     let output = absolute_path(output)?;
     let keymap_root = absolute_path(keymap_root)?;
 
     if !input.exists() {
-        bail!(
-            "Keymap introuvable: {}",
-            input.display()
-        );
+        bail!("Keymap introuvable: {}", input.display());
     }
 
     let result = Command::new(loadkeys)
@@ -152,12 +129,7 @@ fn compile_keymap(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .with_context(|| {
-            format!(
-                "Impossible d'exécuter {}",
-                loadkeys.display()
-            )
-        })?;
+        .with_context(|| format!("Impossible d'exécuter {}", loadkeys.display()))?;
 
     if !result.status.success() {
         let stderr = String::from_utf8_lossy(&result.stderr);

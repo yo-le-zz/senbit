@@ -1,4 +1,5 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[allow(dead_code)] // Debug/Trace are reserved for future verbose logging
 pub enum LogLevel {
     Error,
     Warn,

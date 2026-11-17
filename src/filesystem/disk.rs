@@ -3,12 +3,12 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 
+use crate::filesystem::fs::{mount, unmount};
 use crate::installation::partition::{DiskKind, DiskOption};
-use crate::filesystem::fs::{unmount, mount};
-use crate::utils::files::file_exists;
 use crate::log_info;
+use crate::utils::files::file_exists;
 
 pub fn detect_installation() -> Option<String> {
     let partitions = detect_partitions();
@@ -44,15 +44,13 @@ pub fn detect_installation() -> Option<String> {
 fn mount_partition(device: &str, target: &str) -> Result<()> {
     // On s'assure que target est un chemin absolu propre (pas de "//mnt")
     let target = target.trim_end_matches('/');
-    mount(device, target, None)
-        .context("failed to mount partition")?;
+    mount(device, target, None).context("failed to mount partition")?;
     Ok(())
 }
 
 fn unmount_partition(target: &str) -> Result<()> {
     let target = target.trim_end_matches('/');
-    unmount(target)
-        .context("failed to unmount partition")?;
+    unmount(target).context("failed to unmount partition")?;
     Ok(())
 }
 
@@ -135,15 +133,10 @@ pub fn _get_boot_device(target: &DiskOption) -> Result<String, String> {
                 .map_err(|e| format!("Failed to execute lsblk: {}", e))?;
 
             if !output.status.success() {
-                return Err(format!(
-                    "lsblk failed with status: {}",
-                    output.status
-                ));
+                return Err(format!("lsblk failed with status: {}", output.status));
             }
 
-            let parent = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .to_string();
+            let parent = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
             if parent.is_empty() {
                 return Err(format!(
@@ -169,7 +162,6 @@ fn is_disk_name(name: &str) -> bool {
     !name.chars().last().is_some_and(|c| c.is_ascii_digit())
 }
 
-
 pub fn get_partition_uuid(device: &str) -> Result<String> {
     let output = std::process::Command::new("blkid")
         .args(["-s", "UUID", "-o", "value", device])
@@ -180,9 +172,7 @@ pub fn get_partition_uuid(device: &str) -> Result<String> {
         anyhow::bail!("Failed to get UUID for {}", device);
     }
 
-    let uuid = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .to_string();
+    let uuid = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
     Ok(uuid)
 }

@@ -1,0 +1,11 @@
+[package]
+name = "useradd"
+version = "0.1.0"
+edition = "2024"
+description = "shadow-utils compatible useradd, groupadd, userdel, groupdel, usermod (used by package maintainer scripts)"
+
+[package.metadata.senbit]
+install = "sbin"
+aliases = ["groupadd", "userdel", "groupdel", "usermod"]
+
+[dependencies]

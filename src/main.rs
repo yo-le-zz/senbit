@@ -4,18 +4,18 @@
 use colored::Colorize;
 
 // modules
-mod utils;
-mod kernel;
 mod filesystem;
 mod installation;
+mod kernel;
 mod system;
+mod utils;
 
 // imports
-use kernel::alim;
-use utils::clear;
-use filesystem::{fs, disk};
+use filesystem::{disk, fs};
 use installation::install;
+use kernel::alim;
 use system::entry;
+use utils::clear;
 
 // clear() wrapper
 fn clear() {
@@ -40,11 +40,20 @@ fn yes_installation(sys_disk: &str) {
 fn no_installation() {
     log_info!("{}", "Starting system installation...".cyan());
 
-    if let Err(e) = install::install_system() {
-        kpanic!("Failed to install: {}", e);
+    match install::install_system() {
+        Ok(install::Outcome::Installed) => {
+            log_info!("{}", "Installation completed successfully.".green());
+        }
+        Ok(install::Outcome::Cancelled) => {
+            log_info!(
+                "{}",
+                "Installation cancelled: nothing was modified. Rebooting...".yellow()
+            );
+        }
+        Err(e) => {
+            kpanic!("Failed to install: {}", e);
+        }
     }
-
-    log_info!("{}", "Installation completed successfully.".green());
 }
 
 fn main() {
@@ -55,7 +64,7 @@ fn main() {
             "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         );
     }
-    
+
     clear();
 
     // start different steps
@@ -74,7 +83,7 @@ fn main() {
 
     // disk detection
     log_info!("{}", "Detecting disks...".cyan());
-    
+
     let installed = disk::detect_installation();
     match installed {
         Some(p) => {
@@ -86,6 +95,6 @@ fn main() {
             no_installation();
         }
     }
-    
+
     alim::do_reboot();
 }

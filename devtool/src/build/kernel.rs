@@ -57,7 +57,122 @@ const REQUIRED_CONFIG: &[&str] = &[
     "VFAT_FS",
     "NLS_CODEPAGE_437",
     "NLS_ISO8859_1",
+    // Docker: without overlayfs dockerd falls back to devicemapper, which fails
+    // ("devicemapper: Error running deviceCreate (CreatePool) dm_task_run failed").
+    "OVERLAY_FS",
 ];
+
+/// Options utiles mais dont l'absence ne doit pas bloquer la compilation
+/// (le nom change parfois d'une version du noyau à l'autre) : activées si
+/// possible, signalées sinon.
+///
+/// Elles complètent le README de systemd (« Requirements ») : cgroups v2
+/// complets, pseudo-terminaux (SSH, `script`), espaces de noms, seccomp,
+/// API crypto utilisée par systemd, BPF pour les cgroups.
+const RECOMMENDED_CONFIG: &[&str] = &[
+    "PROC_FS",
+    "SYSFS",
+    "UNIX",
+    "NET",
+    "DEVPTS_FS",
+    "UNIX98_PTYS",
+    "CGROUP_SCHED",
+    "CGROUP_CPUACCT",
+    "CGROUP_DEVICE",
+    "CGROUP_FREEZER",
+    "CGROUP_BPF",
+    "BPF_SYSCALL",
+    "MEMCG",
+    "BLK_CGROUP",
+    "CPUSETS",
+    "PID_NS",
+    "UTS_NS",
+    "IPC_NS",
+    "USER_NS",
+    "NET_NS",
+    "SECCOMP",
+    "SECCOMP_FILTER",
+    "BINFMT_MISC",
+    "CRYPTO_USER_API_HASH",
+    "CRYPTO_HMAC",
+    "CRYPTO_SHA256",
+    "DMIID",
+    "EXT4_FS",
+    "EXT4_FS_POSIX_ACL",
+    "EXT4_FS_SECURITY",
+    "TMPFS_POSIX_ACL",
+    "TMPFS_XATTR",
+    "PSI",
+    "MAGIC_SYSRQ",
+    // Containers (Docker, Podman, LXC): see Docker's check-config.sh. Built in
+    // (=y): the rootfs ships no kernel modules. A name that does not exist in
+    // this kernel version is only reported, it does not stop the build.
+    // /proc/config.gz: `zcat /proc/config.gz | grep OVERLAY` tells what the running kernel has.
+    "IKCONFIG",
+    "IKCONFIG_PROC",
+    "POSIX_MQUEUE",
+    "KEYS",
+    "CGROUP_PERF",
+    "CGROUP_HUGETLB",
+    "CFS_BANDWIDTH",
+    "FAIR_GROUP_SCHED",
+    "BLK_DEV_THROTTLING",
+    "VETH",
+    "BRIDGE",
+    "BRIDGE_NETFILTER",
+    "BRIDGE_VLAN_FILTERING",
+    "MACVLAN",
+    "IPVLAN",
+    "VXLAN",
+    "TUN",
+    // NOT enabled on purpose: CONFIG_DUMMY=y creates a "dummy0" interface at every
+    // boot, which looked like a network card to the installer and to the init.
+    "INET",
+    "IPV6",
+    "NETFILTER",
+    "NETFILTER_ADVANCED",
+    "NETFILTER_XTABLES",
+    "NF_CONNTRACK",
+    "NF_NAT",
+    "NF_TABLES",
+    "NFT_COMPAT",
+    "NFT_NAT",
+    "NFT_MASQ",
+    "NFT_CT",
+    "NFT_CHAIN_NAT",
+    "NETFILTER_XT_NAT",
+    "NETFILTER_XT_MARK",
+    "NETFILTER_XT_MATCH_ADDRTYPE",
+    "NETFILTER_XT_MATCH_CONNTRACK",
+    "NETFILTER_XT_MATCH_COMMENT",
+    "NETFILTER_XT_MATCH_MULTIPORT",
+    "NFT_COUNTER",
+    "NFT_REJECT",
+    "NFT_REDIR",
+    "NETFILTER_XT_MATCH_MARK",
+    "NETFILTER_XT_TARGET_MASQUERADE",
+    "NETFILTER_XT_TARGET_REDIRECT",
+    "NETFILTER_XT_TARGET_CHECKSUM",
+    "IP_NF_IPTABLES",
+    "IP_NF_FILTER",
+    "IP_NF_MANGLE",
+    "IP_NF_NAT",
+    "IP_NF_TARGET_MASQUERADE",
+    "IP6_NF_IPTABLES",
+    "IP6_NF_FILTER",
+    "IP6_NF_MANGLE",
+    "IP6_NF_NAT",
+    "IP6_NF_TARGET_MASQUERADE",
+    "INET_DIAG",
+    "NET_CLS_CGROUP",
+    "CGROUP_NET_PRIO",
+];
+
+/// Options forcées à « non ». `dummy0` : avec CONFIG_DUMMY=y le noyau crée une
+/// interface réseau factice à chaque démarrage, que l'installateur et l'init
+/// prenaient pour une carte réseau. (Il faut aussi la désactiver explicitement :
+/// un .config créé par un build précédent la contient déjà.)
+const DISABLED_CONFIG: &[&str] = &["DUMMY"];
 
 fn apply_required_config(p: &Paths) -> Result<()> {
     let build_dir = p.kernel_build_dir();
@@ -66,13 +181,22 @@ fn apply_required_config(p: &Paths) -> Result<()> {
 
     let mut cmd = Command::new(&script);
     cmd.arg("--file").arg(&config);
-    for opt in REQUIRED_CONFIG {
+    for opt in REQUIRED_CONFIG.iter().chain(RECOMMENDED_CONFIG) {
         cmd.arg("-e").arg(opt);
+    }
+    for opt in DISABLED_CONFIG {
+        cmd.arg("-d").arg(opt);
     }
     run_quiet(&mut cmd)?;
 
     let o = format!("O={}", build_dir.display());
-    run_quiet(Command::new("make").arg("-C").arg(p.kernel_dir()).arg(&o).arg("olddefconfig"))?;
+    run_quiet(
+        Command::new("make")
+            .arg("-C")
+            .arg(p.kernel_dir())
+            .arg(&o)
+            .arg("olddefconfig"),
+    )?;
 
     // olddefconfig supprime silencieusement une option dont une dépendance
     // manque : on vérifie qu'elles sont toutes réellement à "=y".
@@ -83,10 +207,34 @@ fn apply_required_config(p: &Paths) -> Result<()> {
         .filter(|opt| !text.lines().any(|l| l == format!("CONFIG_{opt}=y")))
         .collect();
 
+    let skipped: Vec<&str> = RECOMMENDED_CONFIG
+        .iter()
+        .copied()
+        .filter(|opt| !text.lines().any(|l| l == format!("CONFIG_{opt}=y")))
+        .collect();
+    if !skipped.is_empty() {
+        ui::warn(format!(
+            "optional kernel options not enabled (not in this kernel?): {}",
+            skipped.join(" ")
+        ));
+    }
+
     if !missing.is_empty() {
         bail!(
             "kernel options could not be enabled (missing dependency?):\n  {}",
             missing.join("\n  ")
+        );
+    }
+
+    let still_on: Vec<&str> = DISABLED_CONFIG
+        .iter()
+        .copied()
+        .filter(|opt| text.lines().any(|l| l == format!("CONFIG_{opt}=y")))
+        .collect();
+    if !still_on.is_empty() {
+        bail!(
+            "kernel options that must be off are still enabled (another option selects them?):\n  {}",
+            still_on.join("\n  ")
         );
     }
 
@@ -105,7 +253,12 @@ fn update(p: &Paths) -> Result<()> {
     let current = gitutil::describe(&dir);
     ui::info("Linux version");
     ui::detail(format!("Current: {current}"));
-    ui::detail("Using checked-out version.");
+
+    let pinned = crate::get::read_pinned(&p.kernel_version_file(), "kernel version")?;
+    if gitutil::describe_exact(&dir) != pinned {
+        bail!("Linux is not on the pinned version {pinned}.\n\nRun:\n  devtool get linux");
+    }
+    crate::patches::apply(p, "linux", "Linux", &dir)?;
     Ok(())
 }
 
@@ -119,7 +272,12 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     let image = p.kernel_image();
     // La liste d'options fait partie de l'empreinte : la modifier relance la
     // compilation même si les sources du noyau n'ont pas bougé.
-    let fp = format!("{}|cfg:{}", git_fingerprint(&dir), REQUIRED_CONFIG.join(","));
+    let fp = format!(
+        "{}|cfg:{}|patches:{}",
+        git_fingerprint(&dir),
+        REQUIRED_CONFIG.join(",") + &RECOMMENDED_CONFIG.join(",") + "|off:" + &DISABLED_CONFIG.join(","),
+        crate::patches::fingerprint(p, "linux")
+    );
 
     if cache.is_fresh("kernel", &fp, &[&image]) {
         println!();
@@ -134,7 +292,13 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
 
     if !build_dir.join(".config").is_file() {
         ui::info("Creating x86_64 kernel configuration...");
-        run_quiet(Command::new("make").arg("-C").arg(&dir).arg(&o).arg("x86_64_defconfig"))?;
+        run_quiet(
+            Command::new("make")
+                .arg("-C")
+                .arg(&dir)
+                .arg(&o)
+                .arg("x86_64_defconfig"),
+        )?;
     }
 
     println!();
@@ -147,7 +311,13 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     ui::detail("Incremental build enabled.");
 
     let spin = ui::spinner("Compiling Linux kernel (this can take a while)...");
-    let result = run_quiet(Command::new("make").arg("-C").arg(&dir).arg(&o).arg(format!("-j{jobs}")));
+    let result = run_quiet(
+        Command::new("make")
+            .arg("-C")
+            .arg(&dir)
+            .arg(&o)
+            .arg(format!("-j{jobs}")),
+    );
     spin.finish_and_clear();
     result?;
 

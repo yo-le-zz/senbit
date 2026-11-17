@@ -1,0 +1,10 @@
+[package]
+name = "getent"
+version = "0.1.0"
+edition = "2024"
+description = "getent: query passwd, group, shadow, hosts, services and protocols (Debian maintainer scripts call it)"
+
+[package.metadata.senbit]
+install = "bin"
+
+[dependencies]

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 
 use std::ffi::CString;
@@ -11,7 +11,46 @@ use std::process::Command;
 use crate::log_info;
 
 const EFI_BOOTLOADER_ID: &str = "Senbit";
-const GRUB_EFI_PLATFORM_DIR: &str = "/usr/lib/grub/x86_64-efi";
+const GRUB_EFI_PLATFORM_PATHS: &[&str] =
+    &["/usr/lib/grub/x86_64-efi", "/usr/lib64/grub/x86_64-efi"];
+
+const GRUB_INSTALL_PATHS: &[&str] = &[
+    "/usr/sbin/grub-install",
+    "/usr/bin/grub-install",
+    "/usr/sbin/grub2-install",
+    "/usr/bin/grub2-install",
+];
+
+fn find_grub_efi_platform_dir() -> Result<PathBuf> {
+    for path in GRUB_EFI_PLATFORM_PATHS {
+        let directory = Path::new(path);
+
+        if directory.is_dir() {
+            return Ok(directory.to_path_buf());
+        }
+    }
+
+    bail!(
+        "GRUB x86_64-efi modules not found. Checked: {}. \
+         The live system must include GRUB EFI modules.",
+        GRUB_EFI_PLATFORM_PATHS.join(", ")
+    );
+}
+
+fn find_grub_install() -> Result<PathBuf> {
+    for path in GRUB_INSTALL_PATHS {
+        let executable = Path::new(path);
+
+        if executable.is_file() {
+            return Ok(executable.to_path_buf());
+        }
+    }
+
+    bail!(
+        "grub-install executable not found. Checked: {}",
+        GRUB_INSTALL_PATHS.join(", ")
+    );
+}
 
 fn check_uefi_environment() -> Result<()> {
     if !Path::new("/sys/firmware/efi").exists() {
@@ -61,10 +100,7 @@ fn find_efi_partition(disk: &Path) -> Result<PathBuf> {
     for raw in text.lines() {
         let line = raw.trim().trim_end_matches(';');
 
-        let is_partition_line = line
-            .chars()
-            .next()
-            .map_or(false, |c| c.is_ascii_digit());
+        let is_partition_line = line.chars().next().map_or(false, |c| c.is_ascii_digit());
 
         if !is_partition_line {
             continue;
@@ -84,10 +120,7 @@ fn find_efi_partition(disk: &Path) -> Result<PathBuf> {
         }
     }
 
-    bail!(
-        "EFI System Partition not found on {}",
-        disk.display()
-    );
+    bail!("EFI System Partition not found on {}", disk.display());
 }
 
 /*
@@ -147,16 +180,12 @@ fn mount_vfat(source: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn mount_efi_partition(
-    efi_partition: &Path,
-    mount_point: &Path,
-) -> Result<PathBuf> {
+fn mount_efi_partition(efi_partition: &Path, mount_point: &Path) -> Result<PathBuf> {
     validate_efi_partition(efi_partition)?;
 
     let efi_directory = efi_mount_path(mount_point);
 
-    fs::create_dir_all(&efi_directory)
-        .context("Failed to create /boot/efi")?;
+    fs::create_dir_all(&efi_directory).context("Failed to create /boot/efi")?;
 
     log_info!(
         "{}",
@@ -174,12 +203,9 @@ fn mount_efi_partition(
 }
 
 fn verify_efi_mount(efi_directory: &Path) -> Result<()> {
-    let mounts = fs::read_to_string("/proc/mounts")
-        .context("Failed to read /proc/mounts")?;
+    let mounts = fs::read_to_string("/proc/mounts").context("Failed to read /proc/mounts")?;
 
-    let target = efi_directory
-        .to_str()
-        .context("Invalid EFI mount point")?;
+    let target = efi_directory.to_str().context("Invalid EFI mount point")?;
 
     let mounted = mounts
         .lines()
@@ -196,49 +222,37 @@ fn verify_efi_mount(efi_directory: &Path) -> Result<()> {
 }
 
 fn prepare_efi_directories(efi_directory: &Path) -> Result<()> {
-    fs::create_dir_all(
-        efi_directory.join("EFI").join(EFI_BOOTLOADER_ID),
-    )?;
+    fs::create_dir_all(efi_directory.join("EFI").join(EFI_BOOTLOADER_ID))?;
 
     fs::create_dir_all(efi_directory.join("EFI").join("BOOT"))?;
 
     Ok(())
 }
 
-fn install_grub(
-    mount_point: &Path,
-    efi_directory: &Path,
-) -> Result<()> {
-    if !Path::new(GRUB_EFI_PLATFORM_DIR).is_dir() {
-        bail!(
-            "GRUB x86_64-efi files not found in {}: \
-             the live system must include GRUB built for x86_64-efi",
-            GRUB_EFI_PLATFORM_DIR
-        );
-    }
-
-    let boot_directory = mount_point.join("boot");
+fn install_grub(mount_point: &Path, efi_directory: &Path) -> Result<()> {
+    let grub_platform_dir = find_grub_efi_platform_dir()?;
+    let grub_install = find_grub_install()?;
 
     log_info!(
         "{}",
-        "Installing GRUB for x86_64 UEFI...".cyan()
+        format!("Using GRUB modules: {}", grub_platform_dir.display()).cyan()
     );
+
+    let boot_directory = mount_point.join("boot");
+
+    log_info!("{}", "Installing GRUB for x86_64 UEFI...".cyan());
 
     /*
      * --no-nvram: do not call efibootmgr (not needed to boot, the
      * fallback loader EFI/BOOT/BOOTX64.EFI is created below).
      */
-    let status = Command::new("/usr/sbin/grub-install")
+    let status = Command::new(&grub_install)
         .args([
             "--target=x86_64-efi",
             "--efi-directory",
-            efi_directory
-                .to_str()
-                .context("Invalid EFI directory")?,
+            efi_directory.to_str().context("Invalid EFI directory")?,
             "--boot-directory",
-            boot_directory
-                .to_str()
-                .context("Invalid boot directory")?,
+            boot_directory.to_str().context("Invalid boot directory")?,
             "--bootloader-id",
             EFI_BOOTLOADER_ID,
             "--no-nvram",
@@ -266,10 +280,7 @@ fn verify_grub_installation(efi_directory: &Path) -> Result<()> {
         .join("grubx64.efi");
 
     if !loader.exists() {
-        bail!(
-            "GRUB EFI loader was not found: {}",
-            loader.display()
-        );
+        bail!("GRUB EFI loader was not found: {}", loader.display());
     }
 
     Ok(())
@@ -281,29 +292,19 @@ fn create_fallback_loader(efi_directory: &Path) -> Result<()> {
         .join(EFI_BOOTLOADER_ID)
         .join("grubx64.efi");
 
-    let fallback = efi_directory
-        .join("EFI")
-        .join("BOOT")
-        .join("BOOTX64.EFI");
+    let fallback = efi_directory.join("EFI").join("BOOT").join("BOOTX64.EFI");
 
     if !source.exists() {
-        bail!(
-            "GRUB loader does not exist: {}",
-            source.display()
-        );
+        bail!("GRUB loader does not exist: {}", source.display());
     }
 
-    fs::copy(&source, &fallback)
-        .context("Failed to create UEFI fallback loader")?;
+    fs::copy(&source, &fallback).context("Failed to create UEFI fallback loader")?;
 
     Ok(())
 }
 
 fn unmount_efi_partition(efi_directory: &Path) -> Result<()> {
-    log_info!(
-        "{}",
-        "Unmounting EFI partition...".cyan()
-    );
+    log_info!("{}", "Unmounting EFI partition...".cyan());
 
     let tgt = CString::new(efi_directory.as_os_str().as_bytes())?;
 
@@ -319,36 +320,23 @@ fn unmount_efi_partition(efi_directory: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn install_uefi(
-    mount_point: &Path,
-    disk: &Path,
-) -> Result<()> {
-    log_info!(
-        "{}",
-        "Setting up UEFI bootloader...".cyan().bold()
-    );
+pub fn install_uefi(mount_point: &Path, disk: &Path) -> Result<()> {
+    log_info!("{}", "Setting up UEFI bootloader...".cyan().bold());
 
     check_uefi_environment()?;
 
-    log_info!(
-        "{}",
-        "Searching for EFI System Partition...".cyan()
-    );
+    log_info!("{}", "Searching for EFI System Partition...".cyan());
 
     let efi_partition = find_efi_partition(disk)?;
 
     log_info!(
         "{}",
-        format!(
-            "EFI System Partition found: {}",
-            efi_partition.display()
-        )
-        .green()
-        .bold()
+        format!("EFI System Partition found: {}", efi_partition.display())
+            .green()
+            .bold()
     );
 
-    let efi_directory =
-        mount_efi_partition(&efi_partition, mount_point)?;
+    let efi_directory = mount_efi_partition(&efi_partition, mount_point)?;
 
     verify_efi_mount(&efi_directory)?;
 
@@ -364,9 +352,7 @@ pub fn install_uefi(
 
     log_info!(
         "{}",
-        "UEFI bootloader installed successfully!"
-            .green()
-            .bold()
+        "UEFI bootloader installed successfully!".green().bold()
     );
 
     Ok(())

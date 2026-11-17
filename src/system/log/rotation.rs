@@ -11,12 +11,7 @@ pub fn rotate_if_needed(path: &Path) -> Result<()> {
     }
 
     let metadata = fs::metadata(path)
-        .with_context(|| {
-            format!(
-                "failed to read log metadata: {}",
-                path.display()
-            )
-        })?;
+        .with_context(|| format!("failed to read log metadata: {}", path.display()))?;
 
     if metadata.len() < MAX_LOG_SIZE {
         return Ok(());
@@ -26,34 +21,24 @@ pub fn rotate_if_needed(path: &Path) -> Result<()> {
         let current = if index == 1 {
             path.to_path_buf()
         } else {
-            path.with_extension(
-                format!("log.{}", index - 1)
-            )
+            path.with_extension(format!("log.{}", index - 1))
         };
 
-        let next = path.with_extension(
-            format!("log.{}", index)
-        );
+        let next = path.with_extension(format!("log.{}", index));
 
         if next.exists() {
             fs::remove_file(&next)
-                .with_context(|| {
-                    format!(
-                        "failed to remove old log: {}",
-                        next.display()
-                    )
-                })?;
+                .with_context(|| format!("failed to remove old log: {}", next.display()))?;
         }
 
         if current.exists() {
-            fs::rename(&current, &next)
-                .with_context(|| {
-                    format!(
-                        "failed to rotate log {} -> {}",
-                        current.display(),
-                        next.display()
-                    )
-                })?;
+            fs::rename(&current, &next).with_context(|| {
+                format!(
+                    "failed to rotate log {} -> {}",
+                    current.display(),
+                    next.display()
+                )
+            })?;
         }
     }
 

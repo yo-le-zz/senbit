@@ -7,24 +7,11 @@ pub fn init_hostname(root: &str) -> Result<()> {
     let hostname_path = etc_dir.join("hostname");
 
     fs::create_dir_all(&etc_dir)
-        .with_context(|| {
-            format!(
-                "Failed to create {}",
-                etc_dir.display()
-            )
-        })?;
+        .with_context(|| format!("Failed to create {}", etc_dir.display()))?;
 
     if !hostname_path.exists() {
-        fs::write(
-            &hostname_path,
-            "senbit\n",
-        )
-        .with_context(|| {
-            format!(
-                "Failed to create {}",
-                hostname_path.display()
-            )
-        })?;
+        fs::write(&hostname_path, "senbit\n")
+            .with_context(|| format!("Failed to create {}", hostname_path.display()))?;
     }
 
     Ok(())

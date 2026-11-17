@@ -1,29 +1,25 @@
 // installation/lang.rs
 
+use crate::log_error;
 use inquire::Select;
-use crate::{log_error, log_info};
 
 use std::path::Path;
 
-use std::process::Stdio;
-use std::process::Command;
-use colored::Colorize;
 use anyhow::{Context, Result};
+use colored::Colorize;
+use std::process::Command;
+use std::process::Stdio;
 
 fn get_keymap() -> Vec<String> {
-    std::fs::read_dir("/usr/share/keymaps/")
-        .expect("Répertoire inexistant")
+    // A missing keymap directory means "no choice offered", not a crash.
+    let Ok(entries) = std::fs::read_dir("/usr/share/keymaps/") else {
+        return Vec::new();
+    };
+    entries
         .filter_map(|entry| entry.ok())
-        .filter_map(|entry| {
-            entry
-                .file_name()
-                .to_str()
-                .map(|name| name.to_string())
-        })
+        .filter_map(|entry| entry.file_name().to_str().map(|name| name.to_string()))
         .filter(|name| name.ends_with(".bmap"))
-        .map(|name| {
-            name.trim_end_matches(".bmap").to_string()
-        })
+        .map(|name| name.trim_end_matches(".bmap").to_string())
         .filter(|name| !name.is_empty())
         .collect()
 }
@@ -48,7 +44,8 @@ pub fn set_keyboard_layout(lang: &str) -> Result<()> {
     if !std::path::Path::new(&path).exists() {
         log_error!(
             "Failed to set keyboard layout '{}': Keyboard layout '{}' not found. (us fallback)",
-            lang, keymap
+            lang,
+            keymap
         );
 
         let fallback = "/usr/share/keymaps/us.bmap";
@@ -57,8 +54,8 @@ pub fn set_keyboard_layout(lang: &str) -> Result<()> {
             anyhow::bail!("Failed to set fallback keyboard layout: 'us' not found");
         }
 
-        let file = std::fs::File::open(fallback)
-            .context("Failed to open fallback keyboard layout")?;
+        let file =
+            std::fs::File::open(fallback).context("Failed to open fallback keyboard layout")?;
 
         let status = Command::new("loadkmap")
             .stdin(Stdio::from(file))
@@ -99,27 +96,25 @@ fn write_config(lang: &str) -> anyhow::Result<()> {
     let path = Path::new("/etc/default/keyboard");
 
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| {
-                format!(
-                    "Failed to create keyboard config directory: {}",
-                    parent.display()
-                )
-            })?;
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "Failed to create keyboard config directory: {}",
+                parent.display()
+            )
+        })?;
     }
 
     std::fs::write(&path, config)
-        .with_context(|| {
-            format!(
-                "Failed to write keyboard layout config: {}",
-                path.display()
-            )
-        })?;
+        .with_context(|| format!("Failed to write keyboard layout config: {}", path.display()))?;
 
     Ok(())
 }
 
-pub fn setup_lang() -> anyhow::Result<()> {
+/// Asks for the keyboard layout and loads it in the live session (needed to type
+/// the passwords correctly). Returns the layout that is in use. The choice is
+/// also written to /etc/default/keyboard of the live system, which is copied to
+/// the installed system with the rest of the files.
+pub fn setup_lang() -> anyhow::Result<String> {
     let lang = keyboard_select();
 
     if lang.is_empty() {
@@ -131,7 +126,7 @@ pub fn setup_lang() -> anyhow::Result<()> {
         set_keyboard_layout("en")
             .map_err(|e| anyhow::anyhow!("Failed to set fallback keyboard layout: {}", e))?;
 
-        return Ok(());
+        return Ok("us".to_string());
     }
 
     if let Err(e) = set_keyboard_layout(&lang) {
@@ -151,8 +146,8 @@ pub fn setup_lang() -> anyhow::Result<()> {
             );
         }
     }
-    
+
     write_config(&lang)?;
-    
-    Ok(())
+
+    Ok(lang)
 }

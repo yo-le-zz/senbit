@@ -6,18 +6,10 @@ use std::process::{Command, Stdio};
 use crate::log_info;
 
 fn get_keymap(root: &str) -> Result<String> {
-    let config_path =
-        Path::new(root)
-            .join("etc/default/keyboard");
+    let config_path = Path::new(root).join("etc/default/keyboard");
 
-    let config =
-        fs::read_to_string(&config_path)
-            .with_context(|| {
-                format!(
-                    "Failed to read keyboard config: {}",
-                    config_path.display()
-                )
-            })?;
+    let config = fs::read_to_string(&config_path)
+        .with_context(|| format!("Failed to read keyboard config: {}", config_path.display()))?;
 
     let keymap = config
         .lines()
@@ -25,58 +17,35 @@ fn get_keymap(root: &str) -> Result<String> {
             let line = line.trim();
 
             line.strip_prefix("XKBLAYOUT=")
-                .map(|value| {
-                    value
-                        .trim_matches('"')
-                        .to_string()
-                })
+                .map(|value| value.trim_matches('"').to_string())
         })
         .unwrap_or_else(|| "us".to_string());
 
-    Ok(
-        if keymap == "en" {
-            "us".to_string()
-        } else {
-            keymap
-        }
-    )
+    Ok(if keymap == "en" {
+        "us".to_string()
+    } else {
+        keymap
+    })
 }
 
 pub fn init_keymaps(root: &str) -> Result<()> {
     let keymap = get_keymap(root)?;
 
-    let keymap_path = format!(
-        "{}/usr/share/keymaps/{}.bmap",
-        root,
-        keymap
-    );
+    let keymap_path = format!("{}/usr/share/keymaps/{}.bmap", root, keymap);
 
-    let file =
-        fs::File::open(&keymap_path)
-            .with_context(|| {
-                format!(
-                    "Failed to open keymap: {}",
-                    keymap_path
-                )
-            })?;
+    let file = fs::File::open(&keymap_path)
+        .with_context(|| format!("Failed to open keymap: {}", keymap_path))?;
 
-    let status =
-        Command::new("loadkmap")
-            .stdin(Stdio::from(file))
-            .status()
-            .context("Failed to execute loadkmap")?;
+    let status = Command::new("loadkmap")
+        .stdin(Stdio::from(file))
+        .status()
+        .context("Failed to execute loadkmap")?;
 
     if !status.success() {
-        anyhow::bail!(
-            "Failed to load keyboard layout '{}'",
-            keymap
-        );
+        anyhow::bail!("Failed to load keyboard layout '{}'", keymap);
     }
 
-    log_info!(
-        "Keyboard layout '{}' initialized.",
-        keymap
-    );
+    log_info!("Keyboard layout '{}' initialized.", keymap);
 
     Ok(())
 }
