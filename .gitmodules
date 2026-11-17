@@ -1,18 +1,6 @@
-[submodule "kernel/linux"]
-	path = kernel/linux
-	url = https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
-[submodule "third_party/busybox"]
-	path = third_party/busybox
-	url = https://git.busybox.net/busybox
-[submodule "third_party/util-linux"]
-	path = third_party/util-linux
-	url = https://github.com/util-linux/util-linux.git
-[submodule "third_party/parted"]
-	path = third_party/parted
-	url = https://github.com/oldium/gnu-parted.git
+# Senbit sources (Linux, BusyBox, util-linux, Parted, systemd) are NOT
+# submodules: `devtool get` downloads them at the versions pinned in
+# config/<name>/version and verifies the commit / sha256. See docs/BUILD.md.
 [submodule "tools/keymaps/kbd"]
 	path = tools/keymaps/kbd
 	url = https://github.com/legionus/kbd.git
-[submodule "external/systemd"]
-	path = external/systemd
-	url = https://github.com/systemd/systemd.git

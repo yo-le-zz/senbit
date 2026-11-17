@@ -1,0 +1,31 @@
+#!/bin/sh
+# ldd - shared libraries used by a program (Senbit: libc-bin is provided by the
+# glibc of the build host, so the Debian script is not installed).
+# Many installers run `ldd --version` to detect glibc vs musl.
+LOADER=/lib64/ld-linux-x86-64.so.2
+[ -x "$LOADER" ] || LOADER=/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+case "$1" in
+    --version)
+        version="$(cat /usr/share/senbit/glibc-version 2>/dev/null)"
+        echo "ldd (GNU libc) ${version:-2.36}"
+        echo "Provided by Senbit (glibc of the build host)."
+        exit 0
+        ;;
+    -h|--help|"")
+        echo "Usage: ldd [--version] FILE..."
+        exit 0
+        ;;
+esac
+
+status=0
+for file in "$@"; do
+    [ $# -gt 1 ] && echo "$file:"
+    if [ ! -e "$file" ]; then
+        echo "ldd: $file: No such file or directory" >&2
+        status=1
+        continue
+    fi
+    LD_TRACE_LOADED_OBJECTS=1 "$LOADER" "$file" || status=1
+done
+exit $status

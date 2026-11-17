@@ -1,0 +1,21 @@
+# Rebuilds the shared library cache at every boot (cheap) so libraries
+# installed by apt/dpkg are always found, even if a package script did not
+# refresh it. The build also creates the initial cache (ldconfig -r).
+
+[Unit]
+Description=Senbit shared library cache
+Documentation=man:ldconfig(8)
+DefaultDependencies=no
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
+ConditionPathExists=/sbin/ldconfig
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/ldconfig
+TimeoutStartSec=30
+
+[Install]
+WantedBy=sysinit.target

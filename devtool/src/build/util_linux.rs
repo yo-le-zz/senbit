@@ -16,7 +16,10 @@ fn read_version(p: &Paths) -> Result<String> {
     if !file.is_file() {
         bail!("util-linux version file not found:\n  {}", file.display());
     }
-    let v: String = std::fs::read_to_string(&file)?.chars().filter(|c| !c.is_whitespace()).collect();
+    let v: String = std::fs::read_to_string(&file)?
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     if v.is_empty() {
         bail!("util-linux version is empty.");
     }
@@ -27,7 +30,7 @@ fn check(p: &Paths) -> Result<String> {
     let dir = p.util_linux_dir();
     if !gitutil::is_repo(&dir) {
         bail!(
-            "util-linux source tree not found:\n  {}\n\nInitialize Git submodules with:\n  git submodule update --init --recursive",
+            "util-linux source tree not found:\n  {}\n\nRun:\n  devtool get util-linux",
             dir.display()
         );
     }
@@ -40,9 +43,7 @@ fn check(p: &Paths) -> Result<String> {
     ui::detail(format!("Current:   {current}"));
 
     if current != format!("v{version}") {
-        bail!(
-            "util-linux submodule is not on v{version}.\n\nRun:\n  git -C third_party/util-linux checkout v{version}"
-        );
+        bail!("util-linux is not on the pinned v{version}.\n\nRun:\n  devtool get util-linux");
     }
     Ok(version)
 }
@@ -53,9 +54,13 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
 
     let version = check(p)?;
     let dir = p.util_linux_dir();
+    crate::patches::apply(p, "util-linux", "util-linux", &dir)?;
     let fdisk = p.util_linux_fdisk();
     let sfdisk = p.util_linux_sfdisk();
-    let fp = format!("v{version}");
+    let fp = format!(
+        "v{version}:patches={}",
+        crate::patches::fingerprint(p, "util-linux")
+    );
 
     if cache.is_fresh("util-linux", &fp, &[&fdisk, &sfdisk]) {
         println!();
@@ -68,20 +73,26 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     println!();
     ui::info("Preparing util-linux...");
 
-    if !build_dir.join("Makefile").is_file() {
+    {
         ui::info("Configuring util-linux...");
-        run_quiet(Command::new(dir.join("configure")).current_dir(&build_dir).args([
-            "--prefix=/usr",
-            "--bindir=/usr/bin",
-            "--sbindir=/usr/sbin",
-            "--libdir=/usr/lib",
-            "--disable-all-programs",
-            "--enable-fdisks",
-            "--enable-libfdisk",
-            "--enable-libsmartcols",
-            "--enable-libuuid",
-            "--enable-static-programs=fdisk,sfdisk",
-        ]))?;
+        run_quiet(
+            Command::new(dir.join("configure"))
+                .current_dir(&build_dir)
+                .args([
+                    "--prefix=/usr",
+                    "--bindir=/usr/bin",
+                    "--sbindir=/usr/sbin",
+                    "--libdir=/usr/lib",
+                    "--disable-all-programs",
+                    "--enable-fdisks",
+                    "--enable-libfdisk",
+                    "--enable-libsmartcols",
+                    "--enable-libuuid",
+                    "--enable-libblkid",
+                    "--enable-static",
+                    "--enable-static-programs=blkid,fdisk,sfdisk",
+                ]),
+        )?;
     }
 
     println!();
@@ -89,19 +100,27 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     ui::detail(format!("Jobs: {jobs}"));
 
     let spin = ui::spinner("Compiling util-linux (fdisk, sfdisk)...");
-    let result = run_quiet(Command::new("make")
-        .arg("-C")
-        .arg(&build_dir)
-        .args(["fdisk.static", "sfdisk.static"])
-        .arg(format!("-j{jobs}")));
+    let result = run_quiet(
+        Command::new("make")
+            .arg("-C")
+            .arg(&build_dir)
+            .args(["libblkid.la", "fdisk.static", "sfdisk.static"])
+            .arg(format!("-j{jobs}")),
+    );
     spin.finish_and_clear();
     result?;
 
     if !fdisk.is_file() {
-        bail!("util-linux fdisk.static was not produced:\n  {}", fdisk.display());
+        bail!(
+            "util-linux fdisk.static was not produced:\n  {}",
+            fdisk.display()
+        );
     }
     if !sfdisk.is_file() {
-        bail!("util-linux sfdisk.static was not produced:\n  {}", sfdisk.display());
+        bail!(
+            "util-linux sfdisk.static was not produced:\n  {}",
+            sfdisk.display()
+        );
     }
 
     println!();

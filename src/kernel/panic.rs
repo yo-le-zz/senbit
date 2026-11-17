@@ -2,29 +2,13 @@
 
 use crate::kernel::alim;
 
-use libc::{
-    poll,
-    pollfd,
-    POLLIN,
-};
+use libc::{POLLIN, poll, pollfd};
 
-use std::io::{
-    self,
-    Write,
-};
+use std::io::{self, Write};
 
 use std::os::fd::AsRawFd;
 
-use libc::{
-    tcgetattr,
-    tcsetattr,
-    termios,
-    TCSANOW,
-    ECHO,
-    ICANON,
-    VMIN,
-    VTIME,
-};
+use libc::{ECHO, ICANON, TCSANOW, VMIN, VTIME, tcgetattr, tcsetattr, termios};
 
 /* ============================================================
    ANSI colors
@@ -38,30 +22,18 @@ const ANSI_RESET: &str = "\x1b[0m";
    Wait for key
 ============================================================ */
 
-fn wait_key_or_timeout(
-    timeout_ms: i32,
-) -> bool {
-    let stdin =
-        io::stdin();
+fn wait_key_or_timeout(timeout_ms: i32) -> bool {
+    let stdin = io::stdin();
 
-    let fd =
-        stdin.as_raw_fd();
+    let fd = stdin.as_raw_fd();
 
-    let mut pfd =
-        pollfd {
-            fd,
-            events: POLLIN,
-            revents: 0,
-        };
+    let mut pfd = pollfd {
+        fd,
+        events: POLLIN,
+        revents: 0,
+    };
 
-    let ret =
-        unsafe {
-            poll(
-                &mut pfd,
-                1,
-                timeout_ms,
-            )
-        };
+    let ret = unsafe { poll(&mut pfd, 1, timeout_ms) };
 
     ret > 0
 }
@@ -71,24 +43,17 @@ fn wait_key_or_timeout(
 ============================================================ */
 
 fn set_terminal_raw() {
-    let fd =
-        io::stdin()
-            .as_raw_fd();
+    let fd = io::stdin().as_raw_fd();
 
-    let mut term =
-        unsafe {
-            let mut t =
-                std::mem::zeroed::<termios>();
+    let mut term = unsafe {
+        let mut t = std::mem::zeroed::<termios>();
 
-            if tcgetattr(
-                fd,
-                &mut t,
-            ) != 0 {
-                return;
-            }
+        if tcgetattr(fd, &mut t) != 0 {
+            return;
+        }
 
-            t
-        };
+        t
+    };
 
     /*
      * Disable:
@@ -96,8 +61,7 @@ fn set_terminal_raw() {
      * - input echo
      */
 
-    term.c_lflag &=
-        !(ICANON | ECHO);
+    term.c_lflag &= !(ICANON | ECHO);
 
     /*
      * Read input immediately.
@@ -107,11 +71,7 @@ fn set_terminal_raw() {
     term.c_cc[VTIME] = 0;
 
     unsafe {
-        tcsetattr(
-            fd,
-            TCSANOW,
-            &term,
-        );
+        tcsetattr(fd, TCSANOW, &term);
     }
 }
 
@@ -122,24 +82,17 @@ fn set_terminal_raw() {
 fn decompte() -> ! {
     set_terminal_raw();
 
-    let mut remaining =
-        5;
+    let mut remaining = 5;
 
     loop {
         print!(
             "\r{}Shutdown in {} seconds, press any key for reboot{}",
-            ANSI_YELLOW,
-            remaining,
-            ANSI_RESET,
+            ANSI_YELLOW, remaining, ANSI_RESET,
         );
 
-        let _ =
-            io::stdout().flush();
+        let _ = io::stdout().flush();
 
-        let key_pressed =
-            wait_key_or_timeout(
-                1000,
-            );
+        let key_pressed = wait_key_or_timeout(1000);
 
         if key_pressed {
             alim::do_reboot();
@@ -157,9 +110,7 @@ fn decompte() -> ! {
    Kernel panic
 ============================================================ */
 
-pub fn kpanic_impl(
-    msg: &str,
-) -> ! {
+pub fn kpanic_impl(msg: &str) -> ! {
     /*
      * Do NOT use the normal logging system here.
      *
@@ -170,33 +121,17 @@ pub fn kpanic_impl(
 
     eprintln!();
 
-    eprintln!(
-        "{}==============================",
-        ANSI_RED,
-    );
+    eprintln!("{}==============================", ANSI_RED,);
 
-    eprintln!(
-        "{}        SENBIT KERNEL PANIC",
-        ANSI_RED,
-    );
+    eprintln!("{}        SENBIT KERNEL PANIC", ANSI_RED,);
 
-    eprintln!(
-        "{}==============================",
-        ANSI_RED,
-    );
+    eprintln!("{}==============================", ANSI_RED,);
 
     eprintln!();
 
-    eprintln!(
-        "{}{}",
-        ANSI_RED,
-        msg,
-    );
+    eprintln!("{}{}", ANSI_RED, msg,);
 
-    eprintln!(
-        "{}",
-        ANSI_RESET,
-    );
+    eprintln!("{}", ANSI_RESET,);
 
     eprintln!();
 

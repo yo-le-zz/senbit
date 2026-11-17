@@ -1,0 +1,24 @@
+[Unit]
+Description=Download the apt package lists (empty on a fresh install)
+Documentation=man:apt-get(8)
+After=network.target senbit-dhcp@eth0.service
+Wants=network.target
+ConditionPathExists=/usr/bin/apt-get
+# Retry for as long as needed; never marks the boot as failed.
+StartLimitIntervalSec=0
+
+[Service]
+# simple, not oneshot: a oneshot would delay multi-user.target (and therefore the
+# login) until apt-get finishes, which can take minutes without network.
+Type=simple
+# Stays "active (exited)" once the lists are downloaded (instead of "inactive").
+RemainAfterExit=yes
+# Nothing to do when the lists are already there.
+ExecStart=/bin/sh -c 'ls /var/lib/apt/lists/*Packages* >/dev/null 2>&1 || exec /usr/bin/apt-get update -q'
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=300
+Environment=DEBIAN_FRONTEND=noninteractive
+
+[Install]
+WantedBy=multi-user.target

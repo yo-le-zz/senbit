@@ -83,6 +83,14 @@ jobs:
       - name: Build Rust
         run: cargo build --release --target x86_64-unknown-linux-musl
 
+      # devtool and every native command (commands/<name>/) carry unit tests.
+      - name: Test devtool and native commands
+        run: |
+          cargo test --manifest-path devtool/Cargo.toml
+          for manifest in commands/*/Cargo.toml; do
+            cargo test --manifest-path "$manifest"
+          done
+
   build:
     name: Senbit build
     if: github.event.action != 'closed'

@@ -1,0 +1,11 @@
+[package]
+name = "adduser"
+version = "0.1.0"
+edition = "2024"
+description = "Debian-compatible adduser, addgroup, deluser, delgroup (used by package maintainer scripts)"
+
+[package.metadata.senbit]
+install = "sbin"
+aliases = ["addgroup", "deluser", "delgroup"]
+
+[dependencies]

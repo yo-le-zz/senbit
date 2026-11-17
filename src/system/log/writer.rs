@@ -13,19 +13,13 @@ pub struct LogWriter {
 
 impl LogWriter {
     pub fn new() -> Result<Self> {
-        let runtime_dir =
-            PathBuf::from("/run/log");
+        let runtime_dir = PathBuf::from("/run/log");
 
-        let persistent_dir =
-            PathBuf::from("/var/log/senbit");
+        let persistent_dir = PathBuf::from("/var/log/senbit");
 
-        fs::create_dir_all(&runtime_dir)
-            .context("failed to create /run/log")?;
+        fs::create_dir_all(&runtime_dir).context("failed to create /run/log")?;
 
-        fs::create_dir_all(&persistent_dir)
-            .context(
-                "failed to create /var/log/senbit"
-            )?;
+        fs::create_dir_all(&persistent_dir).context("failed to create /var/log/senbit")?;
 
         Ok(Self {
             runtime_dir,
@@ -33,10 +27,7 @@ impl LogWriter {
         })
     }
 
-    pub fn write(
-        &self,
-        record: &LogRecord<'_>,
-    ) -> Result<()> {
+    pub fn write(&self, record: &LogRecord<'_>) -> Result<()> {
         let line = record.format();
 
         self.write_runtime(&line)?;
@@ -45,22 +36,14 @@ impl LogWriter {
         Ok(())
     }
 
-    fn write_runtime(
-        &self,
-        line: &str,
-    ) -> Result<()> {
-        let path =
-            self.runtime_dir.join("system.log");
+    fn write_runtime(&self, line: &str) -> Result<()> {
+        let path = self.runtime_dir.join("system.log");
 
         append_line(&path, line)
     }
 
-    fn write_persistent(
-        &self,
-        line: &str,
-    ) -> Result<()> {
-        let path =
-            self.persistent_dir.join("system.log");
+    fn write_persistent(&self, line: &str) -> Result<()> {
+        let path = self.persistent_dir.join("system.log");
 
         rotate_if_needed(&path)?;
 
@@ -68,37 +51,18 @@ impl LogWriter {
     }
 }
 
-fn append_line(
-    path: &Path,
-    line: &str,
-) -> Result<()> {
-    let mut file: File =
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .with_context(|| {
-                format!(
-                    "failed to open log {}",
-                    path.display()
-                )
-            })?;
+fn append_line(path: &Path, line: &str) -> Result<()> {
+    let mut file: File = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("failed to open log {}", path.display()))?;
 
     file.write_all(line.as_bytes())
-        .with_context(|| {
-            format!(
-                "failed to write log {}",
-                path.display()
-            )
-        })?;
+        .with_context(|| format!("failed to write log {}", path.display()))?;
 
     file.flush()
-        .with_context(|| {
-            format!(
-                "failed to flush log {}",
-                path.display()
-            )
-        })?;
+        .with_context(|| format!("failed to flush log {}", path.display()))?;
 
     Ok(())
 }

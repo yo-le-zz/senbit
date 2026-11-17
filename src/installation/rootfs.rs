@@ -10,14 +10,11 @@ use std::path::Path;
 
 use crate::filesystem::fs::recursive_copy;
 
-pub fn setup_rootfs(
-    source: &Path,
-    dest: &Path,
-    root_uuid: &str,
-) -> Result<()> {
+pub fn setup_rootfs(source: &Path, dest: &Path, root_uuid: &str) -> Result<()> {
     // Copy the rootfs from the ISO to the disk
     let excluded = [
         "/mnt",
+        crate::installation::INSTALL_ROOT,
         "/proc",
         "/sys",
         "/dev",
@@ -41,8 +38,6 @@ fn make_sysconfig(dest: &Path, root_uuid: &str) -> Result<()> {
         dest.join("etc/fstab"),
         format!("UUID={} / ext4 defaults 0 1\n", root_uuid),
     )?;
-
-    
 
     // /etc/machine-id
     //

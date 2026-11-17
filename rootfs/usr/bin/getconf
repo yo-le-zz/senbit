@@ -1,0 +1,25 @@
+#!/bin/sh
+# getconf - system configuration values (Senbit: libc-bin is provided by the
+# glibc of the build host, so the Debian binary is not installed). Installers
+# use it to detect the glibc version and the number of CPUs.
+case "$1" in
+    GNU_LIBC_VERSION)
+        echo "glibc $(cat /usr/share/senbit/glibc-version 2>/dev/null || echo 2.36)"
+        ;;
+    GNU_LIBPTHREAD_VERSION)
+        echo "NPTL $(cat /usr/share/senbit/glibc-version 2>/dev/null || echo 2.36)"
+        ;;
+    LONG_BIT) echo 64 ;;
+    WORD_BIT) echo 32 ;;
+    PAGESIZE|PAGE_SIZE) echo 4096 ;;
+    _NPROCESSORS_ONLN|NPROCESSORS_ONLN|_NPROCESSORS_CONF|NPROCESSORS_CONF)
+        grep -c '^processor' /proc/cpuinfo
+        ;;
+    ARG_MAX) echo 2097152 ;;
+    PATH|CS_PATH) echo /bin:/usr/bin ;;
+    _POSIX_VERSION) echo 200809 ;;
+    *)
+        echo "getconf: Unrecognized variable '$1'" >&2
+        exit 1
+        ;;
+esac

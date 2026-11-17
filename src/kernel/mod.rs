@@ -1,5 +1,5 @@
-pub mod panic;
 pub mod alim;
+pub mod panic;
 
 // Macro du kernel panic
 #[macro_export]

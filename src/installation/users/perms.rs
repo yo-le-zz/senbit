@@ -1,9 +1,6 @@
 // installation/users/perms.rs
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use std::fs;
 
@@ -17,80 +14,49 @@ use std::process::Command;
    Basic permission helpers
 ============================================================ */
 
-fn set_mode(
-    path: &Path,
-    mode: u32,
-) -> Result<()> {
+fn set_mode(path: &Path, mode: u32) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
 
-    fs::set_permissions(
-        path,
-        fs::Permissions::from_mode(mode),
-    )
-    .with_context(|| {
-        format!(
-            "failed to set permissions on {}",
-            path.display()
-        )
-    })?;
+    fs::set_permissions(path, fs::Permissions::from_mode(mode))
+        .with_context(|| format!("failed to set permissions on {}", path.display()))?;
 
     Ok(())
 }
 
-fn set_x_perm(
-    path: &Path,
-) -> std::io::Result<()> {
-    let metadata =
-        fs::symlink_metadata(path)?;
+fn set_x_perm(path: &Path) -> std::io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
 
     /*
      * Never modify symlinks themselves.
      */
-    if metadata.file_type().is_symlink()
-        || !metadata.is_file()
-    {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Ok(());
     }
 
-    let mut permissions =
-        metadata.permissions();
+    let mut permissions = metadata.permissions();
 
-    permissions.set_mode(
-        0o755
-    );
+    permissions.set_mode(0o755);
 
-    fs::set_permissions(
-        path,
-        permissions,
-    )
+    fs::set_permissions(path, permissions)
 }
 
 /* ============================================================
    Executable permissions
 ============================================================ */
 
-pub fn set_system_x_permissions(
-    root: &Path,
-) -> std::io::Result<()> {
-    for dir in [
-        "bin",
-        "sbin",
-        "usr/bin",
-        "usr/sbin",
-    ] {
-        let path =
-            root.join(dir);
+#[allow(dead_code)] // kept as public API of this module
+pub fn set_system_x_permissions(root: &Path) -> std::io::Result<()> {
+    for dir in ["bin", "sbin", "usr/bin", "usr/sbin"] {
+        let path = root.join(dir);
 
         if !path.is_dir() {
             continue;
         }
 
         for entry in fs::read_dir(path)? {
-            set_x_perm(
-                &entry?.path()
-            )?;
+            set_x_perm(&entry?.path())?;
         }
     }
 
@@ -101,47 +67,22 @@ pub fn set_system_x_permissions(
    Ownership
 ============================================================ */
 
-fn chown(
-    path: &Path,
-    uid: u32,
-    gid: u32,
-) -> Result<()> {
-    let status =
-        Command::new("chown")
-            .args([
-                &format!(
-                    "{}:{}",
-                    uid,
-                    gid
-                ),
-                "--",
-            ])
-            .arg(path)
-            .status()
-            .with_context(|| {
-                format!(
-                    "failed to chown {}",
-                    path.display()
-                )
-            })?;
+fn chown(path: &Path, uid: u32, gid: u32) -> Result<()> {
+    let status = Command::new("chown")
+        .args([&format!("{}:{}", uid, gid), "--"])
+        .arg(path)
+        .status()
+        .with_context(|| format!("failed to chown {}", path.display()))?;
 
     if !status.success() {
-        anyhow::bail!(
-            "chown failed for {}",
-            path.display()
-        );
+        anyhow::bail!("chown failed for {}", path.display());
     }
 
     Ok(())
 }
 
-fn chown_recursive(
-    path: &Path,
-    uid: u32,
-    gid: u32,
-) -> Result<()> {
-    let metadata =
-        fs::symlink_metadata(path)?;
+fn chown_recursive(path: &Path, uid: u32, gid: u32) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
 
     /*
      * Never follow symlinks.
@@ -156,26 +97,15 @@ fn chown_recursive(
      * Its contents belong to individual users, so the global
      * root ownership pass must never recurse into it.
      */
-    if path.file_name()
-        .and_then(|name| name.to_str())
-        == Some("home")
-    {
+    if path.file_name().and_then(|name| name.to_str()) == Some("home") {
         return Ok(());
     }
 
-    chown(
-        path,
-        uid,
-        gid,
-    )?;
+    chown(path, uid, gid)?;
 
     if metadata.is_dir() {
         for entry in fs::read_dir(path)? {
-            chown_recursive(
-                &entry?.path(),
-                uid,
-                gid,
-            )?;
+            chown_recursive(&entry?.path(), uid, gid)?;
         }
     }
 
@@ -186,30 +116,19 @@ fn chown_recursive(
    System ownership
 ============================================================ */
 
-pub fn set_proprietary_permissions(
-    mount_point: &Path,
-) -> Result<()> {
+pub fn set_proprietary_permissions(mount_point: &Path) -> Result<()> {
     /*
      * Everything except /home belongs to root.
      */
-    chown_recursive(
-        mount_point,
-        0,
-        0,
-    )?;
+    chown_recursive(mount_point, 0, 0)?;
 
     /*
      * /home itself belongs to root.
      */
-    let home =
-        mount_point.join("home");
+    let home = mount_point.join("home");
 
     if home.exists() {
-        chown(
-            &home,
-            0,
-            0,
-        )?;
+        chown(&home, 0, 0)?;
     }
 
     Ok(())
@@ -219,9 +138,7 @@ pub fn set_proprietary_permissions(
    Basic user permissions
 ============================================================ */
 
-pub fn set_basic_user_permissions(
-    mount_point: &Path,
-) -> Result<()> {
+pub fn set_basic_user_permissions(mount_point: &Path) -> Result<()> {
     /*
      * ========================================================
      * System directories
@@ -241,13 +158,9 @@ pub fn set_basic_user_permissions(
         "var/log",
         "var/lib",
     ] {
-        let path =
-            mount_point.join(dir);
+        let path = mount_point.join(dir);
 
-        set_mode(
-            &path,
-            0o755,
-        )?;
+        set_mode(&path, 0o755)?;
     }
 
     /*
@@ -256,20 +169,11 @@ pub fn set_basic_user_permissions(
      * ========================================================
      */
 
-    for dir in [
-        "run",
-        "dev",
-        "proc",
-        "sys",
-    ] {
-        let path =
-            mount_point.join(dir);
+    for dir in ["run", "dev", "proc", "sys"] {
+        let path = mount_point.join(dir);
 
         if path.exists() {
-            set_mode(
-                &path,
-                0o755,
-            )?;
+            set_mode(&path, 0o755)?;
         }
     }
 
@@ -279,20 +183,12 @@ pub fn set_basic_user_permissions(
      * ========================================================
      */
 
-    let root_home =
-        mount_point.join("root");
+    let root_home = mount_point.join("root");
 
     if root_home.exists() {
-        set_mode(
-            &root_home,
-            0o700,
-        )?;
+        set_mode(&root_home, 0o700)?;
 
-        chown(
-            &root_home,
-            0,
-            0,
-        )?;
+        chown(&root_home, 0, 0)?;
     }
 
     /*
@@ -301,20 +197,12 @@ pub fn set_basic_user_permissions(
      * ========================================================
      */
 
-    let home =
-        mount_point.join("home");
+    let home = mount_point.join("home");
 
     if home.exists() {
-        set_mode(
-            &home,
-            0o755,
-        )?;
+        set_mode(&home, 0o755)?;
 
-        chown(
-            &home,
-            0,
-            0,
-        )?;
+        chown(&home, 0, 0)?;
     }
 
     /*
@@ -323,14 +211,10 @@ pub fn set_basic_user_permissions(
      * ========================================================
      */
 
-    let tmp =
-        mount_point.join("tmp");
+    let tmp = mount_point.join("tmp");
 
     if tmp.exists() {
-        set_mode(
-            &tmp,
-            0o1777,
-        )?;
+        set_mode(&tmp, 0o1777)?;
     }
 
     /*
@@ -344,23 +228,15 @@ pub fn set_basic_user_permissions(
      * otherwise they would be overwritten here.
      */
 
-    for dir in [
-        "bin",
-        "sbin",
-        "usr/bin",
-        "usr/sbin",
-    ] {
-        let path =
-            mount_point.join(dir);
+    for dir in ["bin", "sbin", "usr/bin", "usr/sbin"] {
+        let path = mount_point.join(dir);
 
         if !path.is_dir() {
             continue;
         }
 
         for entry in fs::read_dir(&path)? {
-            set_x_perm(
-                &entry?.path()
-            )?;
+            set_x_perm(&entry?.path())?;
         }
     }
 
@@ -378,20 +254,12 @@ pub fn set_basic_user_permissions(
         "etc/resolv.conf",
         "etc/fstab",
     ] {
-        let path =
-            mount_point.join(file);
+        let path = mount_point.join(file);
 
         if path.exists() {
-            set_mode(
-                &path,
-                0o644,
-            )?;
+            set_mode(&path, 0o644)?;
 
-            chown(
-                &path,
-                0,
-                0,
-            )?;
+            chown(&path, 0, 0)?;
         }
     }
 
@@ -401,24 +269,13 @@ pub fn set_basic_user_permissions(
      * ========================================================
      */
 
-    for file in [
-        "etc/shadow",
-        "etc/gshadow",
-    ] {
-        let path =
-            mount_point.join(file);
+    for file in ["etc/shadow", "etc/gshadow"] {
+        let path = mount_point.join(file);
 
         if path.exists() {
-            set_mode(
-                &path,
-                0o600,
-            )?;
+            set_mode(&path, 0o600)?;
 
-            chown(
-                &path,
-                0,
-                0,
-            )?;
+            chown(&path, 0, 0)?;
         }
     }
 
@@ -429,9 +286,7 @@ pub fn set_basic_user_permissions(
    Privileged commands
 ============================================================ */
 
-fn set_privileged_permissions(
-    mount_point: &Path,
-) -> Result<()> {
+fn set_privileged_permissions(mount_point: &Path) -> Result<()> {
     /*
      * These programs need elevated privileges when launched
      * by an unprivileged user.
@@ -453,8 +308,7 @@ fn set_privileged_permissions(
         "usr/bin/ping",
         "bin/sudo",
     ] {
-        let path =
-            mount_point.join(command);
+        let path = mount_point.join(command);
 
         /*
          * Only apply this to real files.
@@ -466,16 +320,9 @@ fn set_privileged_permissions(
             continue;
         }
 
-        chown(
-            &path,
-            0,
-            0,
-        )?;
+        chown(&path, 0, 0)?;
 
-        set_mode(
-            &path,
-            0o4755,
-        )?;
+        set_mode(&path, 0o4755)?;
     }
 
     Ok(())
@@ -485,18 +332,14 @@ fn set_privileged_permissions(
    Complete permission setup
 ============================================================ */
 
-pub fn set_sys_perms(
-    mount_point: &Path,
-) -> Result<()> {
+pub fn set_sys_perms(mount_point: &Path) -> Result<()> {
     /*
      * ========================================================
      * 1. Root ownership
      * ========================================================
      */
 
-    set_proprietary_permissions(
-        mount_point,
-    )?;
+    set_proprietary_permissions(mount_point)?;
 
     /*
      * ========================================================
@@ -504,9 +347,7 @@ pub fn set_sys_perms(
      * ========================================================
      */
 
-    set_basic_user_permissions(
-        mount_point,
-    )?;
+    set_basic_user_permissions(mount_point)?;
 
     /*
      * ========================================================
@@ -517,9 +358,7 @@ pub fn set_sys_perms(
      * intentionally sets executables to 0755.
      */
 
-    set_privileged_permissions(
-        mount_point,
-    )?;
+    set_privileged_permissions(mount_point)?;
 
     Ok(())
 }

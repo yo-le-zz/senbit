@@ -1,4 +1,7 @@
+pub mod apt;
 pub mod busybox;
+pub mod commands;
+pub mod initramfs;
 pub mod iso;
 pub mod kernel;
 pub mod parted;
@@ -7,7 +10,6 @@ pub mod rust_build;
 pub mod systemd;
 pub mod tools;
 pub mod util_linux;
-pub mod initramfs;
 
 use std::time::Instant;
 
@@ -20,9 +22,9 @@ use crate::proc::nproc;
 use crate::ui::{self, format_time, run_step};
 
 /// Targets of `devtool build`, identical to those of build.sh, plus `fast`
-/// (devtool addition: only rebuilds the Rust userspace, the tools, the
-/// rootfs and the ISO - without touching the kernel/BusyBox/util-linux/
-/// Parted/GRUB).
+/// (devtool addition: only rebuilds the Rust userspace, the commands, the
+/// tools, the rootfs and the ISO - without touching the kernel/BusyBox/
+/// util-linux/Parted/GRUB).
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 #[value(rename_all = "kebab-case")]
 pub enum Target {
@@ -33,7 +35,11 @@ pub enum Target {
     UtilLinux,
     Parted,
     Systemd,
+    /// apt + dpkg from the remote Debian repository.
+    Apt,
     Rust,
+    /// Native Senbit commands (commands/<name>/): detected automatically.
+    Commands,
     Tools,
     Rootfs,
     Iso,
@@ -65,7 +71,11 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
             UtilLinux => run_step("util-linux", || util_linux::build(p, &mut cache, jobs)),
             Parted => run_step("GNU Parted", || parted::build(p, &mut cache, jobs)),
             Systemd => run_step("systemd", || systemd::build(p, &mut cache, jobs)),
-            Rust => run_step("Senbit Rust Userspace", || rust_build::build(p, &mut cache, jobs)),
+            Apt => run_step("apt / dpkg", || apt::build(p, &mut cache)),
+            Rust => run_step("Senbit Rust Userspace", || {
+                rust_build::build(p, &mut cache, jobs)
+            }),
+            Commands => run_step("Senbit Commands", || commands::build(p, &mut cache, jobs)),
             Tools => run_step("Senbit Build Tools", || tools::build(p, jobs)),
             Rootfs => run_step("Senbit Root Filesystem", || rootfs::build(p)),
             Iso => run_step("Senbit ISO", || iso::build(p)),
@@ -75,16 +85,27 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
                 run_step("util-linux", || util_linux::build(p, &mut cache, jobs))?;
                 run_step("GNU Parted", || parted::build(p, &mut cache, jobs))?;
                 run_step("systemd", || systemd::build(p, &mut cache, jobs))?;
-                run_step("Senbit Rust Userspace", || rust_build::build(p, &mut cache, jobs))?;
+                run_step("apt / dpkg", || apt::build(p, &mut cache))?;
+                run_step("Senbit Rust Userspace", || {
+                    rust_build::build(p, &mut cache, jobs)
+                })?;
+                run_step("Senbit Commands", || {
+                    commands::build(p, &mut cache, jobs)
+                })?;
                 run_step("Senbit Build Tools", || tools::build(p, jobs))?;
                 run_step("Senbit Root Filesystem", || rootfs::build(p))?;
                 run_step("Senbit ISO", || iso::build(p))?;
                 Ok(())
             }
             Fast => {
-                ui::banner("Fast build: userspace + tools + rootfs + ISO only");
+                ui::banner("Fast build: userspace + commands + tools + rootfs + ISO only");
                 ui::warn("Skipping kernel/BusyBox/util-linux/Parted/GRUB checks and rebuilds.");
-                run_step("Senbit Rust Userspace", || rust_build::build(p, &mut cache, jobs))?;
+                run_step("Senbit Rust Userspace", || {
+                    rust_build::build(p, &mut cache, jobs)
+                })?;
+                run_step("Senbit Commands", || {
+                    commands::build(p, &mut cache, jobs)
+                })?;
                 run_step("Senbit Build Tools", || tools::build(p, jobs))?;
                 run_step("Senbit Root Filesystem", || rootfs::build(p))?;
                 run_step("Senbit ISO", || iso::build(p))?;

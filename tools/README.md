@@ -42,6 +42,11 @@ Tools in this directory can be used to:
 
 Tools should remain **independent from the code executed by Senbit**, which is located in `src/`.
 
+> **Commands of the system are NOT tools.** Programs that run *inside* Senbit
+> (`sudo`, `reboot`, `bootreport`, `adduser`...) live in the
+> top-level [`commands/`](../commands/README.md) folder. Add one with
+> `./newcmds.sh <name>`: `devtool` detects and builds it automatically.
+
 ## ⌨️ Example: `keymaps`
 
 `tools/keymaps` prepares the keyboard layouts used by the Senbit installer.

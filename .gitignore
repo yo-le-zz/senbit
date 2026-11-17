@@ -79,6 +79,14 @@ Desktop.ini
 # Devtool
 # --------------------------------------------------
 scripts/devtool
+/devtool/bin/
+
+# --------------------------------------------------
+# Sources downloaded by `devtool get` (pinned versions, never committed)
+# --------------------------------------------------
+/kernel/linux/
+/third_party/
+/external/
 
 
 # --------------------------------------------------

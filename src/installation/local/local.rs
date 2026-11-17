@@ -53,32 +53,22 @@ const LANGUAGES_LIST: &[&str] = &[
     "zh_TW.UTF-8",
 ];
 
-pub fn setup_locale(mount_point: &Path) -> Result<()> {
-    log_info!(
-        "{}",
-        "Setting up locale...".green()
-    );
+/// Question : nothing is written yet (the answer is applied after the final
+/// confirmation, see installation::plan).
+pub fn ask_locale() -> Result<String> {
+    let language = Select::new("Select a language:", LANGUAGES_LIST.to_vec()).prompt()?;
 
-    let language = Select::new(
-        "Select a language:",
-        LANGUAGES_LIST.to_vec(),
-    )
-    .prompt()?;
-
-    log_info!(
-        "{}",
-        format!("Language selected: {}", language).green()
-    );
-
-    write_locale_file(&language, mount_point)?;
-
-    Ok(())
+    Ok(language.to_string())
 }
 
-fn write_locale_file(
-    language: &str,
-    mount_point: &Path,
-) -> Result<()> {
+/// Application of the answer of `ask_locale`.
+pub fn apply_locale(mount_point: &Path, language: &str) -> Result<()> {
+    log_info!("{}", format!("Setting up locale {}...", language).green());
+
+    write_locale_file(language, mount_point)
+}
+
+fn write_locale_file(language: &str, mount_point: &Path) -> Result<()> {
     let locale_path = mount_point.join("etc/locale.conf");
 
     let mut file = File::create(locale_path)?;

@@ -15,10 +15,12 @@ pub fn get_version(root: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("VERSION not found in {}", path.display()))
 }
 
-pub fn check_for_updates(version: &str, repo: &str) -> bool {
+/// Not implemented yet: no update channel exists, so there is never an update.
+pub fn check_for_updates(_version: &str, _repo: &str) -> bool {
     false
 }
 
-pub fn update_kernel(repo: &str) -> Result<()> {
+/// Not implemented yet (see `check_for_updates`).
+pub fn update_kernel(_repo: &str) -> Result<()> {
     Ok(())
 }

@@ -1,462 +1,253 @@
-use inquire::Confirm;
-
-use crate::log_info;
-
-use std::path::Path;
+//! Installation de Senbit.
+//!
+//! Déroulement :
+//!
+//!   1. `InstallPlan::collect` : TOUTES les questions (clavier, disque, comptes,
+//!      hostname, langue, fuseau, réseau). Rien n'est écrit sur le disque.
+//!   2. Récapitulatif, puis confirmation FINALE (par défaut : annuler). On peut
+//!      annuler ou tout recommencer, sans que le disque ait été touché.
+//!   3. `apply` : partitionnement, formatage, copie, comptes, bootloader...
+//!      Chaque étape est affichée au fur et à mesure (« [ 3/14] ... »).
 
 use colored::Colorize;
 
-use crate::installation::local::lang::setup_lang;
-use crate::installation::local::local::setup_locale;
-use crate::installation::local::timezone::setup_timezone;
+use std::path::Path;
+use std::time::Instant;
 
-use crate::installation::network::network::setup_network;
+use crate::log_info;
 
-use crate::installation::bootloader::bootloader::{
-    detect_boot_mode,
-    BootMode,
-    setup_bootloader,
-};
-
+use crate::installation::bootloader::bootloader::{BootMode, setup_bootloader};
+use crate::installation::hostname::write_hostname;
+use crate::installation::local::local::apply_locale;
+use crate::installation::local::timezone::apply_timezone;
+use crate::installation::network::network::apply_network;
 use crate::installation::partition::{
+    create_legacy_partitions, create_uefi_partitions, format_efi_partition, format_partition,
     manual_partitioning,
-    select_disk_interactive,
-    format_partition,
-    format_efi_partition,
-    create_uefi_partitions,
-    create_legacy_partitions,
-    DiskKind,
 };
-
-use crate::filesystem::disk::get_partition_uuid;
-
+use crate::installation::plan::{Decision, InstallPlan, Layout, ask_decision};
 use crate::installation::rootfs::setup_rootfs;
-
-use crate::filesystem::fs::{
-    mount,
-    unmount,
-};
-
 use crate::installation::users::perms::set_sys_perms;
-
 use crate::installation::users::user::setup_users;
 
-use crate::installation::hostname::setup_hostname;
+use crate::filesystem::disk::get_partition_uuid;
+use crate::filesystem::fs::{mount, unmount};
 
-pub fn install_system() -> Result<(), String> {
-    // ========================================================
-    // Step 1: keyboard / language
-    // ========================================================
+/// Résultat de l'installation (l'annulation n'est pas une erreur).
+pub enum Outcome {
+    Installed,
+    Cancelled,
+}
 
-    setup_lang()
-        .map_err(|e| {
-            format!(
-                "Language setup failed: {}",
-                e
-            )
-        })?;
+/// Affichage des étapes : « [ 3/14] Formatting the root partition... ».
+struct Steps {
+    total: usize,
+    current: usize,
+    started: Instant,
+    step_started: Instant,
+}
 
-    // ========================================================
-    // Step 2: detect boot mode
-    // ========================================================
-
-    let boot_mode =
-        detect_boot_mode()
-            .map_err(|e| {
-                format!(
-                    "Failed to detect boot mode: {}",
-                    e
-                )
-            })?;
-
-    match boot_mode {
-        BootMode::Efi => {
-            log_info!(
-                "{}",
-                "Boot mode: UEFI"
-                    .cyan()
-                    .bold()
-            );
-        }
-
-        BootMode::Legacy => {
-            log_info!(
-                "{}",
-                "Boot mode: Legacy BIOS"
-                    .cyan()
-                    .bold()
-            );
+impl Steps {
+    fn new(total: usize) -> Self {
+        Steps {
+            total,
+            current: 0,
+            started: Instant::now(),
+            step_started: Instant::now(),
         }
     }
 
-    // ========================================================
-    // Step 3: disk
-    // ========================================================
+    fn begin(&mut self, label: &str) {
+        self.current += 1;
+        self.step_started = Instant::now();
+        println!(
+            "{} {}",
+            format!("[{:>2}/{}]", self.current, self.total).cyan().bold(),
+            label.bold()
+        );
+    }
 
-    let target =
-        match select_disk_interactive() {
-            Some(t) => t,
+    fn done(&self) {
+        println!(
+            "       {} {}",
+            "done".green().bold(),
+            format!("({:.1}s)", self.step_started.elapsed().as_secs_f32()).dimmed()
+        );
+    }
 
-            None => {
-                return Err(
-                    "No disk selected"
-                        .to_string()
-                )
+    fn finish(&self) {
+        println!(
+            "\n{} {}",
+            "Installation finished in".green().bold(),
+            format!("{:.0}s.", self.started.elapsed().as_secs_f32()).green().bold()
+        );
+    }
+}
+
+/// Pose les questions, demande la confirmation finale, puis installe.
+pub fn install_system() -> Result<Outcome, String> {
+    loop {
+        let plan = InstallPlan::collect()?;
+
+        plan.print_summary();
+
+        match ask_decision(&plan)? {
+            Decision::Install => {
+                apply(&plan)?;
+                return Ok(Outcome::Installed);
             }
-        };
+            Decision::StartOver => {
+                println!("{}", "Starting over...".yellow());
+                continue;
+            }
+            Decision::Cancel => return Ok(Outcome::Cancelled),
+        }
+    }
+}
 
-    log_info!(
-        "Installing on {} ({})",
-        target.device,
-        target.name
+/// Applique le plan : à partir d'ici le disque est modifié.
+fn apply(plan: &InstallPlan) -> Result<(), String> {
+    let mut steps = Steps::new(plan.total_steps());
+    let device = plan.target.device.as_str();
+
+    println!(
+        "\n{}",
+        format!("Installing Senbit on {device}...").cyan().bold()
     );
 
     // ========================================================
-    // Step 4: partition selection
+    // Partitioning
     // ========================================================
 
-    let (
-        partition_device,
-        efi_partition,
-    ) =
-        match target.kind {
-            DiskKind::Disk => {
-                let prompt =
-                    match boot_mode {
-                        BootMode::Efi => {
-                            "Use entire disk and create EFI + root partitions?"
-                        }
-
-                        BootMode::Legacy => {
-                            "Use entire disk and create BIOS Boot + root partitions?"
-                        }
-                    };
-
-                let use_entire_disk =
-                    Confirm::new(
-                        prompt,
-                    )
-                    .with_default(false)
-                    .prompt()
-                    .map_err(|e| {
-                        format!(
-                            "Confirmation error: {}",
-                            e
-                        )
-                    })?;
-
-                if !use_entire_disk {
-                    let root =
-                        manual_partitioning(
-                            &target.device,
-                        )?;
-
-                    (
-                        root,
-                        None,
-                    )
-                } else {
-                    match boot_mode {
-                        BootMode::Efi => {
-                            let (
-                                efi,
-                                root,
-                            ) =
-                                create_uefi_partitions(
-                                    &target.device,
-                                )?;
-
-                            (
-                                root,
-                                Some(efi),
-                            )
-                        }
-
-                        BootMode::Legacy => {
-                            let root =
-                                create_legacy_partitions(
-                                    &target.device,
-                                )?;
-
-                            (
-                                root,
-                                None,
-                            )
-                        }
-                    }
+    let (partition_device, efi_partition) = match plan.layout {
+        Layout::EntireDisk => {
+            steps.begin(&format!("Creating the partitions on {device}"));
+            let created = match plan.boot_mode {
+                BootMode::Efi => {
+                    let (efi, root) = create_uefi_partitions(device)
+                        .map_err(|e| format!("Partitioning failed: {}", e))?;
+                    (root, Some(efi))
                 }
-            }
-
-            DiskKind::Partition => {
-                let confirm =
-                    Confirm::new(
-                        &format!(
-                            "This will erase all data on {}. Continue?",
-                            target.device
-                        ),
-                    )
-                    .with_default(false)
-                    .prompt()
-                    .map_err(|e| {
-                        format!(
-                            "Confirmation error: {}",
-                            e
-                        )
-                    })?;
-
-                if !confirm {
-                    return Err(
-                        "Installation cancelled by user."
-                            .to_string()
-                    );
+                BootMode::Legacy => {
+                    let root = create_legacy_partitions(device)
+                        .map_err(|e| format!("Partitioning failed: {}", e))?;
+                    (root, None)
                 }
-
-                (
-                    target.device.clone(),
-                    None,
-                )
-            }
-        };
+            };
+            steps.done();
+            created
+        }
+        Layout::Manual => {
+            steps.begin(&format!("Manual partitioning of {device} (fdisk)"));
+            let root = manual_partitioning(device)
+                .map_err(|e| format!("Manual partitioning failed: {}", e))?;
+            steps.done();
+            (root, None)
+        }
+        Layout::ExistingPartition => (device.to_string(), None),
+    };
 
     // ========================================================
-    // Step 5: format partitions
+    // Formatting
+    //
+    //   UEFI   : ESP -> FAT32, root -> ext4
+    //   Legacy : BIOS Boot -> no filesystem, root -> ext4
     // ========================================================
 
-    /*
-     * UEFI:
-     *   ESP  -> FAT32
-     *   root -> ext4
-     *
-     * Legacy:
-     *   BIOS Boot -> no filesystem
-     *   root      -> ext4
-     */
-
-    if let BootMode::Efi = boot_mode {
-        if let Some(efi) =
-            &efi_partition
-        {
-            log_info!(
-                "Formatting EFI partition {}...",
-                efi
-            );
-
-            format_efi_partition(
-                efi,
-            )?;
+    if plan.boot_mode == BootMode::Efi {
+        if let Some(efi) = &efi_partition {
+            steps.begin(&format!("Formatting the EFI partition {efi}"));
+            format_efi_partition(efi).map_err(|e| format!("EFI format failed: {}", e))?;
+            steps.done();
         }
     }
 
-    log_info!(
-        "Formatting root partition {}...",
-        partition_device
-    );
-
-    format_partition(
-        &partition_device,
-    )?;
+    steps.begin(&format!("Formatting the root partition {partition_device} (ext4)"));
+    format_partition(&partition_device).map_err(|e| format!("Format failed: {}", e))?;
+    steps.done();
 
     // ========================================================
-    // Step 6: mount root
+    // Mount root
     // ========================================================
 
-    let mount_point =
-        Path::new("/mnt");
+    let mount_point = Path::new(crate::installation::INSTALL_ROOT);
 
-    log_info!(
-        "Mounting partition on {}...",
-        mount_point.display()
-    );
+    steps.begin(&format!("Mounting {partition_device} on {}", mount_point.display()));
+    mount(&partition_device, crate::installation::INSTALL_ROOT, None)
+        .map_err(|e| format!("Failed to mount: {}", e))?;
+    steps.done();
 
-    mount(
-        &partition_device,
-        mount_point
-            .to_str()
-            .unwrap(),
-        None,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to mount: {}",
-            e
-        )
-    })?;
+    steps.begin("Reading the root partition UUID");
+    let root_uuid = get_partition_uuid(&partition_device)
+        .map_err(|e| format!("Failed to get partition UUID: {}", e))?;
+    steps.done();
 
     // ========================================================
-    // Step 7: root UUID
+    // System files
     // ========================================================
 
-    let root_uuid =
-        get_partition_uuid(
-            &partition_device,
-        )
-        .map_err(|e| {
-            format!(
-                "Failed to get partition UUID: {}",
-                e
-            )
-        })?;
-
-    // ========================================================
-    // Step 8: rootfs
-    // ========================================================
-
-    log_info!(
-        "Installing rootfs..."
-    );
-
-    setup_rootfs( // install the installation file
+    steps.begin("Copying the system files (this takes a while)");
+    setup_rootfs(
+        // install the installation file
         Path::new("/"),
         mount_point,
         &root_uuid,
     )
-    .map_err(|e| {
-        format!(
-            "Failed to setup rootfs: {}",
-            e
-        )
-    })?;
-
-    log_info!(
-        "{}",
-        "Rootfs setup successfully."
-            .green()
-            .bold()
-    );
+    .map_err(|e| format!("Failed to setup rootfs: {}", e))?;
+    steps.done();
 
     // ========================================================
-    // Step 9: users
+    // Configuration (answers collected before the confirmation)
     // ========================================================
 
-    setup_users(
-        mount_point,
-    )?;
+    steps.begin(&format!("Creating the accounts (root and {})", plan.accounts.username));
+    setup_users(mount_point, &plan.accounts)?;
+    steps.done();
+
+    steps.begin(&format!("Setting the hostname ({})", plan.hostname));
+    write_hostname(mount_point, &plan.hostname)
+        .map_err(|e| format!("Failed to set hostname: {}", e))?;
+    steps.done();
+
+    steps.begin(&format!("Setting the language ({})", plan.locale));
+    apply_locale(mount_point, &plan.locale)
+        .map_err(|e| format!("Failed to setup locale: {}", e))?;
+    steps.done();
+
+    steps.begin(&format!("Setting the timezone ({})", plan.timezone));
+    apply_timezone(mount_point, &plan.timezone)
+        .map_err(|e| format!("Failed to setup timezone: {}", e))?;
+    steps.done();
+
+    steps.begin(&format!("Configuring the network ({})", plan.network.summary()));
+    apply_network(mount_point, &plan.network)
+        .map_err(|e| format!("Failed to setup network: {}", e))?;
+    steps.done();
 
     // ========================================================
-    // Step 10: hostname
+    // Bootloader and permissions
     // ========================================================
 
-    setup_hostname(
-        mount_point,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to set hostname: {}",
-            e
-        )
-    })?;
+    steps.begin("Installing the bootloader");
+    setup_bootloader(mount_point, Path::new(device), &root_uuid)
+        .map_err(|e| format!("Failed to install bootloader: {}", e))?;
+    steps.done();
 
-    log_info!(
-        "{}",
-        "Hostname set successfully."
-            .green()
-            .bold()
-    );
+    steps.begin("Setting the system permissions");
+    set_sys_perms(mount_point).map_err(|e| format!("Failed to set sys perms: {}", e))?;
+    steps.done();
 
     // ========================================================
-    // Step 11: locale
+    // Unmount and check
     // ========================================================
 
-    setup_locale(
-        mount_point,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to setup locale: {}",
-            e
-        )
-    })?;
-
-    // ========================================================
-    // Step 12: timezone
-    // ========================================================
-
-    setup_timezone(
-        mount_point,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to setup timezone: {}",
-            e
-        )
-    })?;
-
-    // ========================================================
-    // Step 13: network
-    // ========================================================
-
-    setup_network(
-        mount_point,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to setup network: {}",
-            e
-        )
-    })?;
-
-    // ========================================================
-    // Step 14: bootloader
-    // ========================================================
-
-    log_info!(
-        "Installing bootloader..."
-    );
-
-    setup_bootloader(
-        mount_point,
-        Path::new(
-            &target.device,
-        ),
-        &root_uuid,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to install bootloader: {}",
-            e
-        )
-    })?;
-
-    // ========================================================
-    // Step 15: set sys perms
-    // ========================================================
-
-    log_info!(
-        "Setting sys perms..."
-    );
-
-    set_sys_perms(
-        mount_point,
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to set sys perms: {}",
-            e
-        )
-    })?;
-
-    // ========================================================
-    // Step 16: unmount
-    // ========================================================
+    steps.begin("Writing everything to the disk, unmounting and checking the filesystem");
 
     // Make sure everything is on the disk before the unmount.
     let _ = std::process::Command::new("sync").status();
 
-    log_info!(
-        "Unmounting..."
-    );
-
-    unmount(
-        mount_point
-            .to_str()
-            .unwrap(),
-    )
-    .map_err(|e| {
-        format!(
-            "Failed to unmount: {}",
-            e
-        )
-    })?;
+    unmount(crate::installation::INSTALL_ROOT)
+        .map_err(|e| format!("Failed to unmount: {}", e))?;
 
     // Check the new filesystem (best effort: e2fsck may not be installed).
     // Exit codes 0 and 1 (= errors corrected) are fine.
@@ -467,6 +258,8 @@ pub fn install_system() -> Result<(), String> {
         Ok(status) => log_info!("e2fsck finished: {}", status),
         Err(e) => log_info!("e2fsck not run: {}", e),
     }
+    steps.done();
 
+    steps.finish();
     Ok(())
 }

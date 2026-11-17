@@ -2,6 +2,7 @@
 
 use std::io;
 use std::os::unix::process::CommandExt;
+use std::path::Path;
 use std::process::Command;
 
 use anyhow::{Context, Result};
@@ -27,6 +28,21 @@ pub fn run(account: &Account, environment: &[(String, String)]) -> Result<()> {
     let (uid, gid) = (account.uid, account.gid);
 
     let mut command = Command::new(shell);
+
+    // The session starts in the user's home directory (it used to start in /).
+    // chdir runs before the privileges are dropped (pre_exec): root can enter
+    // any directory. Without a home directory, fall back to /.
+    let home = Path::new(&account.home);
+    command.current_dir(if home.is_dir() { home } else { Path::new("/") });
+
+    // Login shell (argv[0] = "-bash" / "-sh"): it reads /etc/profile, hence
+    // /etc/profile.d (prompt, colors, boot report box).
+    let name = Path::new(shell)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("sh");
+    command.arg0(format!("-{name}"));
+
     command.env_clear();
     command.envs(environment.iter().map(|(k, v)| (k.as_str(), v.as_str())));
 

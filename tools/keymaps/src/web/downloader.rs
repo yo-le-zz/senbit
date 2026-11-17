@@ -58,12 +58,7 @@ fn include_candidates(current_path: &str, include: &str) -> Vec<String> {
         .unwrap_or_else(|| Path::new(""));
 
     if !current_dir.as_os_str().is_empty() {
-        candidates.push(
-            current_dir
-                .join(include)
-                .to_string_lossy()
-                .to_string(),
-        );
+        candidates.push(current_dir.join(include).to_string_lossy().to_string());
     }
 
     candidates.push(format!("include/{}", include));
@@ -175,13 +170,7 @@ fn download_file(
 
         println!("Resolving keymap alias {} -> {}", path, target);
 
-        let target_data = download_file(
-            base_url,
-            global_url,
-            &target,
-            output_path,
-            downloaded,
-        )?;
+        let target_data = download_file(base_url, global_url, &target, output_path, downloaded)?;
 
         fs::write(&output, &target_data)?;
 
@@ -237,13 +226,7 @@ fn download_file(
             };
 
             if data.is_some() {
-                download_file(
-                    base_url,
-                    global_url,
-                    &candidate,
-                    output_path,
-                    downloaded,
-                )?;
+                download_file(base_url, global_url, &candidate, output_path, downloaded)?;
 
                 found = true;
                 break;
@@ -263,11 +246,9 @@ fn download_file(
 }
 
 pub fn download_all(config_path: &str, output_path: &str) -> Result<()> {
-    let content =
-        fs::read_to_string(config_path).context("Impossible de lire config.toml")?;
+    let content = fs::read_to_string(config_path).context("Impossible de lire config.toml")?;
 
-    let config: Config =
-        toml::from_str(&content).context("Impossible de parser config.toml")?;
+    let config: Config = toml::from_str(&content).context("Impossible de parser config.toml")?;
 
     fs::create_dir_all(output_path)?;
 
@@ -285,8 +266,7 @@ pub fn download_all(config_path: &str, output_path: &str) -> Result<()> {
 
         let source = Path::new(output_path).join(&keymap.path);
 
-        let destination = PathBuf::from(output_path)
-            .join(format!("{}.map", keymap.name));
+        let destination = PathBuf::from(output_path).join(format!("{}.map", keymap.name));
 
         if source != destination && !destination.exists() {
             fs::copy(source, destination)?;

@@ -1,0 +1,10 @@
+[package]
+name = "findmnt"
+version = "0.1.0"
+edition = "2024"
+description = "findmnt: list mounted filesystems as a tree or a table (reads /proc/self/mountinfo)"
+
+[package.metadata.senbit]
+install = "bin"
+
+[dependencies]

@@ -1,6 +1,7 @@
+
 use anyhow::{Context, Result};
 use colored::Colorize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::config::Config;
@@ -29,57 +30,23 @@ pub fn build(
     let build_dir_legacy = output.join("build-i386-pc");
     let build_dir_efi = output.join("build-x86_64-efi");
 
-    std::fs::create_dir_all(&build_dir_legacy)
-        .context("Failed to create GRUB Legacy build directory")?;
+    std::fs::create_dir_all(&build_dir_legacy)?;
+    std::fs::create_dir_all(&build_dir_efi)?;
 
-    std::fs::create_dir_all(&build_dir_efi)
-        .context("Failed to create GRUB UEFI build directory")?;
-
-    let source = source
-        .canonicalize()
-        .context("Failed to resolve GRUB source path")?;
-
-    let build_dir_legacy = build_dir_legacy
-        .canonicalize()
-        .context("Failed to resolve GRUB Legacy build path")?;
-
-    let build_dir_efi = build_dir_efi
-        .canonicalize()
-        .context("Failed to resolve GRUB UEFI build path")?;
-
-    let output = output
-        .canonicalize()
-        .context("Failed to resolve GRUB output path")?;
+    let source = source.canonicalize()?;
+    let build_dir_legacy = build_dir_legacy.canonicalize()?;
+    let build_dir_efi = build_dir_efi.canonicalize()?;
+    let output = output.canonicalize()?;
 
     prepare_source(&source)?;
 
-    configure_legacy(
-        config,
-        &source,
-        &build_dir_legacy,
-    )?;
+    configure_legacy(config, &source, &build_dir_legacy)?;
+    build_legacy(config, &build_dir_legacy)?;
 
-    build_legacy(
-        config,
-        &build_dir_legacy,
-    )?;
+    configure_efi(config, &source, &build_dir_efi)?;
+    build_efi(config, &build_dir_efi)?;
 
-    configure_efi(
-        config,
-        &source,
-        &build_dir_efi,
-    )?;
-
-    build_efi(
-        config,
-        &build_dir_efi,
-    )?;
-
-    install_grub(
-        &build_dir_legacy,
-        &build_dir_efi,
-        &output,
-    )?;
+    install_grub(&build_dir_legacy, &build_dir_efi, &output)?;
 
     println!(
         "{}",
@@ -96,19 +63,11 @@ fn prepare_source(source: &Path) -> Result<()> {
     let configure = source.join("configure");
 
     if !autogen.exists() {
-        anyhow::bail!(
-            "GRUB autogen.sh not found: {}",
-            autogen.display()
-        );
+        anyhow::bail!("GRUB autogen.sh not found: {}", autogen.display());
     }
 
     if configure.exists() {
-        println!(
-            "{} {}",
-            "GRUB source already prepared:".cyan(),
-            source.display()
-        );
-
+        println!("{} {}", "GRUB source already prepared:".cyan(), source.display());
         return Ok(());
     }
 
@@ -121,10 +80,7 @@ fn prepare_source(source: &Path) -> Result<()> {
         .context("Failed to execute GRUB autogen.sh")?;
 
     if !status.success() {
-        anyhow::bail!(
-            "GRUB autogen.sh failed with status {}",
-            status
-        );
+        anyhow::bail!("GRUB autogen.sh failed with status {}", status);
     }
 
     Ok(())
@@ -135,93 +91,14 @@ fn configure_legacy(
     source: &Path,
     build_dir: &Path,
 ) -> Result<()> {
-    let makefile = build_dir.join("Makefile");
-
-    if makefile.exists() {
-        println!(
-            "{} {}",
-            "GRUB Legacy already configured:".cyan(),
-            build_dir.display()
-        );
-
-        return Ok(());
-    }
-
-    println!("{}", "Configuring GRUB (i386/pc)...".cyan());
-
-    let configure = source.join("configure");
-
-    if !configure.exists() {
-        anyhow::bail!(
-            "GRUB configure script not found: {}",
-            configure.display()
-        );
-    }
-
-    let status = Command::new("sh")
-        .arg(&configure)
-        .arg("--target=i386")
-        .arg("--with-platform=pc")
-        .arg("--prefix=/usr")
-        .arg("--disable-werror")
-        .args(STATIC_HOST_ARGS)
-        .env("LDFLAGS", "-static")
-        .current_dir(build_dir)
-        .status()
-        .context("Failed to execute GRUB Legacy configure")?;
-
-    if !status.success() {
-        anyhow::bail!(
-            "Configuring GRUB (i386/pc) failed with status {}",
-            status
-        );
-    }
-
-    let _ = config;
-
-    Ok(())
-}
-
-fn build_legacy(
-    config: &Config,
-    build_dir: &Path,
-) -> Result<()> {
-    let kernel_img = build_dir
-        .join("grub-core")
-        .join("kernel.img");
-
-    let grub_install = build_dir.join("grub-install");
-
-    if kernel_img.exists() && grub_install.exists() {
-        println!(
-            "{}",
-            "GRUB i386/pc already compiled - skipping compilation."
-                .cyan()
-        );
-
-        return Ok(());
-    }
-
-    println!("{}", "Compiling GRUB (i386/pc)...".cyan());
-
-    let mut command = Command::new("make");
-
-    command.current_dir(build_dir);
-
-    add_jobs(&mut command, config);
-
-    let status = command
-        .status()
-        .context("Failed to execute GRUB Legacy make")?;
-
-    if !status.success() {
-        anyhow::bail!(
-            "Building GRUB (i386/pc) failed with status {}",
-            status
-        );
-    }
-
-    Ok(())
+    configure_target(
+        config,
+        source,
+        build_dir,
+        "i386",
+        "pc",
+        "GRUB Legacy",
+    )
 }
 
 fn configure_efi(
@@ -229,112 +106,166 @@ fn configure_efi(
     source: &Path,
     build_dir: &Path,
 ) -> Result<()> {
-    let makefile = build_dir.join("Makefile");
+    configure_target(
+        config,
+        source,
+        build_dir,
+        "x86_64",
+        "efi",
+        "GRUB UEFI",
+    )
+}
 
-    if makefile.exists() {
+fn configure_target(
+    _config: &Config,
+    source: &Path,
+    build_dir: &Path,
+    target: &str,
+    platform: &str,
+    name: &str,
+) -> Result<()> {
+    if build_dir.join("Makefile").exists() {
         println!(
             "{} {}",
-            "GRUB UEFI already configured:".cyan(),
+            format!("{name} already configured:").cyan(),
             build_dir.display()
         );
-
         return Ok(());
     }
 
-    println!("{}", "Configuring GRUB (x86_64/efi)...".cyan());
+    println!("{}", format!("Configuring {name}...").cyan());
 
     let configure = source.join("configure");
 
-    if !configure.exists() {
-        anyhow::bail!(
-            "GRUB configure script not found: {}",
-            configure.display()
-        );
-    }
-
     let status = Command::new("sh")
         .arg(&configure)
-        .arg("--target=x86_64")
-        .arg("--with-platform=efi")
+        .arg(format!("--target={target}"))
+        .arg(format!("--with-platform={platform}"))
         .arg("--prefix=/usr")
         .arg("--disable-werror")
         .args(STATIC_HOST_ARGS)
         .env("LDFLAGS", "-static")
         .current_dir(build_dir)
         .status()
-        .context("Failed to execute GRUB UEFI configure")?;
+        .with_context(|| format!("Failed to configure {name}"))?;
 
     if !status.success() {
-        anyhow::bail!(
-            "Configuring GRUB (x86_64/efi) failed with status {}",
-            status
-        );
+        anyhow::bail!("Configuring {name} failed with status {}", status);
     }
-
-    let _ = config;
 
     Ok(())
 }
 
-fn build_efi(
+fn build_legacy(config: &Config, build_dir: &Path) -> Result<()> {
+    build_target(config, build_dir, "i386/pc")
+}
+
+fn build_efi(config: &Config, build_dir: &Path) -> Result<()> {
+    build_target(config, build_dir, "x86_64/efi")
+}
+
+fn build_target(
     config: &Config,
     build_dir: &Path,
+    name: &str,
 ) -> Result<()> {
-    let kernel_img = build_dir
-        .join("grub-core")
-        .join("kernel.img");
-
+    let kernel_img = build_dir.join("grub-core/kernel.img");
     let grub_install = build_dir.join("grub-install");
 
     if kernel_img.exists() && grub_install.exists() {
         println!(
             "{}",
-            "GRUB x86_64/efi already compiled - skipping compilation."
-                .cyan()
+            format!("GRUB {name} already compiled - skipping compilation.").cyan()
         );
-
         return Ok(());
     }
 
-    println!("{}", "Compiling GRUB (x86_64/efi)...".cyan());
+    println!("{}", format!("Compiling GRUB {name}...").cyan());
 
     let mut command = Command::new("make");
-
     command.current_dir(build_dir);
-
     add_jobs(&mut command, config);
 
     let status = command
         .status()
-        .context("Failed to execute GRUB UEFI make")?;
+        .context("Failed to execute GRUB make")?;
 
     if !status.success() {
-        anyhow::bail!(
-            "Building GRUB (x86_64/efi) failed with status {}",
-            status
-        );
+        anyhow::bail!("Building GRUB {name} failed with status {}", status);
     }
 
     Ok(())
 }
 
-fn add_jobs(
-    command: &mut Command,
-    config: &Config,
-) {
+fn add_jobs(command: &mut Command, config: &Config) {
     match config.build.jobs.as_str() {
         "auto" => {
             let jobs = std::thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(1);
 
-            command.arg(format!("-j{}", jobs));
+            command.arg(format!("-j{jobs}"));
         }
-
         jobs => {
-            command.arg(format!("-j{}", jobs));
+            command.arg(format!("-j{jobs}"));
         }
     }
+}
+
+/// Find the GRUB platform directory regardless of whether the
+/// installation uses lib or lib64.
+fn find_grub_platform_dir(
+    staging: &Path,
+    platform: &str,
+) -> Result<PathBuf> {
+    let candidates = [
+        staging.join("usr/lib/grub").join(platform),
+        staging.join("usr/lib64/grub").join(platform),
+    ];
+
+    for candidate in &candidates {
+        if candidate.join("kernel.img").is_file() {
+            return Ok(candidate.clone());
+        }
+    }
+
+    anyhow::bail!(
+        "GRUB platform '{}' kernel.img is missing. Checked:\n  {}",
+        platform,
+        candidates
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    )
+}
+
+fn validate_installation(staging: &Path) -> Result<()> {
+    let grub_install = staging.join("usr/sbin/grub-install");
+
+    if !grub_install.is_file() {
+        anyhow::bail!(
+            "GRUB grub-install is missing:\n  {}",
+            grub_install.display()
+        );
+    }
+
+    find_grub_platform_dir(staging, "i386-pc")?;
+    find_grub_platform_dir(staging, "x86_64-efi")?;
+
+    for tool in ["grub-install", "grub-mkimage", "grub-probe"] {
+        let mut bin = staging.join("usr/sbin").join(tool);
+
+        if !bin.is_file() {
+            bin = staging.join("usr/bin").join(tool);
+        }
+
+        if bin.is_file() {
+            ensure_static(&bin)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn install_grub(
@@ -344,18 +275,8 @@ fn install_grub(
 ) -> Result<()> {
     let staging = output.join("stage");
 
-    let legacy_kernel =
-        staging.join("usr/lib/grub/i386-pc/kernel.img");
-
-    let efi_kernel =
-        staging.join("usr/lib/grub/x86_64-efi/kernel.img");
-
-    let grub_install =
-        staging.join("usr/sbin/grub-install");
-
-    if grub_install.is_file()
-        && legacy_kernel.is_file()
-        && efi_kernel.is_file()
+    if staging.exists()
+        && validate_installation(&staging).is_ok()
     {
         println!(
             "{}",
@@ -363,21 +284,13 @@ fn install_grub(
                 .cyan()
         );
 
-        println!(
-            "{} {}",
-            "GRUB staging directory:".cyan(),
-            staging.display()
-        );
-
         stage_rootfs(&staging, output)?;
-
         return Ok(());
     }
 
     println!(
         "{}",
-        "Installing GRUB BIOS + UEFI into staging directory..."
-            .cyan()
+        "Installing GRUB BIOS + UEFI into staging directory...".cyan()
     );
 
     if staging.exists() {
@@ -385,92 +298,29 @@ fn install_grub(
             .context("Failed to clean incomplete GRUB staging directory")?;
     }
 
-    std::fs::create_dir_all(&staging)
-        .context("Failed to create GRUB staging directory")?;
+    std::fs::create_dir_all(&staging)?;
 
-    let staging = staging
-        .canonicalize()
-        .context("Failed to resolve GRUB staging path")?;
+    let staging = staging.canonicalize()?;
 
-    println!(
-        "{} {}",
-        "GRUB staging directory:".cyan(),
-        staging.display()
-    );
+    for (name, build_dir) in [
+        ("i386/pc", build_dir_legacy),
+        ("x86_64/efi", build_dir_efi),
+    ] {
+        println!("{}", format!("Installing GRUB {name}...").cyan());
 
-    println!("{}", "Installing GRUB i386/pc...".cyan());
+        let status = Command::new("make")
+            .arg("install")
+            .arg(format!("DESTDIR={}", staging.display()))
+            .current_dir(build_dir)
+            .status()
+            .context("Failed to execute GRUB make install")?;
 
-    let status = Command::new("make")
-        .arg("install")
-        .arg(format!(
-            "DESTDIR={}",
-            staging.display()
-        ))
-        .current_dir(build_dir_legacy)
-        .status()
-        .context("Failed to execute GRUB Legacy make install")?;
-
-    if !status.success() {
-        anyhow::bail!(
-            "Installing GRUB i386/pc failed with status {}",
-            status
-        );
+        if !status.success() {
+            anyhow::bail!("Installing GRUB {name} failed with status {}", status);
+        }
     }
 
-    println!("{}", "Installing GRUB x86_64/efi...".cyan());
-
-    let status = Command::new("make")
-        .arg("install")
-        .arg(format!(
-            "DESTDIR={}",
-            staging.display()
-        ))
-        .current_dir(build_dir_efi)
-        .status()
-        .context("Failed to execute GRUB UEFI make install")?;
-
-    if !status.success() {
-        anyhow::bail!(
-            "Installing GRUB x86_64/efi failed with status {}",
-            status
-        );
-    }
-
-    let grub_install =
-        staging.join("usr/sbin/grub-install");
-
-    let legacy_kernel =
-        staging.join("usr/lib/grub/i386-pc/kernel.img");
-
-    let efi_kernel =
-        staging.join("usr/lib/grub/x86_64-efi/kernel.img");
-
-    if !grub_install.is_file() {
-        anyhow::bail!(
-            "GRUB installation completed but grub-install is missing:\n  {}",
-            grub_install.display()
-        );
-    }
-
-    if !legacy_kernel.is_file() {
-        anyhow::bail!(
-            "GRUB installation completed but i386-pc kernel.img is missing:\n  {}",
-            legacy_kernel.display()
-        );
-    }
-
-    if !efi_kernel.is_file() {
-        anyhow::bail!(
-            "GRUB installation completed but x86_64-efi kernel.img is missing:\n  {}",
-            efi_kernel.display()
-        );
-    }
-
-    for tool in ["grub-install", "grub-mkimage", "grub-probe"] {
-        let bin = staging.join("usr/sbin").join(tool);
-        let bin = if bin.is_file() { bin } else { staging.join("usr/bin").join(tool) };
-        ensure_static(&bin)?;
-    }
+    validate_installation(&staging)?;
 
     println!(
         "{} {}",
@@ -483,41 +333,17 @@ fn install_grub(
     Ok(())
 }
 
-fn stage_rootfs(
-    staging: &Path,
-    output: &Path,
-) -> Result<()> {
+fn stage_rootfs(staging: &Path, output: &Path) -> Result<()> {
+    validate_installation(staging)?;
+
     let generated_rootfs = output.join("rootfs");
 
     if generated_rootfs.exists() {
-        let existing_grub_install =
-            generated_rootfs.join("usr/sbin/grub-install");
-
-        let existing_legacy_kernel =
-            generated_rootfs.join("usr/lib/grub/i386-pc/kernel.img");
-
-        let existing_efi_kernel =
-            generated_rootfs.join("usr/lib/grub/x86_64-efi/kernel.img");
-
-        if existing_grub_install.is_file()
-            && existing_legacy_kernel.is_file()
-            && existing_efi_kernel.is_file()
-        {
-            println!(
-                "{}",
-                "GRUB rootfs staging already contains BIOS + UEFI - skipping copy."
-                    .cyan()
-            );
-
-            return Ok(());
-        }
-
         std::fs::remove_dir_all(&generated_rootfs)
-            .context("Failed to clean incomplete GRUB rootfs staging")?;
+            .context("Failed to clean previous GRUB rootfs staging")?;
     }
 
-    std::fs::create_dir_all(&generated_rootfs)
-        .context("Failed to create GRUB rootfs staging directory")?;
+    std::fs::create_dir_all(&generated_rootfs)?;
 
     copy_recursive(staging, &generated_rootfs)?;
 
@@ -530,53 +356,31 @@ fn stage_rootfs(
     Ok(())
 }
 
-fn copy_recursive(
-    source: &Path,
-    destination: &Path,
-) -> Result<()> {
-    std::fs::create_dir_all(destination)
-        .with_context(|| {
-            format!(
-                "Failed to create directory {}",
-                destination.display()
-            )
-        })?;
+fn copy_recursive(source: &Path, destination: &Path) -> Result<()> {
+    std::fs::create_dir_all(destination)?;
 
-    for entry in std::fs::read_dir(source)
-        .with_context(|| {
-            format!(
-                "Failed to read directory {}",
-                source.display()
-            )
-        })?
-    {
+    for entry in std::fs::read_dir(source)? {
         let entry = entry?;
-
         let source_path = entry.path();
         let destination_path = destination.join(entry.file_name());
 
         if source_path.is_dir() {
-            copy_recursive(
-                &source_path,
-                &destination_path,
-            )?;
+            copy_recursive(&source_path, &destination_path)?;
         } else {
-            std::fs::copy(
-                &source_path,
-                &destination_path,
-            )
-            .with_context(|| {
-                format!(
-                    "Failed to copy {} to {}",
-                    source_path.display(),
-                    destination_path.display()
-                )
-            })?;
+            std::fs::copy(&source_path, &destination_path)
+                .with_context(|| {
+                    format!(
+                        "Failed to copy {} to {}",
+                        source_path.display(),
+                        destination_path.display()
+                    )
+                })?;
         }
     }
 
     Ok(())
 }
+
 /// Fails if the ELF binary is dynamically linked (has a PT_INTERP header).
 fn ensure_static(bin: &Path) -> Result<()> {
     let out = Command::new("file")
@@ -584,6 +388,10 @@ fn ensure_static(bin: &Path) -> Result<()> {
         .arg(bin)
         .output()
         .context("Failed to execute `file`")?;
+
+    if !out.status.success() {
+        anyhow::bail!("`file` failed for {}", bin.display());
+    }
 
     let text = String::from_utf8_lossy(&out.stdout);
 

@@ -1,9 +1,9 @@
 pub mod debug;
 pub mod level;
+pub mod logger;
 pub mod record;
 pub mod rotation;
 pub mod writer;
-pub mod logger;
 
 pub use level::LogLevel;
 pub use logger::init_logs;

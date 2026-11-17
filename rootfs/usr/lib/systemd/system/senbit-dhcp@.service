@@ -1,0 +1,28 @@
+# Senbit DHCP client for one network interface (instance = interface name).
+#
+# senbit-init obtains the first lease before handing over to systemd; this
+# service keeps it alive (renewal) for the whole life of the system.
+# Enabled for eth0 by the build (devtool/src/build/systemd.rs). For another
+# interface:  systemctl enable --now senbit-dhcp@enp1s0
+
+[Unit]
+Description=DHCP client on %i
+Documentation=https://github.com/yo-le-zz/senbit
+After=network-pre.target systemd-udevd.service
+Before=network.target
+Wants=network.target
+ConditionPathExists=/sys/class/net/%i
+
+[Service]
+Type=simple
+ExecStart=/sbin/udhcpc -f -i %i -s /usr/share/udhcpc/default.script -S
+Restart=on-failure
+RestartSec=5
+# Needs raw sockets and to configure interfaces, nothing else.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

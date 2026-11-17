@@ -1,9 +1,25 @@
+# ======================================================================
+# Senbit - configuration centrale (lue par `devtool`)
+#
+# Toutes les versions sont EPINGLEES (voir config/<composant>/version et
+# config/<composant>/sha) : `devtool get` ne suit jamais "la derniere
+# version" toute seule. Pour changer de version : modifier le fichier
+# `version` (et `sha`), puis `devtool get <composant>`.
+#
+# Les chemins sont toujours relatifs a la racine du projet : le projet peut
+# etre clone n'importe ou (Fedora, Ubuntu, Arch...).
+# ======================================================================
+
 root = "."
 jobs = 0
 
 [kernel]
-repository = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+# Branche LTS 6.18 (maintenue jusqu'en decembre 2028) : tags vX.Y.Z du depot
+# "stable" (pas du depot de Linus, qui n'a que les versions courtes).
+repository = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+mirror = "https://github.com/gregkh/linux.git"
 version_file = "config/kernel/version"
+sha_file = "config/kernel/sha"
 directory = "kernel/linux"
 build_directory = "build/kernel"
 image = "arch/x86/boot/bzImage"
@@ -13,29 +29,63 @@ repository = "https://git.busybox.net/busybox"
 version_file = "config/busybox/version"
 directory = "third_party/busybox"
 build_directory = "build/busybox"
-patch_directory = "third_party/patches/busybox"
 config = "config/busybox.config"
 binary = "_install/bin/busybox"
 
 [util_linux]
 repository = "https://github.com/util-linux/util-linux.git"
 version_file = "config/util-linux/version"
+sha_file = "config/util-linux/sha"
 directory = "third_party/util-linux"
 build_directory = "build/util-linux"
-fdisk_binary = "fdisk.static"
-sfdisk_binary = "sfdisk.static"
 
 [parted]
-repository = "https://gitlab.com/parted/parted.git"
+# Archive de release officielle GNU (contient deja configure et gnulib) :
+# {version} est remplace par config/parted/version.
 version_file = "config/parted/version"
+sha256_file = "config/parted/sha256"
+urls = [
+  "https://ftp.gnu.org/gnu/parted/parted-{version}.tar.xz",
+  "https://ftpmirror.gnu.org/parted/parted-{version}.tar.xz",
+  "https://mirrors.kernel.org/gnu/parted/parted-{version}.tar.xz",
+]
 directory = "third_party/parted"
 build_directory = "build/parted"
-patch_directory = "third_party/patches/parted"
 binary = "_install/usr/sbin/parted"
+
+[systemd]
+# v257.x : la branche de Debian 13, donc celle des paquets .deb installes
+# avec apt (scripts de mainteneur, unites, `deb-systemd-helper`).
+repository = "https://github.com/systemd/systemd.git"
+version_file = "config/systemd/version"
+sha_file = "config/systemd/sha"
+directory = "external/systemd"
+build_directory = "build/systemd"
+
+[apt]
+# Depot distant utilise par `sudo apt install ...` dans Senbit ET pour
+# amorcer apt/dpkg dans le rootfs (`devtool build apt`).
+# Debian 12 "bookworm" : ses binaires (glibc 2.36) tournent sur la glibc de
+# n'importe quelle machine de build recente (Ubuntu 24.04, Fedora, Arch).
+mirror = "https://deb.debian.org/debian"
+security_mirror = "https://deb.debian.org/debian-security"
+suite = "bookworm"
+components = ["main"]
+architecture = "amd64"
+# Paquets amorces dans le rootfs (dependances resolues automatiquement) :
+# apt/dpkg + ce que les scripts de mainteneur des autres paquets supposent
+# present (paquets "Essential" de Debian : perl, debconf, init-system-helpers,
+# coreutils, sed, grep, findutils, tar, bash...). Sans eux, `apt install
+# postgresql` echoue dans son postinst.
+bootstrap = [
+  "apt", "dpkg", "debian-archive-keyring", "gpgv", "ca-certificates",
+  "init-system-helpers", "perl-base", "debconf", "bash",
+  "coreutils", "sed", "grep", "findutils", "gzip", "tar", "diffutils",
+  "debianutils", "hostname", "ncurses-base", "ncurses-bin", "netbase", "dbus", "less",
+]
 
 [rust]
 target = "x86_64-unknown-linux-musl"
-init_binary = "target/x86_64-unknown-linux-musl/release/senbit-init"
 
 [rootfs]
 build_directory = "build/rootfs"
@@ -49,5 +99,12 @@ build_directory = "build/iso"
 image = "senbit.iso"
 distribution_image = "iso/senbit.iso"
 
+[commands]
+# Commandes natives Senbit : un dossier = une commande (crate Rust), detectee
+# et compilee automatiquement. Ajout : ./newcmds.sh <nom>
+directory = "commands"
+
 [tools]
+# Outils de build (polices, keymaps, GRUB) : ils generent des ressources du
+# rootfs, ce ne sont PAS des commandes du systeme.
 directory = "tools"

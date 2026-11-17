@@ -3,29 +3,14 @@
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{bail, Result};
 
 use crate::build::{self, Target};
+use crate::host;
+use crate::ovmf::{self, Nvram};
 use crate::paths::Paths;
 use crate::ui;
-
-/// Microgiciels OVMF couramment installés par les paquets `ovmf`/`qemu-efi`
-/// des distributions Debian/Ubuntu.
-const OVMF_CODE_CANDIDATES: &[&str] = &[
-    "/usr/share/OVMF/OVMF_CODE.fd",
-    "/usr/share/OVMF/OVMF_CODE_4M.fd",
-    "/usr/share/ovmf/OVMF_CODE.fd",
-    "/usr/share/ovmf/OVMF_CODE_4M.fd",
-];
-
-const OVMF_VARS_CANDIDATES: &[&str] = &[
-    "/usr/share/OVMF/OVMF_VARS.fd",
-    "/usr/share/OVMF/OVMF_VARS_4M.fd",
-    "/usr/share/ovmf/OVMF_VARS.fd",
-    "/usr/share/ovmf/OVMF_VARS_4M.fd",
-];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BootMode {
@@ -102,56 +87,12 @@ fn load_config(path: &Path) -> Result<VmConfig> {
             }
 
             other => {
-                ui::warn(format!(
-                    "unknown VM option: {other}"
-                ));
+                ui::warn(format!("unknown VM option: {other}"));
             }
         }
     }
 
     Ok(cfg)
-}
-
-fn find_ovmf_firmware() -> Result<(&'static str, &'static str)> {
-    let code = OVMF_CODE_CANDIDATES
-        .iter()
-        .find(|path| Path::new(path).is_file())
-        .copied();
-
-    let vars = OVMF_VARS_CANDIDATES
-        .iter()
-        .find(|path| Path::new(path).is_file())
-        .copied();
-
-    match (code, vars) {
-        (Some(code), Some(vars)) => Ok((code, vars)),
-
-        (None, _) => {
-            bail!(
-                "BOOT=uefi requires OVMF CODE firmware, none found among:\n{}\n\n\
-                 Install it with:\n\
-                 \u{20} sudo apt-get install ovmf",
-                OVMF_CODE_CANDIDATES
-                    .iter()
-                    .map(|p| format!("  {p}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-        }
-
-        (_, None) => {
-            bail!(
-                "BOOT=uefi requires OVMF VARS firmware, none found among:\n{}\n\n\
-                 Install it with:\n\
-                 \u{20} sudo apt-get install ovmf",
-                OVMF_VARS_CANDIDATES
-                    .iter()
-                    .map(|p| format!("  {p}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-        }
-    }
 }
 
 pub fn run(
@@ -176,20 +117,13 @@ pub fn run(
         ui::banner("Create New Senbit VM");
         println!();
 
-        println!(
-            "This will delete the entire VM directory:"
-        );
+        println!("This will delete the entire VM directory:");
 
-        println!(
-            "  {}",
-            vm_dir.display()
-        );
+        println!("  {}", vm_dir.display());
 
         println!();
 
-        println!(
-            "All VM state stored there will be lost."
-        );
+        println!("All VM state stored there will be lost.");
 
         println!();
 
@@ -203,16 +137,11 @@ pub fn run(
             "y" | "yes" => {
                 println!();
 
-                ui::info(
-                    "Removing existing VM state..."
-                );
+                ui::info("Removing existing VM state...");
 
-                let _ =
-                    fs::remove_dir_all(&vm_dir);
+                let _ = fs::remove_dir_all(&vm_dir);
 
-                ui::info(
-                    "Creating fresh VM directory..."
-                );
+                ui::info("Creating fresh VM directory...");
 
                 fs::create_dir_all(&vm_dir)?;
             }
@@ -225,103 +154,62 @@ pub fn run(
         }
     }
 
-    let cfg =
-        load_config(&vm_config_path)?;
+    let cfg = load_config(&vm_config_path)?;
 
-    let disk: PathBuf =
-        match &cfg.disk {
-            Some(d) if d.starts_with('/') =>
-                PathBuf::from(d),
+    let disk: PathBuf = match &cfg.disk {
+        Some(d) if d.starts_with('/') => PathBuf::from(d),
 
-            Some(d) =>
-                p.r(d),
+        Some(d) => p.r(d),
 
-            None =>
-                vm_dir.join("senbit.qcow2"),
-        };
+        None => vm_dir.join("senbit.qcow2"),
+    };
 
     let iso = p.iso_dist();
 
-    let debug_log =
-        vm_dir.join("qemu.log");
+    let debug_log = vm_dir.join("qemu.log");
 
     ui::banner("Senbit Run");
     println!();
 
-    let target =
-        if fast {
-            Target::Fast
-        } else {
-            Target::All
-        };
+    let target = if fast { Target::Fast } else { Target::All };
 
-    build::run(
-        p,
-        target,
-        jobs,
-        force,
-    )?;
+    build::run(p, target, jobs, force)?;
 
     if !iso.is_file() {
-        bail!(
-            "Senbit ISO not found:\n  {}",
-            iso.display()
-        );
+        bail!("Senbit ISO not found:\n  {}", iso.display());
     }
 
-    fs::create_dir_all(
-        disk.parent().unwrap()
-    )?;
+    fs::create_dir_all(disk.parent().unwrap())?;
 
     if !disk.is_file() {
         println!();
 
-        ui::info(
-            "Creating VM disk..."
-        );
+        ui::info("Creating VM disk...");
 
-        ui::detail(format!(
-            "Path:   {}",
-            disk.display()
-        ));
+        ui::detail(format!("Path:   {}", disk.display()));
 
-        ui::detail(format!(
-            "Size:   {}",
-            cfg.disk_size
-        ));
+        ui::detail(format!("Size:   {}", cfg.disk_size));
 
-        ui::detail(format!(
-            "Format: {}",
-            cfg.disk_format
-        ));
+        ui::detail(format!("Format: {}", cfg.disk_format));
 
-        crate::proc::run(
-            Command::new("qemu-img").args([
-                "create",
-                "-f",
-                &cfg.disk_format,
-                &disk.to_string_lossy(),
-                &cfg.disk_size,
-            ])
-        )?;
+        crate::proc::run(host::command("qemu-img").args([
+            "create",
+            "-f",
+            &cfg.disk_format,
+            &disk.to_string_lossy(),
+            &cfg.disk_size,
+        ]))?;
     }
 
-    let mut network_args:
-        Vec<String> = Vec::new();
+    let mut network_args: Vec<String> = Vec::new();
 
     match cfg.network.as_str() {
         "user" => {
-            network_args.extend([
-                "-nic".into(),
-                "user".into(),
-            ]);
+            network_args.extend(["-nic".into(), "user".into()]);
         }
 
         "none" => {
-            network_args.extend([
-                "-nic".into(),
-                "none".into(),
-            ]);
+            network_args.extend(["-nic".into(), "none".into()]);
         }
 
         other => {
@@ -334,148 +222,130 @@ pub fn run(
         }
     }
 
-    let ovmf =
-        if cfg.boot == BootMode::Uefi {
-            Some(find_ovmf_firmware()?)
-        } else {
-            None
-        };
+    // Firmware UEFI : couple CODE/VARS COHÉRENT (voir ovmf.rs). Un couple
+    // incohérent ou une NVRAM obsolète empêche OVMF de démarrer sans aucune
+    // erreur : log série vide + « Guest has not initialized the display ».
+    let ovmf = if cfg.boot == BootMode::Uefi {
+        Some(ovmf::find_firmware()?)
+    } else {
+        None
+    };
 
-    let ovmf_vars =
-        if let Some((_, vars_template)) = ovmf {
-            let vars_path =
-                vm_dir.join("OVMF_VARS.fd");
+    let mut nvram_note: Option<String> = None;
 
-            if !vars_path.is_file() {
-                fs::copy(
-                    vars_template,
-                    &vars_path,
-                )?;
+    let ovmf_vars = if let Some(fw) = &ovmf {
+        let vars_path = vm_dir.join("OVMF_VARS.fd");
+
+        match ovmf::prepare_nvram(&vars_path, &fw.vars_template)? {
+            Nvram::Created => nvram_note = Some("created from the firmware template".into()),
+            Nvram::Reused => nvram_note = Some("existing, compatible with the firmware".into()),
+            Nvram::Refreshed(reason) => {
+                ui::warn(format!(
+                    "The VM's UEFI NVRAM was incompatible with the firmware and has been recreated:\n  {reason}\n  \
+                     (the old file was kept as {}.stale)",
+                    vars_path.display()
+                ));
+                nvram_note = Some("recreated (the previous one was incompatible)".into());
             }
+        }
 
-            Some(vars_path)
-        } else {
-            None
-        };
+        Some(vars_path)
+    } else {
+        None
+    };
+
+    // L'ISO doit porter une entrée de démarrage EFI, sinon OVMF ne peut pas la
+    // lancer (une ISO « amorçable » peut très bien n'être amorçable qu'en BIOS).
+    let iso_boot = if cfg.boot == BootMode::Uefi {
+        match ovmf::inspect_iso(&iso) {
+            Ok(b) => {
+                if !b.efi {
+                    ui::warn(format!(
+                        "The ISO has no EFI boot entry (El Torito): OVMF cannot boot it.\n  {}\n  \
+                         Rebuild it with GRUB x86_64-efi available (Ubuntu: grub-efi-amd64-bin and mtools; \
+                         `devtool install` installs them), or set BOOT=bios in config/vm.config.",
+                        iso.display()
+                    ));
+                }
+                Some(b)
+            }
+            Err(e) => {
+                ui::warn(format!("Could not inspect the ISO boot catalog: {e:#}"));
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     if debug {
         println!();
 
-        ui::info(
-            "Debug mode enabled"
-        );
+        ui::info("Debug mode enabled");
 
-        ui::detail(format!(
-            "QEMU log: {}",
-            debug_log.display()
-        ));
+        ui::detail(format!("QEMU log: {}", debug_log.display()));
     }
 
-    ui::banner(
-        "Starting Senbit VM"
-    );
+    ui::banner("Starting Senbit VM");
 
     println!();
 
-    println!(
-        "RAM:     {}",
-        cfg.ram
-    );
+    println!("RAM:     {}", cfg.ram);
 
-    println!(
-        "CPUs:    {}",
-        cfg.cpus
-    );
+    println!("CPUs:    {}", cfg.cpus);
 
-    println!(
-        "Disk:    {}",
-        disk.display()
-    );
+    println!("Disk:    {}", disk.display());
 
-    println!(
-        "ISO:     {}",
-        iso.display()
-    );
+    println!("ISO:     {}", iso.display());
 
-    println!(
-        "Network: {}",
-        cfg.network
-    );
+    println!("Network: {}", cfg.network);
 
     println!(
         "Boot:    {}",
         match cfg.boot {
-            BootMode::Bios =>
-                "bios (legacy)",
+            BootMode::Bios => "bios (legacy)",
 
-            BootMode::Uefi =>
-                "uefi",
+            BootMode::Uefi => "uefi",
         }
     );
 
-    if let Some((code, _)) = ovmf {
-        println!(
-            "Firmware: {}",
-            code
-        );
+    if let Some(fw) = &ovmf {
+        println!("Firmware: {}", fw.code.display());
     }
 
     if let Some(vars) = &ovmf_vars {
-        println!(
-            "NVRAM:   {}",
-            vars.display()
-        );
+        println!("NVRAM:   {}", vars.display());
     }
 
     if debug {
-        println!(
-            "Debug:   enabled"
-        );
+        print_uefi_diagnostics(ovmf.as_ref(), ovmf_vars.as_deref(), nvram_note.as_deref(), iso_boot.as_ref());
+    }
 
-        println!(
-            "Log:     {}",
-            debug_log.display()
-        );
+    if debug {
+        println!("Debug:   enabled");
+
+        println!("Log:     {}", debug_log.display());
     }
 
     println!();
 
-    let mut cmd =
-        Command::new(
-            "qemu-system-x86_64"
-        );
+    let mut cmd = host::command("qemu-system-x86_64");
 
     cmd.arg("-enable-kvm")
-        .args([
-            "-m",
-            &cfg.ram,
-        ])
-        .args([
-            "-smp",
-            &cfg.cpus,
-        ])
+        .args(["-m", &cfg.ram])
+        .args(["-smp", &cfg.cpus])
         .args([
             "-drive",
-            &format!(
-                "file={},format={}",
-                disk.display(),
-                cfg.disk_format
-            ),
+            &format!("file={},format={}", disk.display(), cfg.disk_format),
         ])
-        .args([
-            "-cdrom",
-            &iso.to_string_lossy(),
-        ])
+        .args(["-cdrom", &iso.to_string_lossy()])
         .args(&network_args);
 
     // OVMF CODE: firmware en lecture seule.
-    if let Some((code, _)) = ovmf {
+    if let Some(fw) = &ovmf {
         cmd.args([
             "-drive",
-            &format!(
-                "if=pflash,format=raw,readonly=on,file={}",
-                code
-            ),
+            &format!("if=pflash,format=raw,readonly=on,file={}", fw.code.display()),
         ]);
     }
 
@@ -483,48 +353,156 @@ pub fn run(
     if let Some(vars) = &ovmf_vars {
         cmd.args([
             "-drive",
-            &format!(
-                "if=pflash,format=raw,file={}",
-                vars.display()
-            ),
+            &format!("if=pflash,format=raw,file={}", vars.display()),
         ]);
     }
 
     if debug {
-        fs::create_dir_all(
-            &vm_dir
-        )?;
+        fs::create_dir_all(&vm_dir)?;
 
-        fs::write(
-            &debug_log,
-            b"",
-        )?;
+        fs::write(&debug_log, b"")?;
 
-        cmd.args([
-            "-serial",
-            &format!(
-                "file:{}",
-                debug_log.display()
-            ),
-        ]);
+        cmd.args(["-serial", &format!("file:{}", debug_log.display())]);
 
         // Debug flag for the guest (read by senbit-init through
         // /sys/firmware/qemu_fw_cfg): the whole boot is mirrored to the kernel
         // log, hence to the serial console captured in the log above.
-        cmd.args([
-            "-fw_cfg",
-            "name=opt/senbit/debug,string=1",
-        ]);
+        cmd.args(["-fw_cfg", "name=opt/senbit/debug,string=1"]);
+
+        // Sorties de diagnostic de QEMU lui-même et du firmware OVMF (port
+        // 0x402), à côté du log série : utiles quand le log série est vide.
+        let qemu_log = vm_dir.join("qemu-internal.log");
+        let ovmf_log = vm_dir.join("ovmf-debugcon.log");
+        cmd.args(["-d", "guest_errors,unimp", "-D", &qemu_log.to_string_lossy()]);
+        if ovmf.is_some() {
+            cmd.args([
+                "-debugcon",
+                &format!("file:{}", ovmf_log.display()),
+                "-global",
+                "isa-debugcon.iobase=0x402",
+            ]);
+        }
+
+        let cmdline = format!(
+            "{} {}\n",
+            cmd.get_program().to_string_lossy(),
+            cmd.get_args()
+                .map(|a| shell_quote(&a.to_string_lossy()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        fs::write(vm_dir.join("qemu-cmdline.txt"), &cmdline)?;
+        ui::detail(format!("QEMU command: {}", vm_dir.join("qemu-cmdline.txt").display()));
     }
 
-    let status =
-        cmd.status()?;
+    let status = cmd.status()?;
+
+    if debug {
+        print_debug_summary(&vm_dir, &debug_log, ovmf.is_some());
+    }
 
     if !status.success() {
-        std::process::exit(
-            status.code().unwrap_or(1)
-        );
+        std::process::exit(status.code().unwrap_or(1));
     }
 
     Ok(())
+}
+
+/// Entoure d'apostrophes un argument s'il contient autre chose que des
+/// caractères « sûrs » (pour la ligne de commande écrite en mode debug).
+fn shell_quote(arg: &str) -> String {
+    let safe = !arg.is_empty()
+        && arg
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./=:,+@%".contains(c));
+    if safe {
+        arg.to_string()
+    } else {
+        format!("'{}'", arg.replace('\'', "'\\''"))
+    }
+}
+
+fn file_size(path: &Path) -> String {
+    match fs::metadata(path) {
+        Ok(m) => format!("{} bytes", m.len()),
+        Err(_) => "missing".into(),
+    }
+}
+
+/// Mode debug : ce qui permet de distinguer « le firmware ne démarre pas »
+/// de « GRUB / le noyau plantent » avant même de lancer QEMU.
+fn print_uefi_diagnostics(
+    fw: Option<&ovmf::Firmware>,
+    nvram: Option<&Path>,
+    nvram_note: Option<&str>,
+    iso: Option<&ovmf::IsoBoot>,
+) {
+    println!();
+    ui::info("UEFI diagnostics");
+
+    match fw {
+        None => ui::detail("Boot mode is BIOS: no UEFI firmware involved"),
+        Some(fw) => {
+            ui::detail(format!("Firmware source: {}", fw.describe_source()));
+            ui::detail(format!("OVMF CODE:  {} ({})", fw.code.display(), file_size(&fw.code)));
+            ui::detail(format!(
+                "OVMF VARS:  {} ({}) [template]",
+                fw.vars_template.display(),
+                file_size(&fw.vars_template)
+            ));
+            if let Some(vars) = nvram {
+                ui::detail(format!(
+                    "NVRAM:      {} ({}) - {}",
+                    vars.display(),
+                    file_size(vars),
+                    nvram_note.unwrap_or("unknown state")
+                ));
+            }
+        }
+    }
+
+    if let Some(b) = iso {
+        ui::detail(format!(
+            "ISO boot entries: BIOS={} EFI={}",
+            if b.bios { "yes" } else { "no" },
+            if b.efi { "yes" } else { "no" }
+        ));
+    }
+
+    match fs::OpenOptions::new().read(true).write(true).open("/dev/kvm") {
+        Ok(_) => ui::detail("/dev/kvm: accessible"),
+        Err(e) => ui::warn(format!(
+            "/dev/kvm: {e} (QEMU is started with -enable-kvm and will refuse to run; \
+             add your user to the `kvm` group and log in again)"
+        )),
+    }
+    println!();
+}
+
+/// Après QEMU, en mode debug : interprète les logs (surtout le cas « vide »).
+fn print_debug_summary(vm_dir: &Path, serial_log: &Path, uefi: bool) {
+    println!();
+    ui::info("Debug summary");
+    let serial = fs::metadata(serial_log).map(|m| m.len()).unwrap_or(0);
+    ui::detail(format!("Serial log: {} ({serial} bytes)", serial_log.display()));
+    if uefi {
+        ui::detail(format!(
+            "OVMF debug: {} ({})",
+            vm_dir.join("ovmf-debugcon.log").display(),
+            file_size(&vm_dir.join("ovmf-debugcon.log"))
+        ));
+    }
+    ui::detail(format!(
+        "QEMU log:   {} ({})",
+        vm_dir.join("qemu-internal.log").display(),
+        file_size(&vm_dir.join("qemu-internal.log"))
+    ));
+    if serial == 0 && uefi {
+        ui::warn(
+            "The serial log is empty. If the QEMU window said \"Guest has not initialized the display (yet)\", \
+             the UEFI firmware itself never started (GRUB and the kernel were never reached): \
+             check the firmware/NVRAM lines of the UEFI diagnostics above. \
+             If the window showed a UEFI shell or boot menu, the ISO has no EFI boot entry.",
+        );
+    }
 }

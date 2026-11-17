@@ -1,8 +1,12 @@
 mod build;
 mod cache;
+mod config;
+mod deps;
 mod get;
 mod gitutil;
-mod install;
+mod host;
+mod ovmf;
+mod patches;
 mod paths;
 mod proc;
 mod run_vm;
@@ -18,14 +22,14 @@ use build::Target;
 use get::Component;
 use paths::Paths;
 
-/// Senbit development tool — remplace scripts/build.sh, run.sh, install.sh,
-/// getlinux.sh et getutil.sh.
+/// Senbit development tool: one executable to check the machine, download the
+/// pinned sources, build everything and boot it. Works on Fedora, Ubuntu /
+/// Debian and Arch; every path is relative to the project root.
 #[derive(Parser)]
 #[command(name = "devtool", version, about, long_about = None)]
 struct Cli {
-    /// Racine du projet Senbit (détectée automatiquement par défaut : le
-    /// dossier parent de celui contenant l'exécutable `devtool`, sinon
-    /// $SENBIT_ROOT, sinon le répertoire courant).
+    /// Project root (default: found by walking up from the `devtool`
+    /// executable, then from the current directory; or $SENBIT_ROOT).
     #[arg(long, global = true)]
     root: Option<PathBuf>,
 
@@ -35,52 +39,69 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Compile Senbit (noyau, BusyBox, util-linux, Parted, Rust, tools,
-    /// rootfs, ISO). Équivalent de scripts/build.sh [cible].
+    /// Check the build machine (distribution, tools, libraries) without
+    /// changing anything, and print the exact install command.
+    Doctor,
+
+    /// Install the missing build dependencies with the distribution's package
+    /// manager (apt, dnf or pacman) and the Rust musl target.
+    Install,
+
+    /// Download the sources at their PINNED versions (config/<name>/version).
+    Get {
+        #[arg(value_enum, default_value_t = Component::All)]
+        component: Component,
+    },
+
+    /// Build Senbit (kernel, BusyBox, util-linux, Parted, systemd, apt, Rust,
+    /// commands, tools, rootfs, ISO).
     Build {
         #[arg(value_enum, default_value_t = Target::All)]
         target: Target,
 
-        /// Nombre de jobs make/cargo (défaut : nombre de CPU détecté).
+        /// Number of make/cargo jobs (default: detected CPU count).
         #[arg(short = 'j', long)]
         jobs: Option<usize>,
 
-        /// Vide le cache de rebuild intelligent avant de commencer :
-        /// tout est recompilé, même si rien n'a changé.
+        /// Clear the smart-rebuild cache first: everything is rebuilt.
         #[arg(long)]
         force: bool,
     },
 
-    /// Récupère ou met à jour les sources d'un composant à la version
-    /// épinglée. Équivalent de scripts/getlinux.sh et scripts/getutil.sh.
-    Get {
-        #[arg(value_enum)]
-        component: Component,
+    /// List the Senbit native commands (commands/<name>/) or regenerate
+    /// commands/INDEX.md. Add a command with ./newcmds.sh <name>.
+    #[command(name = "commands")]
+    Cmd {
+        #[command(subcommand)]
+        action: Option<CmdAction>,
     },
 
-    /// Installe les dépendances système de build. Équivalent de scripts/install.sh.
-    Install,
-
-    /// Construit Senbit puis le lance dans QEMU. Équivalent de scripts/run.sh.
+    /// Build Senbit, then boot it in QEMU.
     Run {
-        /// Recrée entièrement la VM (supprime le disque et l'état existants).
+        /// Recreate the VM from scratch (deletes the disk and its state).
         #[arg(long)]
         new: bool,
-        /// Redirige la sortie série vers build/vm/qemu.log au lieu du terminal.
+        /// Write the whole boot (kernel, init, systemd) to build/vm/qemu.log.
         #[arg(long)]
         debug: bool,
-        /// Ne reconstruit que l'userspace Rust, les outils, le rootfs et
-        /// l'ISO (comme `devtool build fast`) — pour itérer vite sans
-        /// retoucher au noyau/BusyBox/util-linux/Parted.
+        /// Only rebuild the Rust userspace, tools, rootfs and ISO.
         #[arg(long)]
         fast: bool,
-        /// Vide le cache de rebuild intelligent avant de construire.
+        /// Clear the smart-rebuild cache before building.
         #[arg(long)]
         force: bool,
-        /// Nombre de jobs make/cargo (défaut : nombre de CPU détecté).
+        /// Number of make/cargo jobs (default: detected CPU count).
         #[arg(short = 'j', long)]
         jobs: Option<usize>,
     },
+}
+
+#[derive(Subcommand)]
+enum CmdAction {
+    /// List every detected command (default).
+    List,
+    /// Regenerate commands/INDEX.md without building.
+    Index,
 }
 
 fn main() -> ExitCode {
@@ -95,12 +116,25 @@ fn main() -> ExitCode {
     };
 
     let result = match cli.command {
-        Commands::Build { target, jobs, force } => build::run(&paths, target, jobs, force),
-        Commands::Get { component } => get::run(&paths, component),
-        Commands::Install => install::run_install(&paths),
-        Commands::Run { new, debug, fast, force, jobs } => {
-            run_vm::run(&paths, new, debug, fast, force, jobs)
-        }
+        Commands::Build {
+            target,
+            jobs,
+            force,
+        } => build::run(&paths, target, jobs, force),
+        Commands::Doctor => deps::doctor(&paths),
+        Commands::Install => deps::install(&paths),
+        Commands::Get { component } => get::run_get(&paths, component),
+        Commands::Cmd { action } => match action.unwrap_or(CmdAction::List) {
+            CmdAction::List => build::commands::list(&paths),
+            CmdAction::Index => build::commands::index(&paths),
+        },
+        Commands::Run {
+            new,
+            debug,
+            fast,
+            force,
+            jobs,
+        } => run_vm::run(&paths, new, debug, fast, force, jobs),
     };
 
     match result {

@@ -1,19 +1,18 @@
 //! BusyBox — équivalent de update_busybox()/apply_busybox_patches()/build_busybox()
-//! dans build.sh. Contrairement au noyau, BusyBox se met à jour automatiquement
-//! vers la dernière version à chaque build.
+//! dans build.sh. BusyBox est épinglé comme le reste (config/busybox/version).
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{bail, Result};
 
 use crate::cache::{git_fingerprint, hash_file, Cache};
 use crate::paths::Paths;
-use crate::proc::{run, run_quiet, succeeds};
+use crate::proc::run_quiet;
 use crate::{gitutil, ui};
 
-/// Utilisé par `devtool build busybox` : erreur si les sources n'existent pas
-/// encore (comme update_busybox() dans build.sh).
+/// Utilisé par `devtool build busybox` : les sources doivent déjà être à la
+/// version ÉPINGLÉE (config/busybox/version) ; plus aucune mise à jour
+/// automatique vers « la dernière version ».
 pub(crate) fn update_only(p: &Paths) -> Result<()> {
     let dir = p.busybox_dir();
 
@@ -24,167 +23,22 @@ pub(crate) fn update_only(p: &Paths) -> Result<()> {
         );
     }
 
-    update_existing(p, &dir)
-}
+    let version = crate::get::read_pinned(&p.busybox_version_file(), "BusyBox version")?;
+    let tag = version.replace('.', "_");
+    let current = gitutil::describe_exact(&dir);
 
-/// Utilisé par `devtool get busybox` : clone à la dernière version si les
-/// sources n'existent pas encore (il n'existait pas d'ancien script dédié
-/// à la seule récupération de BusyBox).
-pub(crate) fn fetch(p: &Paths) -> Result<()> {
-    let dir = p.busybox_dir();
-
-    if !gitutil::is_repo(&dir) {
-        let latest =
-            gitutil::latest_tag(Paths::BUSYBOX_REPO, gitutil::is_busybox_tag)?;
-
-        ui::info("BusyBox source tree not found.");
-        ui::info("Cloning BusyBox...");
-        ui::detail(format!("Version: {latest}"));
-
-        let spin =
-            ui::spinner(&format!("Cloning BusyBox {latest} (depth 1)..."));
-
-        let result =
-            gitutil::clone_tag(Paths::BUSYBOX_REPO, &latest, &dir);
-
-        spin.finish_and_clear();
-
-        result?;
-
-        std::fs::write(
-            p.busybox_version_file(),
-            format!("{}\n", latest.replace('_', ".")),
-        )?;
-
-        println!();
-        ui::ok(format!("BusyBox {latest} downloaded."));
-
-        return Ok(());
-    }
-
-    update_existing(p, &dir)
-}
-
-fn update_existing(p: &Paths, dir: &std::path::Path) -> Result<()> {
-    let dir = dir.to_path_buf();
-
-    let latest =
-        gitutil::latest_tag(Paths::BUSYBOX_REPO, gitutil::is_busybox_tag)?;
-
-    let current = gitutil::describe(&dir);
-
-    ui::info("BusyBox version");
+    ui::info("BusyBox");
+    ui::detail(format!("Pinned:  {tag}"));
     ui::detail(format!("Current: {current}"));
-    ui::detail(format!("Latest:  {latest}"));
 
-    if current == latest {
-        ui::ok("BusyBox is already up to date.");
-        return Ok(());
+    if current != tag {
+        bail!("BusyBox is not on the pinned version {tag}.\n\nRun:\n  devtool get busybox");
     }
-
-    println!();
-    ui::info("Updating BusyBox...");
-    ui::detail(format!("{current} -> {latest}"));
-
-    let status = gitutil::status_porcelain(&dir);
-
-    if !status.is_empty() {
-        bail!(
-            "BusyBox source tree contains local modifications:\n\n{status}\n\nSenbit patches must be stored in:\n  third_party/patches/busybox/\n\nThe working tree must be clean before updating BusyBox."
-        );
-    }
-
-    gitutil::fetch_tags(&dir)?;
-    gitutil::checkout_detach(&dir, &latest)?;
-
-    let version = latest.replace('_', ".");
-
-    std::fs::write(
-        p.busybox_version_file(),
-        format!("{version}\n"),
-    )?;
-
-    ui::ok("BusyBox updated.");
-
     Ok(())
 }
 
 fn apply_patches(p: &Paths) -> Result<()> {
-    let patch_dir = p.busybox_patch_dir();
-
-    if !patch_dir.is_dir() {
-        ui::info("No BusyBox patches directory.");
-        return Ok(());
-    }
-
-    let mut patches: Vec<PathBuf> = std::fs::read_dir(&patch_dir)?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension()
-                .and_then(|e| e.to_str())
-                == Some("patch")
-        })
-        .collect();
-
-    patches.sort();
-
-    if patches.is_empty() {
-        ui::info("No BusyBox patches to apply.");
-        return Ok(());
-    }
-
-    println!();
-    ui::info("Applying Senbit BusyBox patches...");
-
-    let dir = p.busybox_dir();
-
-    for patch in &patches {
-        let name = patch
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
-
-        println!();
-        ui::detail(format!("Applying: {name}"));
-
-        if succeeds(
-            Command::new("git")
-                .arg("-C")
-                .arg(&dir)
-                .arg("apply")
-                .arg("--check")
-                .arg(patch),
-        ) {
-            run(
-                Command::new("git")
-                    .arg("-C")
-                    .arg(&dir)
-                    .arg("apply")
-                    .arg(patch),
-            )?;
-        } else if succeeds(
-            Command::new("git")
-                .arg("-C")
-                .arg(&dir)
-                .args(["apply", "--reverse", "--check"])
-                .arg(patch),
-        ) {
-            ui::detail(format!("Already applied: {name}"));
-        } else {
-            bail!(
-                "BusyBox patch cannot be applied:\n  {}\n\nBusyBox source version:\n{}\n\nThe patch may need to be updated for this BusyBox version.",
-                patch.display(),
-                gitutil::describe(&dir)
-            );
-        }
-    }
-
-    println!();
-    ui::ok("BusyBox patches applied.");
-
-    Ok(())
+    crate::patches::apply(p, "busybox", "BusyBox", &p.busybox_dir())
 }
 
 /// Vérifie si la configuration source a changé depuis la dernière
@@ -204,13 +58,9 @@ fn reset_if_config_changed(
         return Ok(());
     }
 
-    if build_dir.join(".config").is_file()
-        || build_dir.join("_install").is_dir()
-    {
+    if build_dir.join(".config").is_file() || build_dir.join("_install").is_dir() {
         println!();
-        ui::info(
-            "BusyBox configuration changed - resetting build directory...",
-        );
+        ui::info("BusyBox configuration changed - resetting build directory...");
 
         let _ = std::fs::remove_file(build_dir.join(".config"));
         let _ = std::fs::remove_dir_all(build_dir.join("_install"));
@@ -227,7 +77,7 @@ fn reset_if_config_changed(
 ///
 ///     Support --version (FEATURE_VERSION) [Y/n] (NEW)
 ///
-/// et permet à `devtool build` de fonctionner avec stdin=/dev/null.
+/// et permet à `devtool build` de fonctionner avec stdin=/dev/null.c
 fn prepare_config(
     dir: &std::path::Path,
     build_dir: &std::path::Path,
@@ -236,10 +86,7 @@ fn prepare_config(
     if !build_dir.join(".config").is_file() {
         ui::info("Installing Senbit BusyBox configuration...");
 
-        std::fs::copy(
-            config,
-            build_dir.join(".config"),
-        )?;
+        std::fs::copy(config, build_dir.join(".config"))?;
     }
 
     println!();
@@ -247,6 +94,7 @@ fn prepare_config(
 
     let o = format!("O={}", build_dir.display());
 
+    // Répond automatiquement avec les valeurs par défaut.
     let mut yes = Command::new("yes")
         .arg("")
         .stdout(std::process::Stdio::piped())
@@ -267,6 +115,7 @@ fn prepare_config(
 
     let make_status = make.wait()?;
 
+    // make terminé : arrêter le processus yes.
     let _ = yes.kill();
     let _ = yes.wait();
 
@@ -280,11 +129,7 @@ fn prepare_config(
     Ok(())
 }
 
-pub fn build(
-    p: &Paths,
-    cache: &mut Cache,
-    jobs: usize,
-) -> Result<()> {
+pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     let build_dir = p.busybox_build_dir();
 
     std::fs::create_dir_all(&build_dir)?;
@@ -295,10 +140,7 @@ pub fn build(
     let config = p.busybox_config();
 
     if !config.is_file() {
-        bail!(
-            "BusyBox configuration not found:\n  {}",
-            config.display()
-        );
+        bail!("BusyBox configuration not found:\n  {}", config.display());
     }
 
     let dir = p.busybox_dir();
@@ -315,35 +157,20 @@ pub fn build(
     let source_fp = git_fingerprint(&dir);
     let config_hash = hash_file(&config);
 
-    let build_fp = format!(
-        "{source_fp}:config={config_hash}"
-    );
+    let build_fp = format!("{source_fp}:config={config_hash}");
 
-    let previous_config_hash = cache
-        .get("busybox-config")
-        .map(str::to_string);
+    let previous_config_hash = cache.get("busybox-config").map(str::to_string);
 
-    reset_if_config_changed(
-        &build_dir,
-        &config_hash,
-        previous_config_hash.as_deref(),
-    )?;
+    reset_if_config_changed(&build_dir, &config_hash, previous_config_hash.as_deref())?;
 
     let binary = p.busybox_binary();
 
-    if cache.is_fresh(
-        "busybox",
-        &build_fp,
-        &[&binary],
-    ) {
+    if cache.is_fresh("busybox", &build_fp, &[&binary]) {
         println!();
         ui::skip(
             "BusyBox sources and configuration unchanged since last build - skipping compilation.",
         );
-        ui::detail(format!(
-            "BusyBox: {}",
-            binary.display()
-        ));
+        ui::detail(format!("BusyBox: {}", binary.display()));
 
         return Ok(());
     }
@@ -357,11 +184,7 @@ pub fn build(
      * Cela est volontairement fait AVANT le make principal pour empêcher
      * Kconfig de lancer une configuration interactive pendant la compilation.
      */
-    prepare_config(
-        &dir,
-        &build_dir,
-        &config,
-    )?;
+    prepare_config(&dir, &build_dir, &config)?;
 
     println!();
     ui::info("Building BusyBox...");
@@ -406,10 +229,7 @@ pub fn build(
     result?;
 
     if !binary.is_file() {
-        bail!(
-            "BusyBox binary was not produced:\n  {}",
-            binary.display()
-        );
+        bail!("BusyBox binary was not produced:\n  {}", binary.display());
     }
 
     println!();
@@ -422,15 +242,9 @@ pub fn build(
      * Si le build échoue, le prochain lancement devra donc réellement
      * considérer BusyBox comme non construit.
      */
-    cache.record(
-        "busybox",
-        &build_fp,
-    )?;
+    cache.record("busybox", &build_fp)?;
 
-    cache.record(
-        "busybox-config",
-        &config_hash,
-    )?;
+    cache.record("busybox-config", &config_hash)?;
 
     Ok(())
 }

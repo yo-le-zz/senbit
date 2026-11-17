@@ -1,6 +1,6 @@
 // src/utils/alim.rs
 
-use libc::{reboot, LINUX_REBOOT_CMD_RESTART, LINUX_REBOOT_CMD_POWER_OFF};
+use libc::{LINUX_REBOOT_CMD_POWER_OFF, LINUX_REBOOT_CMD_RESTART, reboot};
 
 pub fn do_reboot() -> ! {
     unsafe {

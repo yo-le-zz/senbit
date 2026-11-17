@@ -56,6 +56,9 @@ The current system includes:
 * 🐚 Interactive shell
 * 🧪 QEMU development workflow
 * 🛠️ Native command build system
+* ✅ Installer that asks everything first and installs after a final confirmation (0.3.0)
+* 🩺 Non-blocking boot with a boot report (`bootreport`)
+* 📦 `apt install <anything>` (Debian 12 packages) and systemd services
 
 The current development focus is moving from the initial operating-system foundation toward a complete **server userspace and service-management infrastructure**.
 
@@ -191,6 +194,21 @@ Senbit includes an interactive installer capable of:
 * Installing the bootloader
 
 Senbit can also be installed onto an existing partition.
+
+## Installation flow (0.3.0)
+
+The installer asks **everything first and writes nothing**, then installs **after a final confirmation**:
+
+```text
+1. Questions   keyboard, disk, partitioning, root/user accounts, hostname,
+               language, timezone, network (DHCP or static address/gateway/DNS)
+2. Summary     everything that will be done, "Nothing has been written to the disk yet"
+3. Decision    Cancel (default) / Start over / INSTALL
+4. Installation  [ 1/14] Creating the partitions ... [14/14] Writing everything to the disk
+```
+
+Cancelling or starting over before the confirmation never modifies the disk. Each step is
+displayed as it runs, with its duration.
 
 ---
 
@@ -427,7 +445,7 @@ log stats
 The complete command documentation is available in:
 
 ```text
-tools/cmdtool/src/commands/log/README.md
+commands/log/README.md
 ```
 
 ---
@@ -482,7 +500,21 @@ Service-aware shutdown will be completed together with the future service manage
 
 # 🌐 Networking
 
-The current system supports DHCP networking.
+The current system supports **DHCP and static networking**.
+
+The installer asks for the interface and the mode; for a static address it asks the address with its
+prefix (`192.168.1.10/24`), the gateway and the DNS servers, and writes `/etc/network/interfaces`
+(BusyBox `ifup`) plus `/etc/resolv.conf`. To change it later, edit `/etc/network/interfaces` and run
+`ifdown eth0 && ifup eth0` (see [docs/SERVICES.md](docs/SERVICES.md)).
+
+**The network card is detected, never assumed.** Only real network cards are considered (the kernel gives them a
+device: `lo`, `dummy0`, bridges, `veth*` and `docker0` never are). When there is one card, the installer selects it
+without asking, whatever its name (`eth0`, `ens3`, `enp1s0`...); it only asks when there are several. At boot,
+`senbit-init` configures the detected cards that `/etc/network/interfaces` describes and ignores the others.
+
+**A network failure never blocks the boot.** It is recorded in the boot report and shown at login
+(see *Boot Report* below). The reachability test pings the **default gateway** (it used to ping the
+QEMU address `10.0.2.2`, which failed on any other network).
 
 The initialization process detects network interfaces and configures them using the current Linux networking utilities.
 
@@ -510,7 +542,32 @@ DHCP lease
 Network ready
 ```
 
-Static networking is planned.
+---
+
+# 🩺 Boot Report
+
+`senbit-init` only stops the boot when it cannot reach systemd (root filesystem, switch root). Every other step
+(fstab, hostname, network, logs, keyboard) records its result in `/run/senbit/boot-report` and the system starts
+anyway. At each login a box recalls what happened; it stays on screen until you run `clear`:
+
+```text
+┌─ Boot report ───────────────────────────────────────────────────────────┐
+│ ✓ 7 OK   ⚠ 1 warning(s)   ✗ 0 failed                                    │
+│ ⚠ Network: no default route: the DHCP server did not answer ...         │
+└─────────────────────────────────────────────────────────────────────────┘
+  bootreport: details | bootreport --logs: systemd logs of this boot | `clear` hides this box
+```
+
+```bash
+bootreport             # recap: every step (✓ ⚠ ✗), failed systemd units, what to do
+bootreport --logs      # systemd journal of this boot (journalctl -b)
+bootreport --kernel    # kernel log
+bootreport --failed    # failed systemd units
+bootreport --history   # previous boots (/var/log/senbit/boot-report.log)
+```
+
+`bootreport` is the only Senbit-specific tool of the system administration set: everything else uses the standard
+commands (`systemctl`, `journalctl`, `ip`, `apt`, `adduser`...).
 
 ---
 
@@ -600,7 +657,7 @@ After authentication, the configured user's shell is started.
 Example:
 
 ```text
-Welcome to Senbit 0.2.0
+Welcome to Senbit 0.3.0
 Hello, user!
 
 [user@senbit /]$
@@ -691,37 +748,45 @@ This allows components such as logging, networking, services, authentication, an
 
 # 📦 Native Command System
 
-Senbit includes a dedicated command build system called `cmdtool`.
-
-Commands are organized independently:
+Senbit's own commands live in a dedicated top-level folder, `commands/`:
+**one folder = one command = one independent Rust crate.**
 
 ```text
-tools/cmdtool/src/commands/
-├── halt/
+commands/
+├── adduser/      adduser, addgroup, deluser, delgroup  (Debian-compatible)
+├── bootreport/   boot report shown at login
+├── findmnt/
+├── getent/
+├── halt/  poweroff/  reboot/  shutdown/
 ├── log/
-├── poweroff/
-├── reboot/
-├── shutdown/
-└── sudo/
+├── sudo/
+├── useradd/      useradd, groupadd, userdel, groupdel, usermod
+├── _shared/      code shared by several commands (not a command)
+└── INDEX.md      generated index of every command
 ```
 
-Each command can define its installation location through package metadata.
-
-For example:
+Each command describes its installation in its own `Cargo.toml`:
 
 ```toml
 [package.metadata.senbit]
-install = "bin"
+install = "sbin"                       # "bin" (default) or "sbin"
+aliases = ["addgroup", "deluser"]      # optional: extra names (links to the same binary)
+setuid  = true                         # optional: setuid root (like sudo)
 ```
 
-or:
+## Adding a command
 
-```toml
-[package.metadata.senbit]
-install = "sbin"
+```bash
+./newcmds.sh mycmd                 # creates commands/mycmd/ (empty Rust crate), indexes it
+./newcmds.sh mycmd --sbin --alias mc,mycommand -d "What it does"
+./scripts/devtool build            # detects, compiles and installs it in the rootfs
 ```
 
-The command builder automatically discovers, builds, and installs the commands into the generated root filesystem.
+Nothing else to register: `devtool` scans `commands/`, builds every crate
+(shared `target/`, cached per command), installs the binaries in `/usr/bin` or
+`/usr/sbin`, creates the aliases and regenerates `commands/INDEX.md`.
+`./newcmds.sh --list` lists the commands, `./newcmds.sh --remove mycmd` deletes one.
+See [commands/README.md](commands/README.md).
 
 ---
 
@@ -735,11 +800,20 @@ devtool
 
 The development workflow manages the major components required to build and run Senbit.
 
-## Install dependencies
+## First setup (Fedora, Ubuntu/Debian, Arch)
+
+Everything starts from one script, from any directory of the clone:
 
 ```bash
-./install.sh
+./scripts/devtool.sh        # compiles devtool -> scripts/devtool
+./scripts/devtool doctor    # checks this machine, prints the install command
+./scripts/devtool install   # installs missing packages (apt / dnf / pacman)
+./scripts/devtool get       # downloads the PINNED sources and verifies them
+./scripts/devtool build     # kernel, BusyBox, util-linux, Parted, systemd, apt, ISO
 ```
+
+All paths are relative to the project root, so the repository works wherever
+it is cloned. See [docs/BUILD.md](docs/BUILD.md) for versions, patches and apt.
 
 ## Run Senbit
 
@@ -881,27 +955,27 @@ The roadmap focuses on system capabilities rather than fixed release dates.
 * [x] Native logging
 * [x] `log` command
 * [x] Unix socket IPC
-* [ ] Service definition format
-* [ ] Service manager
-* [ ] Service dependencies
-* [ ] Service lifecycle management
-* [ ] `systemctl`
-* [ ] `senbitctl`
-* [ ] Static networking
-* [ ] SSH
+* [x] Service definition format (systemd unit files, see [docs/SERVICES.md](docs/SERVICES.md))
+* [x] Service manager (systemd, started by Senbit's init)
+* [x] Service dependencies (`Requires=`, `Wants=`, `After=`, `Before=`)
+* [x] Service lifecycle management (`systemctl start|stop|restart|enable|disable|status`, `journalctl -u`)
+* [x] `systemctl` (the real one; works for normal users thanks to D-Bus)
+* [x] Standard administration commands, no Senbit-specific wrapper (`systemctl`, `journalctl`, `ip`, `apt`, `adduser`/`useradd`, `getent`)
+* [x] Static networking (asked by the installer, `/etc/network/interfaces`)
+* [x] SSH (`apt install openssh-server`: installed and started by the Debian package scripts)
 
 ## Phase 2 — Package Ecosystem 📦
 
-* [ ] Define Senbit package format
-* [ ] Study APT/dpkg reuse
-* [ ] Debian package compatibility
-* [ ] Package installation
-* [ ] Package removal
-* [ ] Package updates
-* [ ] Dependency management
-* [ ] Repository management
-* [ ] Package signatures
-* [ ] `senbit-pkg`
+* [x] Define Senbit package format (the Debian `.deb`, see [docs/PACKAGES.md](docs/PACKAGES.md))
+* [x] Study APT/dpkg reuse (reused as is: [docs/PACKAGES.md](docs/PACKAGES.md))
+* [x] Debian package compatibility (merged-/usr, glibc runtime, maintainer-script tools, system accounts, D-Bus)
+* [x] Package installation (`apt install curl postgresql`)
+* [x] Package removal (`apt remove`, `apt purge`, `apt autoremove`)
+* [x] Package updates (`apt update`, `apt upgrade`; the package lists are downloaded automatically at the first boot)
+* [x] Dependency management (apt's resolver, `apt --fix-broken install`)
+* [x] Repository management (`/etc/apt/sources.list.d/*.sources`)
+* [x] Package signatures (repositories verified by apt with GPG keys, `Signed-By:`)
+* [x] Standard `apt` / `dpkg` as the package manager (no Senbit-specific wrapper)
 
 ## Phase 3 — System Updates 🔄
 

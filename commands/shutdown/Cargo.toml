@@ -1,0 +1,11 @@
+[package]
+name = "shutdown"
+version = "0.1.0"
+edition = "2024"
+description = "Shut the system down"
+
+[package.metadata.senbit]
+install = "sbin"
+
+[dependencies]
+libc = "0.2"

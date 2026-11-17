@@ -208,7 +208,7 @@ Senbit provides development scripts intended to make building and cleaning the p
 The planned interface includes:
 
 ```bash
-./install.sh
+./scripts/devtool.sh && ./scripts/devtool install
 ```
 
 Installs the tools required to build Senbit.

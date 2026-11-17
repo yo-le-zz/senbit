@@ -1,0 +1,14 @@
+# Senbit: keep the kernel's interface names (eth0, eth1...).
+#
+# systemd-udevd renames interfaces to "predictable" names (ens3, enp1s0...).
+# Senbit's DHCP unit (senbit-dhcp@eth0) and /etc/network/interfaces, written
+# by the installer from the names the kernel gives, use eth0: after the
+# rename eth0 no longer existed and the network was never configured, so
+# `apt update` could not reach the repository.
+# (net.ifnames=0 on the kernel command line does the same; both are set.)
+[Match]
+OriginalName=*
+
+[Link]
+NamePolicy=kernel
+MACAddressPolicy=none

@@ -1,0 +1,54 @@
+#!/bin/sh
+# systemd-sysv-install - enable / disable a SysV init script from `systemctl`.
+#
+# systemctl runs it for services that have a script in /etc/init.d (docker.io,
+# ssh... ship both a unit and a script) and aborts with "Failed to execute
+# /usr/lib/systemd/systemd-sysv-install: No such file or directory" when it is
+# missing. Debian ships this wrapper in its systemd package; Senbit builds
+# systemd itself, so it provides it (it relies on update-rc.d, from the Debian
+# package init-system-helpers).
+#
+#   systemd-sysv-install [--root=PATH] enable|disable|is-enabled NAME
+set -e
+
+root=""
+case "$1" in
+    --root=*) root="${1#--root=}"; shift ;;
+esac
+
+action="$1"
+name="$2"
+
+if [ -z "$action" ] || [ -z "$name" ]; then
+    echo "usage: systemd-sysv-install [--root=PATH] enable|disable|is-enabled NAME" >&2
+    exit 1
+fi
+
+# update-rc.d works on the running system: for another root, run it inside.
+run() {
+    if [ -n "$root" ] && [ "$root" != "/" ]; then
+        chroot "$root" "$@"
+    else
+        "$@"
+    fi
+}
+
+case "$action" in
+    enable)
+        run update-rc.d "$name" defaults >/dev/null
+        run update-rc.d "$name" enable >/dev/null
+        ;;
+    disable)
+        run update-rc.d "$name" disable >/dev/null
+        ;;
+    is-enabled)
+        for link in "$root"/etc/rc[2-5].d/S[0-9][0-9]"$name"; do
+            [ -e "$link" ] && exit 0
+        done
+        exit 1
+        ;;
+    *)
+        echo "systemd-sysv-install: unknown action '$action'" >&2
+        exit 1
+        ;;
+esac
