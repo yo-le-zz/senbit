@@ -13,8 +13,6 @@ a `Cargo.toml` is a command. Add one with `./newcmds.sh <name>`.
 | `log` | `commands/log` | `/bin` | - | Inspect, filter, follow and rotate Senbit logs |
 | `poweroff` | `commands/poweroff` | `/sbin` | - | Power off the system |
 | `reboot` | `commands/reboot` | `/sbin` | - | Reboot the system |
-| `senbit-pkg` | `commands/senbit-pkg` | `/bin` | - | Senbit package manager: Debian packages (.deb) through apt/dpkg, repositories and signature keys |
-| `senbitctl` | `commands/senbitctl` | `/bin` | - | Senbit control tool: services, static/DHCP networking, SSH and system status |
 | `shutdown` | `commands/shutdown` | `/sbin` | - | Shut the system down |
 | `sudo` | `commands/sudo` | `/bin` (setuid) | - | Run a command as root (Senbit native sudo) |
 | `useradd` | `commands/useradd` | `/sbin` | `groupadd`, `userdel`, `groupdel`, `usermod` | shadow-utils compatible useradd, groupadd, userdel, groupdel, usermod (used by package maintainer scripts) |

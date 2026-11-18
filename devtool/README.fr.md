@@ -151,6 +151,7 @@ RAM=512M
 CPUS=2
 DISK=build/vm/senbit.qcow2
 DISK_SIZE=10G
+CPU=host            # QEMU CPU model: "host" (default) exposes the real CPU instructions to the VM
 DISK_FORMAT=qcow2
 NETWORK=user
 BOOT=bios

@@ -82,6 +82,8 @@ built so that those scripts find what they expect:
 | `systemctl enable docker` (units that also ship a SysV script) | `rootfs/usr/lib/systemd/systemd-sysv-install`, a wrapper around `update-rc.d`; `/etc/init.d` and `/etc/rc?.d` exist |
 | `apt install gcc clang build-essential make` | `libc6` is declared installed with the repository's version (`2.36-9+deb12uN`), so `libc6-dev`'s exact dependency is satisfied; the glibc libraries are also linked in `/usr/lib/x86_64-linux-gnu` where its linker scripts look for them |
 | `dummy0` taken for a network card | `CONFIG_DUMMY` is forced off in the kernel; the installer and the init only keep interfaces that have a kernel device (`utils/network.rs`) |
+| `iptables ... TABLE_ADD failed (Operation not supported): table nat` (dockerd) | `NF_TABLES_IPV4` / `NF_TABLES_IPV6` (bool options without default) + `NFT_NAT`, `NFT_COMPAT`, `NF_NAT` are now required kernel options; legacy iptables options are enabled too (Linux 6.18 made them depend on `*_LEGACY`) |
+| `kite: CPU ISA level is lower than required` (and any x86-64-v2/v3 binary) | not a Senbit problem: QEMU's default CPU model (qemu64) is too old. `devtool run` now starts the VM with `-cpu host` (`CPU=` in `config/vm.config`) |
 | Docker (`docker.io`) | kernel options for overlayfs, bridge, veth, netfilter/nftables, cgroups (`devtool/src/build/kernel.rs`): the kernel is rebuilt when the list changes |
 | `dpkg: warning: files list file for package 'x' missing` | an empty `.list` file for every package Senbit provides; minimal `/etc/dpkg/dpkg.cfg`, `diversions`, `statoverride` |
 | `ldconfig.service` | systemd's own unit, made unconditional by a drop-in: the library cache is rebuilt at every boot |
