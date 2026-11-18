@@ -1,4 +1,4 @@
-//! `devtool run` — équivalent natif de run.sh (construit Senbit puis lance QEMU).
+// `devtool run` — construit Senbit puis lance QEMU.
 
 use std::fs;
 use std::io::{self, Write};
@@ -18,17 +18,71 @@ enum BootMode {
     Uefi,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DisplayMode {
+    Gtk,
+    Sdl,
+    None,
+    Default,
+}
+
+impl DisplayMode {
+    fn parse(value: &str) -> Result<Self> {
+        match value.to_lowercase().as_str() {
+            "gtk" => Ok(Self::Gtk),
+            "sdl" => Ok(Self::Sdl),
+            "none" => Ok(Self::None),
+            "default" => Ok(Self::Default),
+            other => bail!(
+                "unsupported DISPLAY value: {other}\n\n\
+                 Supported values:\n\
+                 \u{20} gtk     (GTK graphical window, default)\n\
+                 \u{20} sdl     (SDL graphical window)\n\
+                 \u{20} none    (no graphical output)\n\
+                 \u{20} default (let QEMU choose)"
+            ),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Gtk => "gtk",
+            Self::Sdl => "sdl",
+            Self::None => "none",
+            Self::Default => "default (QEMU automatic)",
+        }
+    }
+
+    fn apply(self, cmd: &mut std::process::Command) {
+        match self {
+            Self::Gtk => {
+                cmd.args(["-display", "gtk"]);
+            }
+            Self::Sdl => {
+                cmd.args(["-display", "sdl"]);
+            }
+            Self::None => {
+                cmd.args(["-display", "none"]);
+            }
+            Self::Default => {
+                // Ne pas passer -display : QEMU choisit son backend.
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct VmConfig {
     ram: String,
     cpus: String,
-    /// QEMU CPU model (`-cpu`). Default: host (see CPU in config/vm.config).
+    /// QEMU CPU model (`-cpu`). Default: host.
     cpu: String,
     disk: Option<String>,
     disk_size: String,
     disk_format: String,
     network: String,
     boot: BootMode,
+    display: DisplayMode,
 }
 
 impl VmConfig {
@@ -36,16 +90,13 @@ impl VmConfig {
         Self {
             ram: "512M".into(),
             cpus: "2".into(),
-            // QEMU's default model (qemu64) only has the x86-64 baseline: programs
-            // built for x86-64-v2/v3 (kite, many Rust/Go/LLVM binaries) stop with
-            // "CPU ISA level is lower than required". `host` gives the VM the
-            // instructions of the real CPU (KVM).
             cpu: "host".into(),
             disk: None,
             disk_size: "10G".into(),
             disk_format: "qcow2".into(),
             network: "user".into(),
             boot: BootMode::Bios,
+            display: DisplayMode::Gtk,
         }
     }
 }
@@ -76,15 +127,13 @@ fn load_config(path: &Path) -> Result<VmConfig> {
             "DISK_SIZE" => cfg.disk_size = value,
             "DISK_FORMAT" => cfg.disk_format = value,
             "NETWORK" => cfg.network = value,
+            "DISPLAY" => cfg.display = DisplayMode::parse(&value)?,
 
-            // Grub est déjà construit en image hybride BIOS + UEFI.
-            // Ce réglage choisit uniquement le firmware utilisé par QEMU.
+            // Choisit uniquement le firmware utilisé par QEMU.
             "BOOT" => {
                 cfg.boot = match value.to_lowercase().as_str() {
                     "uefi" | "efi" => BootMode::Uefi,
-
                     "bios" | "legacy" => BootMode::Bios,
-
                     other => bail!(
                         "unsupported BOOT value: {other}\n\n\
                          Supported values:\n\
@@ -126,13 +175,9 @@ pub fn run(
         println!();
 
         println!("This will delete the entire VM directory:");
-
         println!("  {}", vm_dir.display());
-
         println!();
-
         println!("All VM state stored there will be lost.");
-
         println!();
 
         print!("Continue? [y/N] ");
@@ -146,11 +191,9 @@ pub fn run(
                 println!();
 
                 ui::info("Removing existing VM state...");
-
                 let _ = fs::remove_dir_all(&vm_dir);
 
                 ui::info("Creating fresh VM directory...");
-
                 fs::create_dir_all(&vm_dir)?;
             }
 
@@ -166,14 +209,11 @@ pub fn run(
 
     let disk: PathBuf = match &cfg.disk {
         Some(d) if d.starts_with('/') => PathBuf::from(d),
-
         Some(d) => p.r(d),
-
         None => vm_dir.join("senbit.qcow2"),
     };
 
     let iso = p.iso_dist();
-
     let debug_log = vm_dir.join("qemu.log");
 
     ui::banner("Senbit Run");
@@ -193,11 +233,8 @@ pub fn run(
         println!();
 
         ui::info("Creating VM disk...");
-
         ui::detail(format!("Path:   {}", disk.display()));
-
         ui::detail(format!("Size:   {}", cfg.disk_size));
-
         ui::detail(format!("Format: {}", cfg.disk_format));
 
         crate::proc::run(host::command("qemu-img").args([
@@ -215,11 +252,9 @@ pub fn run(
         "user" => {
             network_args.extend(["-nic".into(), "user".into()]);
         }
-
         "none" => {
             network_args.extend(["-nic".into(), "none".into()]);
         }
-
         other => {
             bail!(
                 "unsupported NETWORK value: {other}\n\n\
@@ -230,9 +265,7 @@ pub fn run(
         }
     }
 
-    // Firmware UEFI : couple CODE/VARS COHÉRENT (voir ovmf.rs). Un couple
-    // incohérent ou une NVRAM obsolète empêche OVMF de démarrer sans aucune
-    // erreur : log série vide + « Guest has not initialized the display ».
+    // Firmware UEFI : couple CODE/VARS cohérent.
     let ovmf = if cfg.boot == BootMode::Uefi {
         Some(ovmf::find_firmware()?)
     } else {
@@ -245,8 +278,12 @@ pub fn run(
         let vars_path = vm_dir.join("OVMF_VARS.fd");
 
         match ovmf::prepare_nvram(&vars_path, &fw.vars_template)? {
-            Nvram::Created => nvram_note = Some("created from the firmware template".into()),
-            Nvram::Reused => nvram_note = Some("existing, compatible with the firmware".into()),
+            Nvram::Created => {
+                nvram_note = Some("created from the firmware template".into())
+            }
+            Nvram::Reused => {
+                nvram_note = Some("existing, compatible with the firmware".into())
+            }
             Nvram::Refreshed(reason) => {
                 ui::warn(format!(
                     "The VM's UEFI NVRAM was incompatible with the firmware and has been recreated:\n  {reason}\n  \
@@ -262,8 +299,7 @@ pub fn run(
         None
     };
 
-    // L'ISO doit porter une entrée de démarrage EFI, sinon OVMF ne peut pas la
-    // lancer (une ISO « amorçable » peut très bien n'être amorçable qu'en BIOS).
+    // Vérification de l'entrée de démarrage EFI de l'ISO.
     let iso_boot = if cfg.boot == BootMode::Uefi {
         match ovmf::inspect_iso(&iso) {
             Ok(b) => {
@@ -288,31 +324,24 @@ pub fn run(
 
     if debug {
         println!();
-
         ui::info("Debug mode enabled");
-
         ui::detail(format!("QEMU log: {}", debug_log.display()));
     }
 
     ui::banner("Starting Senbit VM");
-
     println!();
 
     println!("RAM:     {}", cfg.ram);
-
     println!("CPUs:    {} ({})", cfg.cpus, cfg.cpu);
-
     println!("Disk:    {}", disk.display());
-
     println!("ISO:     {}", iso.display());
-
     println!("Network: {}", cfg.network);
+    println!("Display: {}", cfg.display.as_str());
 
     println!(
         "Boot:    {}",
         match cfg.boot {
             BootMode::Bios => "bios (legacy)",
-
             BootMode::Uefi => "uefi",
         }
     );
@@ -326,18 +355,22 @@ pub fn run(
     }
 
     if debug {
-        print_uefi_diagnostics(ovmf.as_ref(), ovmf_vars.as_deref(), nvram_note.as_deref(), iso_boot.as_ref());
-    }
-
-    if debug {
+        print_uefi_diagnostics(
+            ovmf.as_ref(),
+            ovmf_vars.as_deref(),
+            nvram_note.as_deref(),
+            iso_boot.as_ref(),
+        );
         println!("Debug:   enabled");
-
         println!("Log:     {}", debug_log.display());
     }
 
     println!();
 
     let mut cmd = host::command("qemu-system-x86_64");
+
+    // Backend graphique sélectionné dans config/vm.config.
+    cfg.display.apply(&mut cmd);
 
     cmd.arg("-enable-kvm")
         .args(["-m", &cfg.ram])
@@ -368,21 +401,22 @@ pub fn run(
 
     if debug {
         fs::create_dir_all(&vm_dir)?;
-
         fs::write(&debug_log, b"")?;
 
         cmd.args(["-serial", &format!("file:{}", debug_log.display())]);
 
-        // Debug flag for the guest (read by senbit-init through
-        // /sys/firmware/qemu_fw_cfg): the whole boot is mirrored to the kernel
-        // log, hence to the serial console captured in the log above.
         cmd.args(["-fw_cfg", "name=opt/senbit/debug,string=1"]);
 
-        // Sorties de diagnostic de QEMU lui-même et du firmware OVMF (port
-        // 0x402), à côté du log série : utiles quand le log série est vide.
         let qemu_log = vm_dir.join("qemu-internal.log");
         let ovmf_log = vm_dir.join("ovmf-debugcon.log");
-        cmd.args(["-d", "guest_errors,unimp", "-D", &qemu_log.to_string_lossy()]);
+
+        cmd.args([
+            "-d",
+            "guest_errors,unimp",
+            "-D",
+            &qemu_log.to_string_lossy(),
+        ]);
+
         if ovmf.is_some() {
             cmd.args([
                 "-debugcon",
@@ -400,8 +434,13 @@ pub fn run(
                 .collect::<Vec<_>>()
                 .join(" ")
         );
+
         fs::write(vm_dir.join("qemu-cmdline.txt"), &cmdline)?;
-        ui::detail(format!("QEMU command: {}", vm_dir.join("qemu-cmdline.txt").display()));
+
+        ui::detail(format!(
+            "QEMU command: {}",
+            vm_dir.join("qemu-cmdline.txt").display()
+        ));
     }
 
     let status = cmd.status()?;
@@ -418,12 +457,13 @@ pub fn run(
 }
 
 /// Entoure d'apostrophes un argument s'il contient autre chose que des
-/// caractères « sûrs » (pour la ligne de commande écrite en mode debug).
+/// caractères sûrs.
 fn shell_quote(arg: &str) -> String {
     let safe = !arg.is_empty()
         && arg
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "-_./=:,+@%".contains(c));
+
     if safe {
         arg.to_string()
     } else {
@@ -438,8 +478,7 @@ fn file_size(path: &Path) -> String {
     }
 }
 
-/// Mode debug : ce qui permet de distinguer « le firmware ne démarre pas »
-/// de « GRUB / le noyau plantent » avant même de lancer QEMU.
+/// Diagnostics UEFI.
 fn print_uefi_diagnostics(
     fw: Option<&ovmf::Firmware>,
     nvram: Option<&Path>,
@@ -453,12 +492,17 @@ fn print_uefi_diagnostics(
         None => ui::detail("Boot mode is BIOS: no UEFI firmware involved"),
         Some(fw) => {
             ui::detail(format!("Firmware source: {}", fw.describe_source()));
-            ui::detail(format!("OVMF CODE:  {} ({})", fw.code.display(), file_size(&fw.code)));
+            ui::detail(format!(
+                "OVMF CODE:  {} ({})",
+                fw.code.display(),
+                file_size(&fw.code)
+            ));
             ui::detail(format!(
                 "OVMF VARS:  {} ({}) [template]",
                 fw.vars_template.display(),
                 file_size(&fw.vars_template)
             ));
+
             if let Some(vars) = nvram {
                 ui::detail(format!(
                     "NVRAM:      {} ({}) - {}",
@@ -485,15 +529,24 @@ fn print_uefi_diagnostics(
              add your user to the `kvm` group and log in again)"
         )),
     }
+
     println!();
 }
 
-/// Après QEMU, en mode debug : interprète les logs (surtout le cas « vide »).
+/// Résumé des logs après QEMU.
 fn print_debug_summary(vm_dir: &Path, serial_log: &Path, uefi: bool) {
     println!();
     ui::info("Debug summary");
-    let serial = fs::metadata(serial_log).map(|m| m.len()).unwrap_or(0);
-    ui::detail(format!("Serial log: {} ({serial} bytes)", serial_log.display()));
+
+    let serial = fs::metadata(serial_log)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    ui::detail(format!(
+        "Serial log: {} ({serial} bytes)",
+        serial_log.display()
+    ));
+
     if uefi {
         ui::detail(format!(
             "OVMF debug: {} ({})",
@@ -501,11 +554,13 @@ fn print_debug_summary(vm_dir: &Path, serial_log: &Path, uefi: bool) {
             file_size(&vm_dir.join("ovmf-debugcon.log"))
         ));
     }
+
     ui::detail(format!(
         "QEMU log:   {} ({})",
         vm_dir.join("qemu-internal.log").display(),
         file_size(&vm_dir.join("qemu-internal.log"))
     ));
+
     if serial == 0 && uefi {
         ui::warn(
             "The serial log is empty. If the QEMU window said \"Guest has not initialized the display (yet)\", \
