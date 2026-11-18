@@ -60,6 +60,18 @@ const REQUIRED_CONFIG: &[&str] = &[
     // Docker: without overlayfs dockerd falls back to devicemapper, which fails
     // ("devicemapper: Error running deviceCreate (CreatePool) dm_task_run failed").
     "OVERLAY_FS",
+    // Docker: iptables (nft backend of Debian) must be able to create the `nat` table.
+    // NF_TABLES_IPV4 / NF_TABLES_IPV6 are bool options WITHOUT default: without them
+    // dockerd stops with "iptables ... TABLE_ADD failed (Operation not supported):
+    // table nat" (kernel 6.18: net/ipv4/netfilter/Kconfig).
+    "NF_TABLES",
+    "NF_TABLES_IPV4",
+    "NF_TABLES_IPV6",
+    "NFT_NAT",
+    "NFT_COMPAT",
+    "NF_NAT",
+    "VETH",
+    "BRIDGE",
 ];
 
 /// Options utiles mais dont l'absence ne doit pas bloquer la compilation
@@ -100,8 +112,6 @@ const RECOMMENDED_CONFIG: &[&str] = &[
     "EXT4_FS",
     "EXT4_FS_POSIX_ACL",
     "EXT4_FS_SECURITY",
-    "TMPFS_POSIX_ACL",
-    "TMPFS_XATTR",
     "PSI",
     "MAGIC_SYSRQ",
     // Containers (Docker, Podman, LXC): see Docker's check-config.sh. Built in
@@ -117,8 +127,6 @@ const RECOMMENDED_CONFIG: &[&str] = &[
     "CFS_BANDWIDTH",
     "FAIR_GROUP_SCHED",
     "BLK_DEV_THROTTLING",
-    "VETH",
-    "BRIDGE",
     "BRIDGE_NETFILTER",
     "BRIDGE_VLAN_FILTERING",
     "MACVLAN",
@@ -133,10 +141,9 @@ const RECOMMENDED_CONFIG: &[&str] = &[
     "NETFILTER_ADVANCED",
     "NETFILTER_XTABLES",
     "NF_CONNTRACK",
-    "NF_NAT",
-    "NF_TABLES",
-    "NFT_COMPAT",
-    "NFT_NAT",
+    "NF_TABLES_INET",
+    "NF_TABLES_ARP",
+    "NF_TABLES_NETDEV",
     "NFT_MASQ",
     "NFT_CT",
     "NFT_CHAIN_NAT",
@@ -153,6 +160,11 @@ const RECOMMENDED_CONFIG: &[&str] = &[
     "NETFILTER_XT_TARGET_MASQUERADE",
     "NETFILTER_XT_TARGET_REDIRECT",
     "NETFILTER_XT_TARGET_CHECKSUM",
+    // Legacy iptables (iptables-legacy), a fallback if iptables-nft is not wanted: since
+    // Linux 6.18 IP_NF_FILTER / IP_NF_NAT depend on the *_LEGACY options.
+    "NETFILTER_XTABLES_LEGACY",
+    "IP_NF_IPTABLES_LEGACY",
+    "IP6_NF_IPTABLES_LEGACY",
     "IP_NF_IPTABLES",
     "IP_NF_FILTER",
     "IP_NF_MANGLE",

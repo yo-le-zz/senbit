@@ -22,6 +22,8 @@ enum BootMode {
 struct VmConfig {
     ram: String,
     cpus: String,
+    /// QEMU CPU model (`-cpu`). Default: host (see CPU in config/vm.config).
+    cpu: String,
     disk: Option<String>,
     disk_size: String,
     disk_format: String,
@@ -34,6 +36,11 @@ impl VmConfig {
         Self {
             ram: "512M".into(),
             cpus: "2".into(),
+            // QEMU's default model (qemu64) only has the x86-64 baseline: programs
+            // built for x86-64-v2/v3 (kite, many Rust/Go/LLVM binaries) stop with
+            // "CPU ISA level is lower than required". `host` gives the VM the
+            // instructions of the real CPU (KVM).
+            cpu: "host".into(),
             disk: None,
             disk_size: "10G".into(),
             disk_format: "qcow2".into(),
@@ -64,6 +71,7 @@ fn load_config(path: &Path) -> Result<VmConfig> {
         match key {
             "RAM" => cfg.ram = value,
             "CPUS" => cfg.cpus = value,
+            "CPU" => cfg.cpu = value,
             "DISK" => cfg.disk = Some(value),
             "DISK_SIZE" => cfg.disk_size = value,
             "DISK_FORMAT" => cfg.disk_format = value,
@@ -292,7 +300,7 @@ pub fn run(
 
     println!("RAM:     {}", cfg.ram);
 
-    println!("CPUs:    {}", cfg.cpus);
+    println!("CPUs:    {} ({})", cfg.cpus, cfg.cpu);
 
     println!("Disk:    {}", disk.display());
 
@@ -334,6 +342,7 @@ pub fn run(
     cmd.arg("-enable-kvm")
         .args(["-m", &cfg.ram])
         .args(["-smp", &cfg.cpus])
+        .args(["-cpu", &cfg.cpu])
         .args([
             "-drive",
             &format!("file={},format={}", disk.display(), cfg.disk_format),
