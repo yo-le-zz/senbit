@@ -11,6 +11,7 @@ a `Cargo.toml` is a command. Add one with `./newcmds.sh <name>`.
 | `getent` | `commands/getent` | `/bin` | - | getent: query passwd, group, shadow, hosts, services and protocols (Debian maintainer scripts call it) |
 | `halt` | `commands/halt` | `/sbin` | - | Halt the system |
 | `log` | `commands/log` | `/bin` | - | Inspect, filter, follow and rotate Senbit logs |
+| `panic` | `commands/panic` | `/sbin` | - | Make panic the kernel ! |
 | `poweroff` | `commands/poweroff` | `/sbin` | - | Power off the system |
 | `reboot` | `commands/reboot` | `/sbin` | - | Reboot the system |
 | `shutdown` | `commands/shutdown` | `/sbin` | - | Shut the system down |
