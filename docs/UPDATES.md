@@ -49,24 +49,30 @@ administrator changed (`Dpkg::Options { "--force-confold"; }` in `/etc/apt/apt.c
 2. `senbit-boot-ok.service` runs once `senbit-login.service` is up and removes `boot_tries`
    (`/usr/lib/senbit/boot-ok`).
 3. When the counter reaches **3** (the system did not come up three times in a row) and
-   `/boot/vmlinuz.old` exists, GRUB boots **"Senbit (previous version)"** by default.
+   `/boot/vmlinuz.old` exists, GRUB boots **"Senbit (previous version)"** by default and passes
+   `senbit.fallback=1` on the kernel command line.
+4. Once that boot works, `boot-ok` runs `rollback --commit`: the previous version becomes the
+   current one (see below), so the next boots stay on it instead of trying the faulty version again.
 
-The "previous version" entry is always in the menu, so it can also be chosen by hand.
+The "previous version" entry is always in the menu. Choosing it by hand does **not** commit anything.
 
-Limit: once the previous version has booted, `boot-ok` resets the counter, so the next boot tries the
-new version again. Hold the package (`sudo apt-mark hold senbit-kernel`) until a fixed version is
-published.
-
-## Manual rollback
+## The `rollback` command
 
 ```bash
-/usr/lib/senbit/rollback            # shows what would be done
-sudo /usr/lib/senbit/rollback --apply
+sudo rollback            # shows the state, then asks "Go back to the previous version? [y/N]"
+sudo rollback --yes      # without the question
+rollback --status        # only the state
 sudo reboot
 ```
 
-It puts back the `.old` boot files and reinstalls the previous `senbit-*` packages from apt's cache
-(or tells which `apt install name=version` to run).
+`rollback` swaps the boot files of the two versions: `/boot/vmlinuz` and `/boot/initramfs.cpio.gz`
+become the previous ones, and the version you leave is kept as `.old`. Running `rollback` again goes
+**forward** to it. After a rollback `senbit-kernel` is put on hold (`apt-mark hold`), so `apt upgrade`
+does not reinstall the faulty version; release it with `sudo apt-mark unhold senbit-kernel` once a
+fixed version is published (going forward with `rollback` releases it too).
+
+The packages are not downgraded: the old `.deb` files are usually not in the repository any more, and
+the boot files are what the rollback is about.
 
 ## Publishing: build the repository
 
@@ -162,11 +168,12 @@ Trusted: yes            # only when the repository is not signed
 2. In the VM: `sudo apt update && apt list --upgradable` (the two `senbit-*` packages), `sudo apt upgrade`.
 3. Check `/var/lib/senbit/snapshots/`, `/boot/vmlinuz.old`, `bootreport` (the notice must disappear), reboot.
 4. Rollback test: break `/boot/vmlinuz` of the new version, reboot three times, GRUB must select
-   the previous version.
+   the previous version; after it booted, `rollback --status` must say "rolled back" and the next
+   reboot must stay on the previous version. Then `sudo rollback` goes forward again.
 
 ## Checklist before a release
 
-- `grub-config`: `sh -n`, then read the generated `grub.cfg` (`ROOT=/tmp/x sh grub-config <uuid>`).
+- `grub-config`, `rollback`, `boot-ok`: `sh -n`, then read the generated `grub.cfg` (`ROOT=/tmp/x sh grub-config <uuid>`).
 - `dpkg-deb -I` and `dpkg-deb -c` on both `.deb` (on a Debian machine): control fields, conffiles, file modes.
 - `apt-ftparchive`-style check: `Packages` sizes and SHA-256 match the files.
 - `senbit-userspace` conffiles: only files meant to be edited by the administrator.

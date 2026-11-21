@@ -1,0 +1,119 @@
+#!/bin/sh
+# rollback - go back to the previous version of Senbit, and forward again.
+#
+#   sudo rollback          show the state, then ask before switching
+#   sudo rollback --yes    switch without asking
+#   rollback --status      only show the state
+#
+# The boot files of the two versions are swapped: /boot/vmlinuz and
+# /boot/initramfs.cpio.gz become the previous ones, and the version you leave is kept as
+# /boot/vmlinuz.old. Running `rollback` again goes forward to it.
+#
+# After a rollback, senbit-kernel is put on hold so that `apt upgrade` does not install the
+# faulty version again. Release it with `sudo apt-mark unhold senbit-kernel` once a fixed
+# version is published (or run `rollback` again to go forward, which releases it too).
+#
+# GRUB does it by itself after 3 failed boots (see /usr/lib/senbit/grub-config): the
+# previous version boots, then senbit-boot-ok.service calls `rollback --commit` so that the
+# choice is kept for the next boots.
+
+boot=/boot
+state_dir=/var/lib/senbit
+marker="$state_dir/rolled-back"
+
+usage() {
+    echo "usage: rollback [--status | --yes]"
+}
+
+mode=ask
+case "$1" in
+    "") ;;
+    --status) mode=status ;;
+    -y|--yes) mode=yes ;;
+    --commit) mode=commit ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 1 ;;
+esac
+
+if [ ! -f "$boot/vmlinuz.old" ] || [ ! -f "$boot/initramfs.cpio.gz.old" ]; then
+    echo "rollback: nothing to go back to (no previous version in $boot)." >&2
+    exit 1
+fi
+
+# Called by boot-ok after GRUB's automatic fallback: nothing to do when a rollback was
+# already made (the "previous" version is then the one that was left).
+if [ "$mode" = commit ] && [ -f "$marker" ]; then
+    exit 0
+fi
+
+if [ -f "$marker" ]; then
+    direction=forward
+    echo "State: rolled back on $(cat "$marker" 2>/dev/null) (senbit-kernel is on hold)."
+    echo "Running kernel: $(uname -r)"
+    echo "Going forward means: use the version you left."
+else
+    direction=back
+    echo "State: current version."
+    echo "Running kernel: $(uname -r)"
+    echo "Going back means: use the previous version."
+fi
+
+echo
+ls -l "$boot/vmlinuz" "$boot/vmlinuz.old" 2>/dev/null
+last="$(ls -1d "$state_dir"/snapshots/*/ 2>/dev/null | sort | tail -n 1)"
+[ -n "$last" ] && echo "Last snapshot: $last"
+
+[ "$mode" = status ] && exit 0
+
+if [ "$(id -u)" != 0 ]; then
+    echo >&2
+    echo "rollback: root is required, run: sudo rollback" >&2
+    exit 1
+fi
+
+if [ "$mode" = ask ]; then
+    echo
+    if [ ! -t 0 ]; then
+        echo "rollback: not a terminal, use: sudo rollback --yes" >&2
+        exit 1
+    fi
+    if [ "$direction" = back ]; then
+        printf 'Go back to the previous version? [y/N] '
+    else
+        printf 'Go forward to the version you left? [y/N] '
+    fi
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES|o|O|oui) ;;
+        *) echo "Nothing changed."; exit 0 ;;
+    esac
+fi
+
+swap() {
+    tmp="$1.swap.$$"
+    mv "$1" "$tmp" && mv "$1.old" "$1" && mv "$tmp" "$1.old"
+}
+
+swap "$boot/vmlinuz" || { echo "rollback: swap of the kernel failed." >&2; exit 1; }
+swap "$boot/initramfs.cpio.gz" || { echo "rollback: swap of the initramfs failed." >&2; exit 1; }
+sync
+
+# A new start for GRUB's attempt counter.
+if command -v grub-editenv >/dev/null 2>&1 && [ -f "$boot/grub/grubenv" ]; then
+    grub-editenv "$boot/grub/grubenv" unset boot_tries
+fi
+
+if [ "$direction" = back ]; then
+    mkdir -p "$state_dir"
+    date '+%Y-%m-%d %H:%M' > "$marker"
+    apt-mark hold senbit-kernel >/dev/null 2>&1
+    echo
+    echo "Done: the previous version will be used at the next boot."
+    echo "senbit-kernel is on hold. Release it later with: sudo apt-mark unhold senbit-kernel"
+else
+    rm -f "$marker"
+    apt-mark unhold senbit-kernel >/dev/null 2>&1
+    echo
+    echo "Done: the version you left will be used at the next boot (hold released)."
+fi
+echo "Reboot to apply: sudo reboot"

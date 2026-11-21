@@ -116,7 +116,7 @@ exit 0
 const KERNEL_POSTINST: &str = r#"#!/bin/sh
 set -e
 if [ "$1" = configure ] && [ -x /usr/lib/senbit/grub-config ]; then
-    if ! grep -q "senbit-boot-counter" /boot/grub/grub.cfg 2>/dev/null; then
+    if ! grep -q "senbit-boot-counter v2" /boot/grub/grub.cfg 2>/dev/null; then
         uuid="$(sed -n 's|^UUID=\([^ ]*\) / .*|\1|p' /etc/fstab | head -n 1)"
         if [ -n "$uuid" ]; then
             /usr/lib/senbit/grub-config "$uuid" || true
@@ -300,7 +300,7 @@ fn stage_userspace(p: &Paths, stage: &Path) -> Result<()> {
         "usr/lib/senbit/boot-ok",
         "usr/lib/senbit/update-check",
         "usr/lib/senbit/update-snapshot",
-        "usr/lib/senbit/rollback",
+        "usr/sbin/rollback",
     ] {
         let path = stage.join(script);
         if path.is_file() {

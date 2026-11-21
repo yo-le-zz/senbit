@@ -113,10 +113,10 @@ directory = "tools"
 # Canal de mise à jour du système (docs/UPDATES.md) : un depot APT qui contient les
 # composants de Senbit. `devtool build package` le genere dans build/repo.
 # repository : URL ou il est publie ("" = pas de canal de mise a jour dans l'image).
-repository = "https://yo-le-zz.github.io/senbit"
+repository = ""
 suite = "stable"
 component = "main"
 # gpg_key : identifiant de la cle qui signe le depot ("" = non signe, tests locaux).
-gpg_key = "4C023C45E5A9A70B"
+gpg_key = ""
 # Cle publique installee dans l'image (export : gpg --export <cle> > ce fichier).
 keyring = "config/update/senbit-archive-keyring.gpg"

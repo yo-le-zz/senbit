@@ -42,7 +42,7 @@ debug/
 
 # Zed
 # Uncomment if project-specific Zed files should stay local
-.zed/
+# .zed/
 
 
 # --------------------------------------------------

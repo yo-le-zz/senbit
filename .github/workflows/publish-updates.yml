@@ -95,6 +95,28 @@ jobs:
       - name: Build the update packages
         run: ./scripts/devtool build package
 
+      # The root of the site would be a 404 page: add a small landing page.
+      - name: Add a landing page
+        run: |
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          name="${GITHUB_REPOSITORY#*/}"
+          url="https://${owner}.github.io/${name}"
+          cat > build/repo/index.html <<HTML
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Senbit update repository</title>
+          <h1>Senbit update repository</h1>
+          <p>This is an APT repository, not a web site. Use it from Senbit with:</p>
+          <pre>
+          Types: deb
+          URIs: ${url}
+          Suites: stable
+          Components: main
+          Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg
+          </pre>
+          <p><a href="dists/stable/Release">dists/stable/Release</a></p>
+          HTML
+
       - name: Upload the repository
         uses: actions/upload-pages-artifact@v3
         with:

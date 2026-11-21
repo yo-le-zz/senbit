@@ -4,6 +4,12 @@
 # counter would reach 3 and GRUB would boot the previous version.
 env_file=/boot/grub/grubenv
 
+# GRUB went back to the previous version by itself (3 failed boots): keep that choice,
+# otherwise the next boot would try the faulty version again.
+if grep -q 'senbit\.fallback=1' /proc/cmdline 2>/dev/null && [ -x /usr/sbin/rollback ]; then
+    /usr/sbin/rollback --commit >/dev/null 2>&1 || true
+fi
+
 [ -f "$env_file" ] || exit 0
 
 if command -v grub-editenv >/dev/null 2>&1; then
