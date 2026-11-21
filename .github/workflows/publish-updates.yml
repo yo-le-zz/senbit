@@ -1,0 +1,101 @@
+name: Publish updates
+
+# Builds Senbit, makes the update packages (senbit-kernel, senbit-userspace) and
+# publishes the APT repository (build/repo) on GitHub Pages of THIS repository:
+#   https://<owner>.github.io/<repository>
+# See docs/UPDATES.md. Runs when a version tag is pushed (git tag v0.4.1) or by hand.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish the repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libelf-dev libssl-dev libncurses-dev dwarves cpio \
+            gzip xz-utils bzip2 git wget curl rsync file xorriso grub-pc-bin grub-efi-amd64-bin \
+            grub-common mtools qemu-system-x86 qemu-utils musl-tools libreadline-dev uuid-dev \
+            libpam0g-dev gettext gperf texinfo gnupg binutils
+
+      # GPG key that signs the repository: secret GPG_PRIVATE_KEY (output of
+      # `gpg --armor --export-secret-keys <key>`), without passphrase.
+      - name: Import the signing key
+        id: gpg
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::warning::Secret GPG_PRIVATE_KEY is missing: the repository will NOT be signed."
+            echo "key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          mkdir -p config/update
+          gpg --export "$key" > config/update/senbit-archive-keyring.gpg
+
+      # The repository URL and the key are written into config.toml for this build only.
+      - name: Configure the update channel
+        run: |
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          name="${GITHUB_REPOSITORY#*/}"
+          url="https://${owner}.github.io/${name}"
+          sed -i "s|^repository = \"\"\$|repository = \"${url}\"|" config.toml
+          sed -i "s|^gpg_key = \"\"\$|gpg_key = \"${{ steps.gpg.outputs.key }}\"|" config.toml
+          grep -n -A12 '^\[update\]' config.toml
+
+      - name: Build devtool
+        run: |
+          cargo build --release --manifest-path devtool/Cargo.toml
+          install -m 755 devtool/target/release/devtool scripts/devtool
+
+      - name: Fetch pinned kernel
+        run: ./scripts/devtool get linux
+
+      - name: Build Senbit
+        run: ./scripts/devtool build
+
+      - name: Build the update packages
+        run: ./scripts/devtool build package
+
+      - name: Upload the repository
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/repo
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
