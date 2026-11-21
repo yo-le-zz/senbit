@@ -21,13 +21,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build and publish the repository
+  build:
+    name: Build the repository
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -103,6 +100,16 @@ jobs:
         with:
           path: build/repo
 
+  # Separate job (official pattern): the Pages artifact must be finished and visible
+  # before deploy-pages looks for it, otherwise "Found 0 artifact(s)".
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -102,6 +102,28 @@ keyring    = "config/update/senbit-archive-keyring.gpg"
 * Public key shipped in the image: `gpg --export <key> > config/update/senbit-archive-keyring.gpg`,
   then rebuild the image. When `repository` is set, the image gets `senbit-core.sources` pointing to it.
 
+## Publishing with GitHub Actions (GitHub Pages)
+
+`.github/workflows/publish-updates.yml` builds Senbit, makes the packages and publishes `build/repo/`
+on the GitHub Pages of the repository: `https://<owner>.github.io/<repository>`. No server of your own.
+
+One-time setup:
+
+1. Settings → Pages → Source: **GitHub Actions**.
+2. Create a signing key without passphrase and put it in the secret `GPG_PRIVATE_KEY`
+   (Settings → Secrets and variables → Actions):
+   `gpg --armor --export-secret-keys <key>`. Without it the repository is published **unsigned**
+   and apt will refuse it unless the source is marked `Trusted: yes`.
+3. Raise the version in `Cargo.toml`, commit, then `git tag v0.4.1 && git push --tags`
+   (or run the workflow by hand from the Actions tab).
+
+The workflow writes the repository URL, the key id and the public key into `config.toml` for its own build
+only; the images you build locally keep `[update] repository = ""` unless you set it yourself. To get an
+image that already points to the repository, set `repository` to the same URL in your `config.toml` and
+put the public key in `config/update/senbit-archive-keyring.gpg`.
+
+Not tested yet. The first run takes a long time (it compiles the kernel).
+
 ## Offline updates
 
 ```bash
