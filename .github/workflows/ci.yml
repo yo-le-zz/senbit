@@ -79,7 +79,22 @@ jobs:
             libpam0g-dev \
             gettext \
             gperf \
-            texinfo
+            texinfo \
+            autoconf \
+            automake \
+            libtool \
+            autopoint \
+            pkg-config \
+            meson \
+            ninja-build \
+            python3 \
+            python3-jinja2 \
+            python3-pyelftools \
+            libblkid-dev \
+            libcap-dev \
+            libmount-dev \
+            libcrypt-dev \
+            e2fsprogs
 
       - name: Check Rust
         run: cargo check --target x86_64-unknown-linux-musl
@@ -156,7 +171,22 @@ jobs:
             libpam0g-dev \
             gettext \
             gperf \
-            texinfo
+            texinfo \
+            autoconf \
+            automake \
+            libtool \
+            autopoint \
+            pkg-config \
+            meson \
+            ninja-build \
+            python3 \
+            python3-jinja2 \
+            python3-pyelftools \
+            libblkid-dev \
+            libcap-dev \
+            libmount-dev \
+            libcrypt-dev \
+            e2fsprogs
 
       # scripts/build.sh no longer exists: devtool replaces it.
       # Build devtool from source and place it in scripts/, where it

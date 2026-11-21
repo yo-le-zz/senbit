@@ -1,0 +1,10 @@
+[package]
+name = "panic"
+version = "0.1.0"
+edition = "2024"
+description = "Make panic the kernel !"
+
+[package.metadata.senbit]
+install = "sbin"
+
+[dependencies]
