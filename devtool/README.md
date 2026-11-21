@@ -1,213 +1,105 @@
 # devtool
 
-`devtool` is the Rust replacement for `scripts/build.sh`, `scripts/run.sh`,
-`scripts/install.sh`, `scripts/getlinux.sh` and `scripts/getutil.sh`.
+`devtool` is the single build tool of Senbit (Rust): it checks the machine, downloads the **pinned**
+sources, builds everything and boots it in QEMU. It works on Fedora, Ubuntu/Debian and Arch, and every
+path is relative to the project root.
 
-It follows exactly the same logic as these scripts (same paths, same
-messages, same behavior), with the following additions:
+[🇫🇷 Version française](README.fr.md)
 
-* **Colors**: green `==>` for steps, yellow for "already up to date /
-  skipped", red for errors.
-* **Progress bar / spinner** during long compilations
-  (kernel, BusyBox, util-linux, Parted, Rust userspace, tools, ISO), with
-  the underlying command's output kept quiet on success and printed in
-  full only if it fails — no more walls of `make`/`cargo`/`grub-mkrescue`
-  output scrolling past on every successful build.
-* **Smart rebuild**: the kernel, BusyBox, util-linux, Parted and Rust
-  userspace are only rebuilt if something has changed
-  (new commit fetched, patch applied, local modification, or missing output
-  binary). State is stored in `build/.state/cache.json` — delete this file,
-  or pass `--force`, to force a complete rebuild.
-* **BusyBox config change detection**: editing `config/busybox.config` by
-  hand is picked up automatically — `build/busybox/.config` and
-  `build/busybox/_install` are reset so the new config actually takes
-  effect, instead of silently keeping the old one.
-* **`--jobs`/`-j`**: override the number of parallel make/cargo jobs
-  (defaults to the detected CPU count, like the old scripts' `nproc`).
-* **`--force`**: clears the rebuild cache before building, so everything
-  gets recompiled even if nothing looks changed.
-* **`build fast` / `run --fast`**: only rebuild the Rust userspace, the
-  tools and the rootfs/ISO — skips the kernel/BusyBox/util-linux/Parted
-  steps entirely (no version check, no recompilation). Meant for fast
-  iteration on `senbit` (the init binary, formerly `senbit-init`) or the
-  tools, without waiting on the rest.
-* **UEFI support**: `config/vm.config` accepts a `BOOT` key (`bios`,
-  default, or `uefi`) that makes `devtool run` boot the VM with an OVMF
-  firmware instead of legacy BIOS. The ISO itself is already a hybrid
-  BIOS+UEFI GRUB image as long as `grub-efi-amd64-bin` is installed
-  alongside `grub-pc-bin` (see `devtool install`).
+## Features
 
-## Building devtool
+* **Colors and progress**: green `==>` for steps, yellow for "up to date / skipped", red for errors.
+  Long builds show a spinner and, under it, one live line: the percentage when the tool prints one
+  (`[12/345]`, `[ 45%]`), otherwise the number of lines, the elapsed time and the last line.
+  The full output of a failed step is saved in `build/logs/` and printed.
+* **Smart rebuild**: kernel, BusyBox, util-linux, Parted, systemd and the Rust userspace are rebuilt
+  only when something changed (new commit, patch, local change, missing output). The state is in
+  `build/.state/cache.json`; delete it or pass `--force` to rebuild everything.
+* **Missing or empty sources are fetched by themselves**: a fresh `git clone` of Senbit leaves the
+  source folders (`external/linux`, ...) empty. `devtool build` downloads what is missing (at the pinned
+  version) before compiling; `autogen.sh` is run for util-linux when `configure` is missing or outdated.
+* **Pinned versions**: `config/<component>/version` (+ `sha`/`sha256`). Nothing follows "latest".
+  Patches are in `patches/<component>/` (see `patches/README.md`).
+* **BusyBox config detection**: editing `config/busybox.config` is picked up automatically.
+* **`--jobs`/`-j`** sets the number of parallel jobs (default: CPU count); **`--force`** clears the cache.
+* **UEFI**: `BOOT=uefi` in `config/vm.config` boots QEMU with OVMF; the ISO is a hybrid BIOS+UEFI image.
 
-Prerequisite: Rust (`rustc`/`cargo`), installable via `apt install rustc
-cargo` or [rustup](https://rustup.rs).
+## Build devtool
 
-```
-cd devtool
-cargo build --release
+```bash
+./scripts/devtool.sh            # compiles devtool and installs it as scripts/devtool
+./scripts/devtool.sh --force    # rebuilds even if it looks up to date
 ```
 
-The binary is produced in `devtool/target/release/devtool`.
+Rust (`rustc`/`cargo`, or [rustup](https://rustup.rs)) is the only prerequisite. The project root is
+found automatically (`--root PATH`, `$SENBIT_ROOT`, or by walking up from the executable and from the
+current directory).
 
-### Installation in the Senbit project
+## Commands
 
-Place the compiled binary in `scripts/`, replacing the old `.sh` files:
-
-```
-cp devtool/target/release/devtool /path/to/Senbit/scripts/devtool
-cd /path/to/Senbit
-./scripts/devtool build
-```
-
-`devtool` automatically detects the project root (`ROOT_DIR`) from the
-location of the executable, exactly as
-`$(dirname "${BASH_SOURCE[0]}")/..` did in the bash scripts — provided
-that it is located in a `scripts/` directory. Otherwise:
-
-* `devtool --root /path/to/Senbit <command>`
-* or the `SENBIT_ROOT=/path/to/Senbit` environment variable
-
-## Usage
-
-### `devtool build [target] [-j/--jobs N] [--force]`
-
-Equivalent to `scripts/build.sh [target]`. Available targets:
-`all` (default), `fast`, `kernel`, `busybox`, `util-linux`, `parted`,
-`rust`, `commands`, `tools`, `rootfs`, `iso`.
-
-```
-devtool build                # build everything (identical to ./scripts/build.sh)
-devtool build kernel          # a single step
-devtool build rootfs
-devtool build --jobs 4        # cap parallelism instead of using every CPU
-devtool build --force         # ignore the cache, recompile everything
-devtool build fast            # rust + commands + tools + rootfs + iso only
-devtool commands              # list the native commands (commands index: regenerate commands/INDEX.md)
+```text
+devtool doctor                 check this machine, print the exact install command
+devtool install                install the missing packages (apt / dnf / pacman); not as root
+devtool get [component]        download the pinned sources: all (default), linux, busybox,
+                               util-linux, parted, systemd
+devtool build [target]         build (see below)
+devtool commands [list|index]  list the native commands / regenerate commands/INDEX.md
+devtool run                    build, then boot in QEMU
 ```
 
-`all` builds in this order: kernel → BusyBox → util-linux → Parted →
-Rust userspace → native commands (`commands/`, one crate per command, detected automatically: `./newcmds.sh <name>`) → tools (`tools/`, including keymap generation) →
-rootfs/initramfs → ISO. `tools` and `rootfs` are linked: rootfs needs the
-`.bmap` files generated by the tools under
-`build/tools/generated/keymaps/`.
+### `devtool build [target] [-j N] [--force]`
 
-`fast` is a devtool-only addition: it skips the kernel/BusyBox/util-linux/
-Parted steps completely (no version check, no `make`), and only rebuilds
-`senbit` (the Rust init binary), the tools, and the rootfs/ISO that embed
-them. Useful when only userspace or a tool changed.
+Targets: `all` (default), `fast`, `kernel`, `busybox`, `util-linux`, `parted`, `systemd`, `apt`, `rust`,
+`commands`, `tools`, `rootfs`, `iso`, `package`.
 
-Notable difference from the old `getbusy.sh`: the latter was actually an
-old copy of `build.sh` (not a fetch script) — it has no dedicated
-subcommand, `devtool build` does everything it did, in addition to being
-more complete and up to date.
+`all` builds, in this order: kernel → BusyBox → util-linux → Parted → systemd → apt/dpkg → Rust userspace
+→ native commands (`commands/`, one crate per command, detected automatically: `./newcmds.sh <name>`)
+→ tools (`tools/`, keymaps and fonts) → rootfs/initramfs → ISO.
 
-### `devtool get <linux|busybox|util-linux>`
+* `fast`: only Rust userspace, commands, tools, rootfs and ISO (no kernel, BusyBox, util-linux,
+  Parted, systemd). For quick iterations.
+* `package`: the update packages `senbit-kernel` and `senbit-userspace` and their APT repository in
+  `build/repo/` (needs a previous `devtool build`; not part of `all`). See [docs/UPDATES.md](../docs/UPDATES.md).
+* `apt`: apt + dpkg from the remote Debian repository (see [docs/BUILD.md](../docs/BUILD.md)).
 
-Fetches or updates the sources of a component, independently of compilation.
+### `devtool run [--new] [--debug] [--fast] [--force] [-j N]`
 
-```
-devtool get linux         # equivalent to scripts/getlinux.sh
-                            # (clones/checks out config/kernel/version)
-devtool get util-linux     # equivalent to scripts/getutil.sh
-                            # (clones/checks out config/util-linux/version,
-                            #  independent of the submodule used by `devtool build util-linux`)
-devtool get busybox        # no old dedicated script: follows the logic of
-                            # updating to the latest version used by
-                            # `devtool build busybox`, without starting the compilation
-```
+Builds (target `all`, or `fast` with `--fast`), then boots Senbit in QEMU. `config/vm.config` (`KEY=value`):
 
-Kernel note: `devtool build kernel` does **not** automatically fetch the
-latest version — it simply compiles whatever is already cloned. Only
-`devtool get linux` handles version pinning (`config/kernel/version`).
-BusyBox remains different: `devtool build busybox` always fetches the
-latest available version before compiling.
-
-### `devtool install`
-
-Installs the required system packages (apt, dnf or pacman, detected from /etc/os-release)
-(`apt-get`) and then fetches the pinned kernel. Must not be run as root.
-The package list now includes `grub-efi-amd64-bin` and `ovmf` (for UEFI
-support) and uses the current `uuid-dev` package name (the old
-`libuuid-dev` no longer exists on recent Debian/Ubuntu).
-
-```
-devtool install
-```
-
-### `devtool run [--new] [--debug] [--fast] [--force] [-j/--jobs N]`
-
-Equivalent to `scripts/run.sh`: builds Senbit (`devtool build`, target
-`all` unless `--fast` is given) and then launches it in QEMU. Reads
-`config/vm.config` (format `KEY=value`):
-
-```
+```text
 RAM=512M
 CPUS=2
 DISK=build/vm/senbit.qcow2
 DISK_SIZE=10G
-CPU=host            # QEMU CPU model: "host" (default) exposes the real CPU instructions to the VM
+CPU=host            # QEMU CPU model: "host" exposes the real CPU instructions (needed by some binaries)
 DISK_FORMAT=qcow2
 NETWORK=user
-BOOT=bios
+BOOT=bios           # bios or uefi
 ```
 
-```
-devtool run                # build + launch the existing VM
-devtool run --new           # remove the VM state and recreate the disk
-devtool run --debug         # serial log (build/vm/qemu.log) + UEFI diagnostics, OVMF/QEMU logs, qemu-cmdline.txt
-devtool run --fast           # rebuild only userspace/tools/rootfs/iso, then launch
-```
+* `--new`: delete the VM state and recreate the disk (test the installer from scratch).
+* `--debug`: serial log in `build/vm/qemu.log`, UEFI diagnostics, OVMF/QEMU logs, `qemu-cmdline.txt`.
+* `--fast`: rebuild only userspace/commands/tools/rootfs/ISO.
 
-`BOOT=uefi` boots the VM through an OVMF firmware instead of legacy BIOS. The
-CODE/VARS pair is chosen as a coherent set (QEMU firmware descriptors in
-`/usr/share/qemu/firmware`, else both files from the same directory such as
-`/usr/share/OVMF`), and the VM's UEFI NVRAM (`build/vm/OVMF_VARS.fd`) is
-checked against the firmware template at every run (recreated if it does not
-match; the old one is kept as `OVMF_VARS.fd.stale`). The ISO
-doesn't need rebuilding to switch between the two — it's already a hybrid
-image, this setting only changes how QEMU boots it.
+With `BOOT=uefi` the OVMF CODE/VARS pair is chosen as a coherent set and the NVRAM
+(`build/vm/OVMF_VARS.fd`) is checked at every run (recreated if incompatible; the old one is kept as
+`OVMF_VARS.fd.stale`).
 
 ## Troubleshooting
 
-* **A "compile" step runs even though nothing has changed**: delete
-  `build/.state/cache.json` (or pass `--force`) to start from a clean
-  cache, or check that there are no uncommitted local modifications in the
-  relevant sources (`git status` in `kernel/linux`, `third_party/busybox`,
-  etc.).
-* **I edited `config/busybox.config` and nothing changed**: this is now
-  handled automatically — devtool detects the change and resets
-  `build/busybox/.config` and `build/busybox/_install` before rebuilding.
-* **`util-linux`/`parted` refuse to compile**: these are Git submodules —
-  `devtool build` expects them to already be on the correct tag
-  (`git submodule update --init --recursive`, then
-  `git checkout vX.Y.Z` if needed). `devtool get util-linux` provides an
-  independent direct clone if you do not want to use a submodule.
-* **`rootfs` fails on keymaps**: run `devtool build tools` (or
-  `devtool build all`) before `devtool build rootfs` — the `.bmap` files
-  must exist in `build/tools/generated/keymaps/`.
-* **`BOOT=uefi` fails with "no OVMF firmware found"**: `sudo apt-get
-  install ovmf` (already part of `devtool install`).
-* **The QEMU window says "Guest has not initialized the display (yet)" and
-  `build/vm/qemu.log` is empty**: the UEFI firmware itself did not start, so
-  GRUB and the kernel were never reached (the serial/console settings are
-  not involved). Run `devtool run --debug`: it prints the firmware pair, the
-  NVRAM state and whether the ISO has an EFI boot entry. `devtool run` now
-  repairs an incompatible NVRAM by itself; `devtool run --new` also resets it.
-  If the window shows a UEFI shell or boot menu instead, the ISO has no EFI
-  entry (install `grub-efi-amd64-bin` and `mtools`, then rebuild the ISO).
-* **A step fails and I need the full compiler/tool output**: it's printed
-  in full automatically on failure (only successful steps stay quiet).
-
-[🇫🇷 Version française](README.fr.md)
-
----
-
-## What changed in 2.0
-
-* `devtool doctor` / `devtool install`: Fedora, Ubuntu/Debian and Arch (package names per distribution).
-* No hard-coded `/usr/bin/...`: tools are looked up in `PATH` (+ `/usr/sbin`, `/sbin`), the ELF interpreter is read natively (no `file`).
-* The project root is found automatically (`--root`, `$SENBIT_ROOT`, or by walking up from the executable / current directory).
-* `devtool get [all|linux|busybox|util-linux|parted|systemd]` downloads the PINNED versions and verifies commit / sha256. BusyBox no longer follows "latest".
-* Patches live in `patches/<component>/` (see `patches/README.md`).
-* `devtool build apt`: apt + dpkg from the remote Debian repository (see `docs/BUILD.md`).
-* `scripts/devtool.sh` compiles devtool and installs it as `scripts/devtool`.
+* **A step recompiles although nothing changed**: delete `build/.state/cache.json` or pass `--force`; check
+  for uncommitted local changes in the sources.
+* **`util-linux` / `parted` / `systemd` / kernel sources are empty or missing**: run `devtool get`
+  (`devtool build` also does it by itself). The source folders must not be committed as nested git
+  repositories: if `git submodule` complains about `external/systemd`, run
+  `./scripts/git-unify.sh` (or by hand: `git rm --cached external/systemd kernel/linux third_party/busybox third_party/util-linux third_party/parted`).
+* **`rootfs` fails on keymaps**: run `devtool build tools` first.
+* **`BOOT=uefi`: "no OVMF firmware found"**: install `ovmf` (part of `devtool install`).
+* **QEMU says "Guest has not initialized the display (yet)" and `qemu.log` is empty**: the UEFI firmware
+  did not start. Run `devtool run --debug` (firmware pair, NVRAM state, EFI entry of the ISO);
+  `devtool run --new` also resets the NVRAM. If a UEFI shell appears, install `grub-efi-amd64-bin` and
+  `mtools` and rebuild the ISO.
+* **A program says "CPU ISA level is lower than required"**: keep `CPU=host` in `config/vm.config`.
+* **Docker fails on `iptables` / nftables**: the kernel must have been rebuilt with nftables IPv4/IPv6
+  (`devtool build kernel`).
+* **I need the whole output of a failed step**: `build/logs/`.

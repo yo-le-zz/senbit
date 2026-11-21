@@ -1,10 +1,19 @@
 //! Affichage : bannières, couleurs, spinner, chronométrage des étapes.
 
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use anyhow::Result;
 use colored::Colorize;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
+/// All the bars share one MultiProgress: the spinner of a step and the progress
+/// line that `proc::run_quiet` draws under it do not overwrite each other.
+static MULTI: OnceLock<MultiProgress> = OnceLock::new();
+
+pub fn multi() -> &'static MultiProgress {
+    MULTI.get_or_init(MultiProgress::new)
+}
 
 pub fn banner(title: &str) {
     let line = "=".repeat(40);
@@ -50,8 +59,16 @@ pub fn format_time(secs: u64) -> String {
     format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
+/// Dimmed line shown under the spinner while a long command runs
+/// (percentage, last line of its output, elapsed time).
+pub fn progress_line() -> ProgressBar {
+    let pb = multi().add(ProgressBar::new_spinner());
+    pb.set_style(ProgressStyle::with_template("    {msg}").unwrap());
+    pb
+}
+
 pub fn spinner(msg: &str) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
+    let pb = multi().add(ProgressBar::new_spinner());
     pb.set_style(
         ProgressStyle::with_template("{spinner:.cyan} {msg}")
             .unwrap()

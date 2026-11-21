@@ -55,8 +55,14 @@ pub fn ensure_git(
     ui::info(format!("{name} {tag}"));
 
     if !gitutil::is_repo(dir) {
-        if dir.exists() {
-            bail!("{} exists but is not a Git repository.", dir.display());
+        // An EMPTY directory is the placeholder that `git clone` of Senbit leaves
+        // (the folder is there, its content is not): clone into it. A directory
+        // with something else in it is never touched.
+        if dir.exists() && !gitutil::is_empty_dir(dir) {
+            bail!(
+                "{} exists, is not empty and is not a Git repository.\n\nMove it away (or delete it) and run `devtool get` again.",
+                dir.display()
+            );
         }
         let mut last = None;
         for repo in repos.iter().filter(|r| !r.is_empty()) {
@@ -248,6 +254,29 @@ fn get_parted(p: &Paths) -> Result<()> {
     std::fs::write(&marker, format!("{version}\n"))?;
     ui::ok(format!("Parted {version} extracted to {}", dir.display()));
     Ok(())
+}
+
+/// Downloads a component only when its sources are missing (absent or empty
+/// folder). `devtool build` calls it before each compilation, so a fresh
+/// `git clone` builds without a separate `devtool get`.
+pub fn ensure(p: &Paths, component: Component) -> Result<()> {
+    let (name, missing) = match component {
+        Component::Linux => ("Linux", !gitutil::is_repo(&p.kernel_dir())),
+        Component::Busybox => ("BusyBox", !gitutil::is_repo(&p.busybox_dir())),
+        Component::UtilLinux => ("util-linux", !gitutil::is_repo(&p.util_linux_dir())),
+        Component::Parted => ("GNU Parted", !p.parted_dir().join("configure").is_file()),
+        Component::Systemd => ("systemd", !gitutil::is_repo(&p.systemd_dir())),
+        Component::All => return run_get(p, component),
+    };
+
+    if missing {
+        ui::warn(format!(
+            "{name} sources are missing or empty: downloading them (devtool get)."
+        ));
+        run_get(p, component)
+    } else {
+        Ok(())
+    }
 }
 
 pub fn run_get(p: &Paths, component: Component) -> Result<()> {

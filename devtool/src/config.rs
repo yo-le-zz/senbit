@@ -20,6 +20,7 @@ pub struct Config {
     pub apt: Apt,
     pub rust: Rust,
     pub commands: Commands,
+    pub update: Update,
 }
 
 fn s(value: &str) -> String {
@@ -196,6 +197,34 @@ impl Default for Commands {
     }
 }
 
+/// Canal de mise à jour du système : un dépôt APT contenant les composants de
+/// Senbit (`senbit-kernel`, `senbit-userspace`). Voir docs/UPDATES.md.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
+pub struct Update {
+    /// URL du dépôt publié (vide : aucun canal de mise à jour dans l'image).
+    pub repository: String,
+    pub suite: String,
+    pub component: String,
+    /// Identifiant de la clé GPG qui signe le dépôt (`devtool build package`).
+    /// Vide : dépôt non signé (tests locaux seulement).
+    pub gpg_key: String,
+    /// Clé publique installée dans l'image (/usr/share/keyrings/senbit-archive-keyring.gpg).
+    pub keyring: String,
+}
+
+impl Default for Update {
+    fn default() -> Self {
+        Self {
+            repository: String::new(),
+            suite: s("stable"),
+            component: s("main"),
+            gpg_key: String::new(),
+            keyring: s("config/update/senbit-archive-keyring.gpg"),
+        }
+    }
+}
+
 impl Config {
     /// Lit `<root>/config.toml` ; un fichier absent donne les valeurs par
     /// défaut, un fichier invalide est une erreur claire.
@@ -228,6 +257,8 @@ mod tests {
         let cfg: Config = toml::from_str(text).expect("config.toml must parse");
         assert_eq!(cfg.apt.suite, "bookworm");
         assert_eq!(cfg.commands.directory, "commands");
+        assert_eq!(cfg.update.suite, "stable");
+        assert!(cfg.update.repository.is_empty());
         assert!(cfg.apt.bootstrap.iter().any(|p| p == "perl-base"));
         assert!(cfg.parted.urls.iter().all(|u| u.contains("{version}")));
     }

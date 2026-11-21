@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
 
+/// Version of the installed Senbit (`VERSION=` of /etc/senbit-release, kept up to date by the
+/// senbit-userspace package). Updates are never offered at boot: they go through `apt upgrade`
+/// (docs/UPDATES.md), so a missing network or repository can never block a boot.
 pub fn get_version(root: &str) -> Result<String> {
     let path = std::path::Path::new(root).join("etc/senbit-release");
 
@@ -15,12 +18,20 @@ pub fn get_version(root: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("VERSION not found in {}", path.display()))
 }
 
-/// Not implemented yet: no update channel exists, so there is never an update.
-pub fn check_for_updates(_version: &str, _repo: &str) -> bool {
-    false
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// Not implemented yet (see `check_for_updates`).
-pub fn update_kernel(_repo: &str) -> Result<()> {
-    Ok(())
+    #[test]
+    fn reads_the_version_line() {
+        let dir = std::env::temp_dir().join(format!("senbit-version-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("etc")).unwrap();
+        std::fs::write(dir.join("etc/senbit-release"), "NAME=Senbit\nVERSION=0.4.0\n").unwrap();
+        assert_eq!(get_version(dir.to_str().unwrap()).unwrap(), "0.4.0");
+
+        std::fs::write(dir.join("etc/senbit-release"), "NAME=Senbit\n").unwrap();
+        assert!(get_version(dir.to_str().unwrap()).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

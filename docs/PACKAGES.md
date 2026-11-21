@@ -31,7 +31,7 @@ sudo apt install curl
 sudo apt install postgresql        # installs AND starts the service
 apt search <term>                  # apt show <package>
 sudo apt remove <package>          # purge also deletes the configuration
-sudo apt upgrade
+sudo apt upgrade                   # also updates Senbit itself (docs/UPDATES.md)
 dpkg -L <package>                  # files of a package
 dpkg -S /usr/bin/curl              # package that owns a file
 ```
@@ -39,6 +39,12 @@ dpkg -S /usr/bin/curl              # package that owns a file
 `apt install` answers "Unable to locate package" while the lists are empty: that happens only when the
 network was down at boot. `bootreport` shows it, and `senbit-apt-update.service` retries every 30 seconds
 until the network is back (or run `sudo apt update` yourself).
+
+## Senbit's own updates
+
+`senbit-kernel` and `senbit-userspace` are packages like the others, published in the Senbit repository
+(`/etc/apt/sources.list.d/senbit-core.sources`, when the image was built with `[update] repository`).
+`sudo apt upgrade` updates them; snapshot, rollback and publishing are described in [UPDATES.md](UPDATES.md).
 
 ## Repositories and signatures
 

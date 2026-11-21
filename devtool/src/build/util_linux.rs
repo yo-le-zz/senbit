@@ -2,6 +2,7 @@
 //! build_util_linux() dans build.sh. Sources attendues comme sous-module git,
 //! épinglées sur le tag de config/util-linux/version.
 
+use std::path::Path;
 use std::process::Command;
 
 use anyhow::{bail, Result};
@@ -48,6 +49,47 @@ fn check(p: &Paths) -> Result<String> {
     Ok(version)
 }
 
+/// A Git checkout of util-linux has no `configure` script: autogen.sh generates it
+/// (autoconf, automake, libtool, autopoint, bison, flex... see `devtool doctor`).
+/// It runs again when `configure` is older than `configure.ac` (new version, patch).
+fn ensure_configure(dir: &Path) -> Result<()> {
+    let configure = dir.join("configure");
+    let configure_ac = dir.join("configure.ac");
+
+    let up_to_date = configure.is_file()
+        && match (
+            std::fs::metadata(&configure).and_then(|m| m.modified()),
+            std::fs::metadata(&configure_ac).and_then(|m| m.modified()),
+        ) {
+            (Ok(generated), Ok(source)) => generated >= source,
+            _ => true,
+        };
+    if up_to_date {
+        return Ok(());
+    }
+
+    let autogen = dir.join("autogen.sh");
+    if !autogen.is_file() {
+        bail!(
+            "util-linux: neither `configure` nor `autogen.sh` found in:\n  {}\n\nThe source tree is incomplete: run `devtool get util-linux`.",
+            dir.display()
+        );
+    }
+
+    ui::info("Generating util-linux's configure script (autogen.sh)...");
+    let spin = ui::spinner("Running autogen.sh (autoreconf)...");
+    let result = run_quiet(Command::new("sh").arg(&autogen).current_dir(dir));
+    spin.finish_and_clear();
+    result.map_err(|e| {
+        e.context("autogen.sh failed: install autoconf, automake, libtool, gettext (autopoint), bison and flex (`devtool doctor`)")
+    })?;
+
+    if !configure.is_file() {
+        bail!("autogen.sh ran but did not produce {}", configure.display());
+    }
+    Ok(())
+}
+
 pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     let build_dir = p.util_linux_build_dir();
     std::fs::create_dir_all(&build_dir)?;
@@ -55,6 +97,8 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
     let version = check(p)?;
     let dir = p.util_linux_dir();
     crate::patches::apply(p, "util-linux", "util-linux", &dir)?;
+    // After the patches: they may touch configure.ac / Makefile.am.
+    ensure_configure(&dir)?;
     let fdisk = p.util_linux_fdisk();
     let sfdisk = p.util_linux_sfdisk();
     let fp = format!(

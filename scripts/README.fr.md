@@ -1,27 +1,16 @@
-# Utilisation des scripts
+# Scripts
 
-Ce dossier contient les anciens scripts et systèmes de compilation, d'installation, d'exécution et de mise à jour.
+| Script | Rôle |
+|---|---|
+| `devtool.sh` | compile `devtool` (`devtool/`) et l'installe en `scripts/devtool` ; `--force` le recompile |
+| `git-unify.sh` | nettoyage ponctuel : retire de l'index git les anciennes entrées de sous-modules (Linux, BusyBox, util-linux, Parted, systemd) ; les fichiers sur disque sont conservés |
 
-Pour configurer le nouveau `devtool`, utilisez ces commandes :
-
-```bash
-cd /chemin/vers/Senbit
-cd devtool
-cargo build --release
-cp target/release/devtool ../scripts/devtool_bin/devtool
-```
-
-Pour l'utiliser, utilisez cette commande :
+Tout le reste est fait par `devtool` :
 
 ```bash
-./scripts/devtool_bin/devtool "cmd"
+./scripts/devtool.sh            # une fois, et après toute modification des sources de devtool
+./scripts/devtool doctor | install | get | build | run
 ```
 
-Toute la documentation en anglais est disponible ici :
-[🇬🇧 English version](../devtool/README.md)
-
-Pour la documentation en français :
-[🇫🇷 Version française](../devtool/README.fr.md)
-
-Cette documentation en français :
-[🇫🇷 Version française](README.fr.md)
+Documentation : [🇬🇧 English](../devtool/README.md) · [🇫🇷 Français](../devtool/README.fr.md) ·
+ce fichier en anglais : [README.md](README.md)

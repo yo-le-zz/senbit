@@ -1,0 +1,12 @@
+// Senbit system updates (docs/UPDATES.md).
+//
+// Before each dpkg run: a snapshot of the package list and versions to come back
+// to (/var/lib/senbit/snapshots, the last 3 are kept).
+DPkg::Pre-Invoke { "if [ -x /usr/lib/senbit/update-snapshot ]; then /usr/lib/senbit/update-snapshot; fi"; };
+
+// After each dpkg run: the "updates available" notice shown at login is recomputed
+// (offline: from the package lists already downloaded).
+DPkg::Post-Invoke { "if [ -x /usr/lib/senbit/update-check ]; then /usr/lib/senbit/update-check --offline; fi"; };
+
+// Keep the downloaded .deb files: `rollback` reinstalls the previous version from them.
+APT::Keep-Downloaded-Packages "true";

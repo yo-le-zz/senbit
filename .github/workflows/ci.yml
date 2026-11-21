@@ -28,7 +28,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # No submodules: devtool downloads Linux, BusyBox, util-linux, Parted and
+          # systemd at their pinned versions. (`recursive` failed with "No url found
+          # for submodule path 'external/systemd' in .gitmodules" when a source
+          # folder had been committed by mistake as an embedded repository.)
+          submodules: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.89.0
@@ -101,7 +105,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # No submodules: devtool downloads Linux, BusyBox, util-linux, Parted and
+          # systemd at their pinned versions. (`recursive` failed with "No url found
+          # for submodule path 'external/systemd' in .gitmodules" when a source
+          # folder had been committed by mistake as an embedded repository.)
+          submodules: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.89.0

@@ -50,14 +50,6 @@ fn current_uid() -> Result<u32> {
     Ok(uid)
 }
 
-fn current_euid() -> Result<u32> {
-    let uid = unsafe {
-        libc::geteuid()
-    };
-
-    Ok(uid)
-}
-
 fn timestamp_path(uid: u32) -> String {
     format!(
         "{}/{}",

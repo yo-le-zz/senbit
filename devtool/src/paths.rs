@@ -245,56 +245,13 @@ impl Paths {
         self.r("tools")
     }
 
-    pub fn keymaps_generated_dir(&self) -> PathBuf {
-        self.r("build/tools/generated/keymaps")
-    }
-
-    pub fn keymaps_rootfs_dir(&self, rootfs: &Path) -> PathBuf {
-        rootfs.join("usr/share/keymaps")
-    }
-
     // ---- fonts ----
 
     pub fn console_fonts_dir(&self) -> PathBuf {
         self.r("build/tools/generated/fonts")
     }
 
-    pub fn fonts_cache_dir(&self) -> PathBuf {
-        self.r("build/tools/cache/fonts")
-    }
-
     // ---- grub ----
-    /// GRUB release built for the live system (grub-install + platform files).
-    pub const GRUB_VERSION: &'static str = "2.12";
-
-    pub fn grub_build_root(&self) -> PathBuf {
-        self.r("build/grub")
-    }
-
-    pub fn grub_cache_dir(&self) -> PathBuf {
-        self.grub_build_root().join("cache")
-    }
-
-    pub fn grub_src_dir(&self) -> PathBuf {
-        self.grub_build_root().join("src")
-    }
-
-    pub fn grub_efi_build_dir(&self) -> PathBuf {
-        self.grub_build_root().join("build-efi")
-    }
-
-    pub fn grub_pc_build_dir(&self) -> PathBuf {
-        self.grub_build_root().join("build-pc")
-    }
-
-    pub fn grub_efi_install_dir(&self) -> PathBuf {
-        self.grub_build_root().join("install-efi")
-    }
-
-    pub fn grub_pc_install_dir(&self) -> PathBuf {
-        self.grub_build_root().join("install-pc")
-    }
-
     /// GRUB files copied into the rootfs (used by the installer).
     pub fn grub_rootfs_dir(&self) -> PathBuf {
         self.r("build/tools/generated/grub/stage")

@@ -15,6 +15,10 @@
 //!   bootreport --failed   unités systemd en échec
 //!   bootreport --history  rapports des démarrages précédents
 //!
+//! Le bandeau et le rapport indiquent aussi les mises à jour disponibles (fichier
+//! /var/lib/senbit/updates-available, écrit chaque jour par senbit-update-check.timer
+//! et après chaque `apt upgrade`) : `sudo apt upgrade`.
+//!
 //! Format du fichier (une ligne par étape, séparée par des tabulations) :
 //!   statut <TAB> uptime_ms <TAB> étape <TAB> détail      (statut = ok | warn | failed)
 
@@ -24,6 +28,7 @@ use std::process::{Command, ExitCode, Stdio};
 
 const REPORT_FILE: &str = "/run/senbit/boot-report";
 const HISTORY_FILE: &str = "/var/log/senbit/boot-report.log";
+const UPDATES_FILE: &str = "/var/lib/senbit/updates-available";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Status {
@@ -61,6 +66,43 @@ fn parse_report(text: &str) -> Vec<Entry> {
             })
         })
         .collect()
+}
+
+/// Mises à jour disponibles (voir /usr/lib/senbit/update-check).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Updates {
+    total: usize,
+    senbit: usize,
+    packages: Vec<String>,
+}
+
+/// Ligne 1 : nombre de paquets ; ligne 2 : dont composants de Senbit ; puis les paquets.
+fn parse_updates(text: &str) -> Option<Updates> {
+    let mut lines = text.lines();
+    let total = lines.next()?.trim().parse().ok()?;
+    let senbit = lines.next()?.trim().parse().ok()?;
+    let packages = lines
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    Some(Updates { total, senbit, packages })
+}
+
+fn updates_text(updates: &Updates) -> String {
+    if updates.senbit > 0 {
+        format!(
+            "{} update(s) available, {} for Senbit itself: sudo apt upgrade",
+            updates.total, updates.senbit
+        )
+    } else {
+        format!("{} update(s) available: sudo apt upgrade", updates.total)
+    }
+}
+
+fn read_updates() -> Option<Updates> {
+    let path = std::env::var("SENBIT_UPDATES").unwrap_or_else(|_| UPDATES_FILE.to_string());
+    let updates = parse_updates(&fs::read_to_string(path).ok()?)?;
+    if updates.total == 0 { None } else { Some(updates) }
 }
 
 /// (ok, warn, failed)
@@ -151,7 +193,13 @@ fn colorize_status(style: &Style, status: Status, text: &str) -> String {
 }
 
 /// Encadré affiché à la connexion.
-fn render_banner(entries: &[Entry], failed_units: &[String], style: &Style, width: usize) -> String {
+fn render_banner(
+    entries: &[Entry],
+    failed_units: &[String],
+    updates: Option<&Updates>,
+    style: &Style,
+    width: usize,
+) -> String {
     let width = width.clamp(40, 100);
     let inner = width - 4; // "│ " + " │"
     let (ok, warn, failed) = count(entries);
@@ -192,6 +240,14 @@ fn render_banner(entries: &[Entry], failed_units: &[String], style: &Style, widt
         }
     }
 
+    if let Some(updates) = updates {
+        // ASCII marker: the Linux console font has no arrow glyphs.
+        for (i, line) in wrap(&updates_text(updates), inner - 2).into_iter().enumerate() {
+            let prefix = if i == 0 { "^ ".to_string() } else { "  ".to_string() };
+            rows.push((Status::Warn, format!("{prefix}{line}")));
+        }
+    }
+
     let title = " Boot report ";
     let top_color = if has_problem { Status::Warn } else { Status::Ok };
     let mut out = String::new();
@@ -220,7 +276,12 @@ fn render_banner(entries: &[Entry], failed_units: &[String], style: &Style, widt
 }
 
 /// Rapport complet.
-fn render_full(entries: &[Entry], failed_units: &[String], style: &Style) -> String {
+fn render_full(
+    entries: &[Entry],
+    failed_units: &[String],
+    updates: Option<&Updates>,
+    style: &Style,
+) -> String {
     let (ok, warn, failed) = count(entries);
     let mut out = String::new();
 
@@ -258,6 +319,19 @@ fn render_full(entries: &[Entry], failed_units: &[String], style: &Style) -> Str
             failed_units.join(" ")
         )));
         out.push_str("  details: systemctl status <unit>   logs: journalctl -u <unit>\n");
+    }
+
+    match updates {
+        Some(updates) => {
+            out.push_str(&style.yellow(&format!("updates: {}\n", updates_text(updates))));
+            for package in updates.packages.iter().take(15) {
+                out.push_str(&format!("  {package}\n"));
+            }
+            if updates.packages.len() > 15 {
+                out.push_str(&format!("  ... and {} more\n", updates.packages.len() - 15));
+            }
+        }
+        None => out.push_str(&style.dim("updates: none known (checked every day)\n")),
     }
 
     if warn > 0 || failed > 0 {
@@ -369,7 +443,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         None | Some("--full") => match read_report() {
             Some(entries) => {
-                print!("{}", render_full(&entries, &failed_units(), &style));
+                print!("{}", render_full(&entries, &failed_units(), read_updates().as_ref(), &style));
                 ExitCode::SUCCESS
             }
             None => {
@@ -380,7 +454,10 @@ fn main() -> ExitCode {
         Some("--banner") => {
             // Silent when there is nothing to show: it runs at every login.
             if let Some(entries) = read_report() {
-                print!("{}", render_banner(&entries, &failed_units(), &style, terminal_width()));
+                print!(
+                    "{}",
+                    render_banner(&entries, &failed_units(), read_updates().as_ref(), &style, terminal_width())
+                );
             }
             ExitCode::SUCCESS
         }
@@ -444,7 +521,7 @@ mod tests {
     #[test]
     fn banner_shows_the_warning_and_stays_in_a_box() {
         let entries = parse_report(REPORT);
-        let banner = render_banner(&entries, &[], &plain(), 78);
+        let banner = render_banner(&entries, &[], None, &plain(), 78);
         assert!(banner.contains("Boot report"));
         assert!(banner.contains("2 OK"));
         assert!(banner.contains("Network: no default route"));
@@ -461,7 +538,7 @@ mod tests {
     #[test]
     fn banner_lists_failed_units() {
         let entries = parse_report("ok\t1\tA\tb\n");
-        let banner = render_banner(&entries, &["foo.service".to_string()], &plain(), 78);
+        let banner = render_banner(&entries, &["foo.service".to_string()], None, &plain(), 78);
         assert!(banner.contains("foo.service"));
         assert!(banner.contains("1 failed"));
     }
@@ -469,7 +546,7 @@ mod tests {
     #[test]
     fn healthy_banner_has_no_problem_line() {
         let entries = parse_report("ok\t1\tA\tb\nok\t2\tB\tc\n");
-        let banner = render_banner(&entries, &[], &plain(), 78);
+        let banner = render_banner(&entries, &[], None, &plain(), 78);
         assert!(banner.contains("2 OK"));
         assert!(banner.contains("0 warning(s)"));
         assert!(!banner.contains("⚠ A") && !banner.contains("A:"));
@@ -478,12 +555,47 @@ mod tests {
     #[test]
     fn full_report_lists_every_step_and_the_retry_hint() {
         let entries = parse_report(REPORT);
-        let text = render_full(&entries, &[], &plain());
+        let text = render_full(&entries, &[], None, &plain());
         assert!(text.contains("Root filesystem"));
         assert!(text.contains("Hostname"));
         assert!(text.contains("⚠ Network"));
         assert!(text.contains("not blocking"));
         assert!(text.contains("2 OK"));
+    }
+
+    #[test]
+    fn updates_file_is_parsed() {
+        let updates = parse_updates("3\n1\nsenbit-kernel\ncurl\nlibc-bin\n").unwrap();
+        assert_eq!(updates.total, 3);
+        assert_eq!(updates.senbit, 1);
+        assert_eq!(updates.packages, vec!["senbit-kernel", "curl", "libc-bin"]);
+        assert!(parse_updates("").is_none());
+        assert!(parse_updates("x\n1\n").is_none());
+        assert!(updates_text(&updates).contains("1 for Senbit itself"));
+        assert_eq!(
+            updates_text(&Updates { total: 2, senbit: 0, packages: vec![] }),
+            "2 update(s) available: sudo apt upgrade"
+        );
+    }
+
+    #[test]
+    fn banner_and_report_announce_the_updates() {
+        let entries = parse_report("ok\t1\tA\tb\n");
+        let updates = Updates { total: 2, senbit: 1, packages: vec!["senbit-kernel".into(), "curl".into()] };
+
+        let banner = render_banner(&entries, &[], Some(&updates), &plain(), 78);
+        assert!(banner.contains("^ 2 update(s) available, 1 for Senbit itself"));
+        let widths: Vec<usize> = banner
+            .lines()
+            .filter(|l| l.starts_with('│') || l.starts_with('┌') || l.starts_with('└'))
+            .map(|l| l.chars().count())
+            .collect();
+        assert!(widths.iter().all(|w| *w == widths[0]), "uneven box: {widths:?}");
+
+        let full = render_full(&entries, &[], Some(&updates), &plain());
+        assert!(full.contains("updates: 2 update(s) available"));
+        assert!(full.contains("  senbit-kernel\n"));
+        assert!(render_full(&entries, &[], None, &plain()).contains("updates: none known"));
     }
 
     #[test]

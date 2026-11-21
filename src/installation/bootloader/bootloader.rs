@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use std::path::{Path, PathBuf};
 
-use crate::log_info;
+use crate::{log_info, log_warn};
 
 use crate::installation::bootloader::uefi;
 
@@ -368,6 +368,23 @@ fn write_bootloader_config(mount_point: &Path, root_uuid: &str) -> Result<()> {
     let grub_directory = mount_point.join("boot/grub");
 
     std::fs::create_dir_all(&grub_directory)?;
+
+    // The menu is written by /usr/lib/senbit/grub-config: boot attempt counter, and
+    // automatic return to the previous version after a failed update. The same
+    // script is used when the senbit-kernel package is updated (docs/UPDATES.md).
+    let script = mount_point.join("usr/lib/senbit/grub-config");
+    if script.is_file() {
+        let status = std::process::Command::new("sh")
+            .arg(&script)
+            .arg(root_uuid)
+            .env("ROOT", mount_point)
+            .status();
+
+        if matches!(status, Ok(s) if s.success()) && grub_directory.join("grub.cfg").is_file() {
+            return Ok(());
+        }
+        log_warn!("grub-config failed: writing a plain boot menu (no automatic rollback).");
+    }
 
     let config = format!(
         r#"set timeout=5

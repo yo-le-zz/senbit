@@ -1,0 +1,17 @@
+[Unit]
+Description=Mark the boot as successful (cancels the automatic rollback)
+Documentation=file:///usr/lib/senbit/grub-config
+# Needs the login to be up: if it cannot start, the boot is NOT successful, the
+# attempt counter of GRUB keeps growing and, after 3 attempts, GRUB boots the
+# previous version (see /usr/lib/senbit/grub-config).
+Requires=senbit-login.service
+After=multi-user.target senbit-login.service
+ConditionPathExists=/boot/grub/grubenv
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/senbit/boot-ok
+
+[Install]
+WantedBy=multi-user.target

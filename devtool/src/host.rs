@@ -129,14 +129,6 @@ pub const OVMF_DIRS: &[&str] = &[
     "/usr/share/edk2",
 ];
 
-/// Cherche le premier fichier de `names` dans les dossiers OVMF connus.
-pub fn find_ovmf(names: &[&str]) -> Option<PathBuf> {
-    OVMF_DIRS
-        .iter()
-        .flat_map(|d| names.iter().map(move |n| Path::new(d).join(n)))
-        .find(|p| p.is_file())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

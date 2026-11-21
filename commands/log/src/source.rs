@@ -1,13 +1,7 @@
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::Result;
 
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 use crate::cli::Source;
 
@@ -82,20 +76,3 @@ pub fn runtime() -> LogSource {
     }
 }
 
-pub fn ensure_parent(
-    path: &Path,
-) -> Result<()> {
-    if let Some(parent) =
-        path.parent()
-    {
-        fs::create_dir_all(parent)
-            .with_context(|| {
-                format!(
-                    "failed to create {}",
-                    parent.display()
-                )
-            })?;
-    }
-
-    Ok(())
-}

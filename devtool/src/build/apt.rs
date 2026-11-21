@@ -464,6 +464,60 @@ fn stub_stanza(name: &str, version: &str) -> String {
     )
 }
 
+/// Entrée de /var/lib/dpkg/status d'un composant de Senbit (paquet du dépôt de mise à jour).
+fn senbit_stanza(name: &str, version: &str) -> String {
+    format!(
+        "Package: {name}\nStatus: install ok installed\nPriority: required\nSection: admin\nInstalled-Size: 0\nMaintainer: Senbit <senbit@localhost>\nArchitecture: amd64\nVersion: {version}\nDescription: Senbit component, updated through the Senbit repository\n\n"
+    )
+}
+
+/// Source APT du dépôt de mise à jour de Senbit (`[update]` de config.toml).
+/// `signed` : la clé publique est dans l'image (Signed-By) ; sinon dépôt non signé,
+/// pour des tests locaux seulement.
+fn render_core_sources(repository: &str, suite: &str, component: &str, signed: bool) -> String {
+    let trust = if signed {
+        "Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg\n"
+    } else {
+        "# UNSIGNED repository (no key in config/update/): local tests only.\nTrusted: yes\n"
+    };
+    format!(
+        "# Senbit system updates: senbit-kernel and senbit-userspace (docs/UPDATES.md).\nTypes: deb\nURIs: {}\nSuites: {suite}\nComponents: {component}\nArchitectures: amd64\n{trust}",
+        repository.trim_end_matches('/')
+    )
+}
+
+/// Installe la source APT des mises à jour et la clé publique. Sans `[update] repository`
+/// il n'y a pas de canal de mise à jour dans l'image.
+fn install_update_channel(p: &Paths, rootfs: &Path) -> Result<()> {
+    let update = &p.cfg.update;
+    if update.repository.trim().is_empty() {
+        ui::info("No update repository configured (`[update] repository`): no update channel in this image.");
+        return Ok(());
+    }
+
+    let key = p.r(&update.keyring);
+    let signed = key.is_file();
+    if signed {
+        let target = rootfs.join("usr/share/keyrings/senbit-archive-keyring.gpg");
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(&key, &target)
+            .with_context(|| format!("failed to install the update key {}", key.display()))?;
+    } else {
+        ui::warn(format!(
+            "Update key {} not found: the update repository is declared UNSIGNED.",
+            key.display()
+        ));
+    }
+
+    fs::write(
+        rootfs.join("etc/apt/sources.list.d/senbit-core.sources"),
+        render_core_sources(&update.repository, &update.suite, &update.component, signed),
+    )?;
+    Ok(())
+}
+
 /// Version de la glibc de la machine de build (copiée dans le rootfs).
 fn host_glibc_version() -> String {
     host::command("ldd")
@@ -734,6 +788,18 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
             fs::write(&list, "/.\n")?;
         }
     }
+
+    // The Senbit components themselves (kernel/init and userspace) are real packages
+    // of the update repository: declared installed at the version of this build, so
+    // that `apt upgrade` offers the next one (docs/UPDATES.md).
+    let senbit_version = crate::build::package::deb_version(&crate::build::package::senbit_version(p)?);
+    for name in crate::build::package::SENBIT_PACKAGES {
+        status.push_str(&senbit_stanza(name, &senbit_version));
+        let list = dpkg.join("info").join(format!("{name}.list"));
+        if !list.exists() {
+            fs::write(&list, "/.\n")?;
+        }
+    }
     fs::write(dpkg.join("status"), status)?;
 
     // --- configuration d'apt / dpkg ---
@@ -758,6 +824,7 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
             .replace("{components}", &cfg.components.join(" "))
             .replace("{arch}", &cfg.architecture),
     )?;
+    install_update_channel(p, rootfs)?;
     fs::write(rootfs.join("etc/apt/apt.conf.d/10senbit"), APT_CONF)?;
     fs::write(rootfs.join("etc/apt/preferences.d/senbit"), APT_PREFERENCES)?;
     fs::write(
@@ -988,6 +1055,27 @@ fn collect_crt(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn update_source_is_signed_when_the_key_is_there() {
+        let signed = render_core_sources("https://updates.example.org/senbit/", "stable", "main", true);
+        assert!(signed.contains("URIs: https://updates.example.org/senbit\n"));
+        assert!(signed.contains("Suites: stable\n"));
+        assert!(signed.contains("Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg\n"));
+        assert!(!signed.contains("Trusted"));
+
+        let unsigned = render_core_sources("http://10.0.2.2:8000", "stable", "main", false);
+        assert!(unsigned.contains("Trusted: yes\n"));
+        assert!(!unsigned.contains("Signed-By"));
+    }
+
+    #[test]
+    fn senbit_components_are_installed_packages() {
+        let stanza = senbit_stanza("senbit-kernel", "0.4.0-1");
+        assert!(stanza.contains("Package: senbit-kernel\n"));
+        assert!(stanza.contains("Status: install ok installed\n"));
+        assert!(stanza.contains("Version: 0.4.0-1\n"));
+    }
+
     #[test]
     fn libc6_version_is_the_newest_of_the_repository() {
         let index = vec![

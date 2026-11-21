@@ -1,0 +1,38 @@
+#!/bin/sh
+# update-check [--offline]
+#
+# Looks for updates with apt (real apt: the senbit-kernel and senbit-userspace
+# packages come from the Senbit repository, the others from Debian) and writes
+# the result in /var/lib/senbit/updates-available:
+#
+#   line 1      number of packages that can be upgraded
+#   line 2      number of Senbit packages among them
+#   next lines  the packages
+#
+# `bootreport --banner` shows it at login. --offline only recomputes from the
+# package lists already downloaded (used after `apt upgrade`).
+out=/var/lib/senbit/updates-available
+mkdir -p /var/lib/senbit
+
+if [ "$1" != "--offline" ]; then
+    apt-get update -q >/dev/null 2>&1 || true
+fi
+
+list="$(apt-get -s dist-upgrade 2>/dev/null | sed -n 's/^Inst \([^ ]*\) .*/\1/p')"
+total=0
+senbit=0
+for package in $list; do
+    total=$((total + 1))
+    case "$package" in
+        senbit-*) senbit=$((senbit + 1)) ;;
+    esac
+done
+
+{
+    echo "$total"
+    echo "$senbit"
+    for package in $list; do
+        echo "$package"
+    done
+} > "$out.tmp" && mv -f "$out.tmp" "$out"
+exit 0

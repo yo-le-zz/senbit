@@ -10,10 +10,15 @@ where the repository is cloned: every path is relative to the project root.
 ./scripts/devtool get       # download the pinned sources
 ./scripts/devtool build     # build everything (kernel ... ISO)
 ./scripts/devtool run       # boot in QEMU   (--debug writes build/vm/qemu.log)
+./scripts/devtool build package   # update packages + APT repository in build/repo/ (docs/UPDATES.md)
 ```
 
 `./scripts/devtool.sh <command>` rebuilds devtool if its sources changed, then
 runs the command.
+
+Source folders left empty by `git clone` (`external/linux`, ...) are downloaded automatically before each
+build, and the progress of a long compilation is shown under the spinner (the full log of a failure is
+in `build/logs/`). Details: [devtool/README.md](../devtool/README.md).
 
 ## Pinned versions
 

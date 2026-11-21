@@ -7,9 +7,7 @@ use std::convert::Infallible;
 use crate::system::report;
 use crate::{log_error, log_info, log_warn};
 
-use inquire::Text;
-
-use crate::system::init::updates::{check_for_updates, get_version, update_kernel};
+use crate::system::init::updates::get_version;
 
 use crate::system::init::init::{exec_systemd, fstab_is_ok, mount_system, switch_root};
 use crate::system::init::local::hostname::init_hostname;
@@ -18,7 +16,6 @@ use crate::system::init::network::init_network;
 use crate::system::log::init_logs;
 
 const NEW_ROOT: &str = "/newroot";
-const UPDATE_URL: &str = "https://github.com/yo-le-zz/senbit";
 
 /// Boots an installed system.
 ///
@@ -59,20 +56,7 @@ pub fn start_system(sys_disk: &str) -> Result<Infallible> {
     }
 
     match get_version(NEW_ROOT) {
-        Ok(version) => {
-            log_info!("{}", "Checking updates...".cyan());
-            if check_for_updates(&version, UPDATE_URL) {
-                log_info!("{}", "Updates found.".cyan());
-
-                let update = Text::new("Update?").with_default("yes").prompt()?;
-
-                if update.trim().eq_ignore_ascii_case("yes") {
-                    log_info!("{}", "Updating...".cyan());
-                    update_kernel(UPDATE_URL)?;
-                }
-            }
-            report::ok("Version", format!("Senbit {version}"));
-        }
+        Ok(version) => report::ok("Version", format!("Senbit {version}")),
         Err(e) => {
             log_warn!("{}", "Could not read the Senbit version.".yellow());
             report::warn("Version", format!("{e:#}"));

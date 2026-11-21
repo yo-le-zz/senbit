@@ -1,24 +1,16 @@
-# Scripts usage
+# Scripts
 
-This folder contains the old compilations, installations, running and updating system and scripts.
+| Script | Role |
+|---|---|
+| `devtool.sh` | compiles `devtool` (`devtool/`) and installs it as `scripts/devtool`; `--force` rebuilds it |
+| `git-unify.sh` | one-time cleanup: removes the old submodule entries (Linux, BusyBox, util-linux, Parted, systemd) from the git index; the files on disk are kept |
 
-For setup the new `devtool`, use this cmds :
-
-```bash
-cd path/to/Senbit
-cd devtool
-cargo build --release
-cp target/release/devtool ../scripts/devtool_bin/devtool
-```
-
-And for use him, use this cmds :
+Everything else is done by `devtool`:
 
 ```bash
-./scripts/devtool_bin/devtool "cmd"
+./scripts/devtool.sh            # once, and after changing devtool's sources
+./scripts/devtool doctor | install | get | build | run
 ```
 
-all docs in english at [🇬🇧 English version](../devtool/README.md)
-for french docs, see [🇫🇷 Version française](../devtool/README.fr.md)
-
-This documentation in french :
-[🇫🇷 Version française](README.fr.md)
+Documentation: [🇬🇧 English](../devtool/README.md) · [🇫🇷 Français](../devtool/README.fr.md) ·
+this file in French: [README.fr.md](README.fr.md)

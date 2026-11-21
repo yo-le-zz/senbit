@@ -43,27 +43,6 @@ fn set_x_perm(path: &Path) -> std::io::Result<()> {
 }
 
 /* ============================================================
-   Executable permissions
-============================================================ */
-
-#[allow(dead_code)] // kept as public API of this module
-pub fn set_system_x_permissions(root: &Path) -> std::io::Result<()> {
-    for dir in ["bin", "sbin", "usr/bin", "usr/sbin"] {
-        let path = root.join(dir);
-
-        if !path.is_dir() {
-            continue;
-        }
-
-        for entry in fs::read_dir(path)? {
-            set_x_perm(&entry?.path())?;
-        }
-    }
-
-    Ok(())
-}
-
-/* ============================================================
    Ownership
 ============================================================ */
 

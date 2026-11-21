@@ -401,10 +401,3 @@ pub fn format_partition(device: &str) -> Result<(), String> {
     }
 }
 
-/* ============================================================
-Compatibility helper
-============================================================ */
-
-pub fn _create_single_partition(disk: &str) -> Result<(), String> {
-    create_legacy_partitions(disk).map(|_| ())
-}

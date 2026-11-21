@@ -1,0 +1,49 @@
+#!/bin/sh
+# rollback - goes back to the previous version of the Senbit components.
+#
+#   /usr/lib/senbit/rollback          show what would be done
+#   /usr/lib/senbit/rollback --apply  do it (root)
+#
+# Boot files: /boot/vmlinuz.old and /boot/initramfs.cpio.gz.old (kept by the
+# senbit-kernel package) become the current ones. Packages: reinstall the
+# previous versions from apt's cache (`apt install senbit-userspace=<version>`
+# also works while the repository still has them).
+#
+# At boot, GRUB does the boot part by itself after 3 failed attempts.
+apply=0
+[ "$1" = "--apply" ] && apply=1
+
+if [ ! -f /boot/vmlinuz.old ]; then
+    echo "rollback: no previous version (/boot/vmlinuz.old is missing)." >&2
+    exit 1
+fi
+
+echo "Previous boot files:"
+ls -l /boot/vmlinuz.old /boot/initramfs.cpio.gz.old 2>/dev/null
+
+if [ "$apply" != 1 ]; then
+    echo
+    echo "Run again with --apply (as root) to switch back."
+    exit 0
+fi
+
+[ "$(id -u)" = 0 ] || { echo "rollback: root is required." >&2; exit 1; }
+
+cp -p /boot/vmlinuz.old /boot/vmlinuz || exit 1
+[ -f /boot/initramfs.cpio.gz.old ] && cp -p /boot/initramfs.cpio.gz.old /boot/initramfs.cpio.gz
+sync
+
+# Previous packages from the cache, when they are there.
+latest="$(ls -1d /var/lib/senbit/snapshots/*/ 2>/dev/null | sort | tail -n 1)"
+if [ -n "$latest" ] && [ -f "$latest/senbit-packages" ]; then
+    while read -r name version; do
+        deb="$(ls -1 /var/cache/apt/archives/${name}_${version}_*.deb 2>/dev/null | head -n 1)"
+        if [ -n "$deb" ]; then
+            dpkg -i --force-confold "$deb"
+        else
+            echo "rollback: $name $version is not in the apt cache (apt install $name=$version)." >&2
+        fi
+    done < "$latest/senbit-packages"
+fi
+
+echo "Rolled back. Reboot to use the previous version."

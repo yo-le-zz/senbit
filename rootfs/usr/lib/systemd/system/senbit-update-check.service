@@ -1,0 +1,11 @@
+[Unit]
+Description=Look for system updates (apt)
+Documentation=file:///usr/lib/senbit/update-check
+After=network.target
+ConditionPathExists=/usr/bin/apt-get
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/usr/lib/senbit/update-check
+Environment=DEBIAN_FRONTEND=noninteractive

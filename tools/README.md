@@ -67,7 +67,7 @@ Keyboard map sources
 build/tools/generated/keymaps/
         │
         ▼
-       build.sh
+       devtool build
         │
         ▼
 rootfs/usr/share/keymaps/
@@ -112,7 +112,7 @@ These tools are written in Rust to:
 * provide proper error handling;
 * make file and directory manipulation straightforward;
 * keep the tools consistent with the Senbit ecosystem;
-* allow tools to be reused outside of `build.sh`.
+* allow tools to be reused outside of `devtool`.
 
 For example, creating a directory hierarchy can be done directly in Rust:
 
@@ -132,7 +132,7 @@ For example:
 cargo run --manifest-path tools/keymaps/Cargo.toml
 ```
 
-Eventually, `scripts/build.sh` will automatically run the required tools before building the root filesystem and ISO.
+`devtool build` runs the required tools by itself before building the root filesystem and the ISO (`devtool build tools` to run only them).
 
 ## 📌 General Rule
 

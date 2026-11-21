@@ -108,3 +108,15 @@ directory = "commands"
 # Outils de build (polices, keymaps, GRUB) : ils generent des ressources du
 # rootfs, ce ne sont PAS des commandes du systeme.
 directory = "tools"
+
+[update]
+# Canal de mise à jour du système (docs/UPDATES.md) : un depot APT qui contient les
+# composants de Senbit. `devtool build package` le genere dans build/repo.
+# repository : URL ou il est publie ("" = pas de canal de mise a jour dans l'image).
+repository = ""
+suite = "stable"
+component = "main"
+# gpg_key : identifiant de la cle qui signe le depot ("" = non signe, tests locaux).
+gpg_key = ""
+# Cle publique installee dans l'image (export : gpg --export <cle> > ce fichier).
+keyring = "config/update/senbit-archive-keyring.gpg"

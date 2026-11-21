@@ -56,22 +56,26 @@ Avoid working directly on `main`.
 
 Senbit is organized into several major areas.
 
-The structure will evolve as the project develops, but the intended architecture currently includes:
+The structure will evolve as the project develops. Today:
 
 ```text
-senbit/
-├── kernel/        # Linux kernel configuration and patches
-├── system/        # Core Senbit userspace
-├── packages/      # Package and software integration
-├── rootfs/        # Root filesystem
-├── installer/     # Installation and deployment
-├── tools/         # Development and administration tools
-├── tests/         # Automated and manual tests
-├── docs/          # Technical documentation
-├── scripts/       # Build and development scripts
-├── assets/        # Project assets and branding
-└── .github/       # GitHub configuration
+Senbit/
+├── src/           # senbit-init (PID 1, installer, logging, IPC)
+├── components/    # separate Rust programs (senbit-login)
+├── commands/      # native commands, one crate per command (./newcmds.sh)
+├── rootfs/        # overlay merged into the root filesystem (units, scripts, /etc)
+├── tools/         # generators run at build time (keymaps, fonts, GRUB files)
+├── devtool/       # the build tool
+├── config/        # pinned versions, kernel/BusyBox configuration, VM settings
+├── patches/       # patches applied to downloaded sources
+├── docs/          # technical documentation
+├── scripts/       # devtool launcher and helper scripts
+├── assets/        # project assets and branding
+├── webpage/       # project web page
+└── .github/       # CI and GitHub configuration
 ```
+
+Downloaded sources (`kernel/linux`, `external/`, `third_party/`) and `build/` are not committed.
 
 Do not create new directories simply to match this structure if they are not needed yet.
 
@@ -203,31 +207,19 @@ When a change cannot currently be tested automatically, explain how you tested i
 
 ## 🛠️ Build system
 
-Senbit provides development scripts intended to make building and cleaning the project straightforward.
-
-The planned interface includes:
+Everything goes through `devtool` (see [devtool/README.md](devtool/README.md)):
 
 ```bash
-./scripts/devtool.sh && ./scripts/devtool install
+./scripts/devtool.sh            # compiles devtool -> scripts/devtool
+./scripts/devtool doctor        # what is missing on this machine?
+./scripts/devtool install       # installs the build dependencies
+./scripts/devtool get           # downloads the pinned sources
+./scripts/devtool build         # builds Senbit (`build kernel`, `build fast`, `build package`...)
+./scripts/devtool run --force   # rebuilds and boots in QEMU
 ```
 
-Installs the tools required to build Senbit.
-
-```bash
-./build.sh
-```
-
-Builds Senbit.
-
-The build system will support rebuilding only selected components when possible.
-
-```bash
-./clean.sh
-```
-
-Cleans generated build artifacts.
-
-Different cleaning levels and component-specific cleaning will be supported.
+The build only recompiles what changed (`--force` rebuilds everything). New native command:
+`./newcmds.sh <name>`. Update packages and repository: [docs/UPDATES.md](docs/UPDATES.md).
 
 A `Makefile` will also provide a convenient interface for common development operations.
 

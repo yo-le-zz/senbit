@@ -133,6 +133,19 @@ const ENABLED_UNITS: &[(&str, &str, &str)] = &[
         "senbit-apt-update.service",
         "senbit-apt-update.service",
     ),
+    // Marks the boot as successful: without it GRUB's attempt counter reaches 3 and
+    // boots the previous version (only possible after an update).
+    (
+        "multi-user.target.wants",
+        "senbit-boot-ok.service",
+        "senbit-boot-ok.service",
+    ),
+    // Daily look for system updates (apt); the result is shown at login.
+    (
+        "timers.target.wants",
+        "senbit-update-check.timer",
+        "senbit-update-check.timer",
+    ),
 ];
 
 /// Outils de l'hôte copiés dans le rootfs avec leurs bibliothèques. busybox
@@ -680,6 +693,11 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
         "usr/lib/systemd/systemd-sysv-install",
         "usr/bin/ldd",
         "usr/bin/getconf",
+        "usr/lib/senbit/grub-config",
+        "usr/lib/senbit/boot-ok",
+        "usr/lib/senbit/update-check",
+        "usr/lib/senbit/update-snapshot",
+        "usr/lib/senbit/rollback",
     ] {
         let path = rootfs.join(script);
         if path.is_file() {
@@ -765,6 +783,11 @@ const REQUIRED_PATHS: &[&str] = &[
     "etc/systemd/network/00-senbit.link",
     "usr/lib/systemd/system/senbit-apt-update.service",
     "etc/profile.d/senbit-bootreport.sh",
+    "usr/lib/systemd/system/senbit-boot-ok.service",
+    "usr/lib/systemd/system/senbit-update-check.timer",
+    "usr/lib/senbit/grub-config",
+    "usr/lib/senbit/update-check",
+    "etc/apt/apt.conf.d/50senbit-update",
     // service management (`systemctl`, `journalctl`)
     "usr/bin/journalctl",
     // mount units

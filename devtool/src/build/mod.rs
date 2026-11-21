@@ -4,6 +4,7 @@ pub mod commands;
 pub mod initramfs;
 pub mod iso;
 pub mod kernel;
+pub mod package;
 pub mod parted;
 pub mod rootfs;
 pub mod rust_build;
@@ -17,6 +18,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 
 use crate::cache::Cache;
+use crate::get::{self, Component};
 use crate::paths::Paths;
 use crate::proc::nproc;
 use crate::ui::{self, format_time, run_step};
@@ -43,6 +45,9 @@ pub enum Target {
     Tools,
     Rootfs,
     Iso,
+    /// Update packages (senbit-kernel, senbit-userspace) and their signed APT repository
+    /// (build/repo). Not part of `all`: `devtool build package`, after a build.
+    Package,
 }
 
 /// Resolves the number of make/cargo jobs to use: the value given by the
@@ -66,11 +71,26 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
     use Target::*;
     let result = (|| -> Result<()> {
         match target {
-            Kernel => run_step("Linux Kernel", || kernel::build(p, &mut cache, jobs)),
-            Busybox => run_step("BusyBox", || busybox::build(p, &mut cache, jobs)),
-            UtilLinux => run_step("util-linux", || util_linux::build(p, &mut cache, jobs)),
-            Parted => run_step("GNU Parted", || parted::build(p, &mut cache, jobs)),
-            Systemd => run_step("systemd", || systemd::build(p, &mut cache, jobs)),
+            Kernel => run_step("Linux Kernel", || {
+                get::ensure(p, Component::Linux)?;
+                kernel::build(p, &mut cache, jobs)
+            }),
+            Busybox => run_step("BusyBox", || {
+                get::ensure(p, Component::Busybox)?;
+                busybox::build(p, &mut cache, jobs)
+            }),
+            UtilLinux => run_step("util-linux", || {
+                get::ensure(p, Component::UtilLinux)?;
+                util_linux::build(p, &mut cache, jobs)
+            }),
+            Parted => run_step("GNU Parted", || {
+                get::ensure(p, Component::Parted)?;
+                parted::build(p, &mut cache, jobs)
+            }),
+            Systemd => run_step("systemd", || {
+                get::ensure(p, Component::Systemd)?;
+                systemd::build(p, &mut cache, jobs)
+            }),
             Apt => run_step("apt / dpkg", || apt::build(p, &mut cache)),
             Rust => run_step("Senbit Rust Userspace", || {
                 rust_build::build(p, &mut cache, jobs)
@@ -79,12 +99,28 @@ pub fn run(p: &Paths, target: Target, jobs: Option<usize>, force: bool) -> Resul
             Tools => run_step("Senbit Build Tools", || tools::build(p, jobs)),
             Rootfs => run_step("Senbit Root Filesystem", || rootfs::build(p)),
             Iso => run_step("Senbit ISO", || iso::build(p)),
+            Package => run_step("Senbit update packages", || package::build(p)),
             All => {
-                run_step("Linux Kernel", || kernel::build(p, &mut cache, jobs))?;
-                run_step("BusyBox", || busybox::build(p, &mut cache, jobs))?;
-                run_step("util-linux", || util_linux::build(p, &mut cache, jobs))?;
-                run_step("GNU Parted", || parted::build(p, &mut cache, jobs))?;
-                run_step("systemd", || systemd::build(p, &mut cache, jobs))?;
+                run_step("Linux Kernel", || {
+                get::ensure(p, Component::Linux)?;
+                kernel::build(p, &mut cache, jobs)
+            })?;
+                run_step("BusyBox", || {
+                get::ensure(p, Component::Busybox)?;
+                busybox::build(p, &mut cache, jobs)
+            })?;
+                run_step("util-linux", || {
+                get::ensure(p, Component::UtilLinux)?;
+                util_linux::build(p, &mut cache, jobs)
+            })?;
+                run_step("GNU Parted", || {
+                get::ensure(p, Component::Parted)?;
+                parted::build(p, &mut cache, jobs)
+            })?;
+                run_step("systemd", || {
+                get::ensure(p, Component::Systemd)?;
+                systemd::build(p, &mut cache, jobs)
+            })?;
                 run_step("apt / dpkg", || apt::build(p, &mut cache))?;
                 run_step("Senbit Rust Userspace", || {
                     rust_build::build(p, &mut cache, jobs)
