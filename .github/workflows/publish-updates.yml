@@ -61,8 +61,14 @@ jobs:
             echo "key=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          key="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          # gpg exits with 2 on a harmless warning (e.g. "invalid armor header" when the
+          # secret was pasted with odd lines): what matters is that the key is there.
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import || echo "::warning::gpg --import returned $? (checking the key anyway)"
+          key="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ && !k {k=$10} END {print k}')"
+          if [ -z "$key" ]; then
+            echo "::error::No secret key found after the import: check the GPG_PRIVATE_KEY secret."
+            exit 1
+          fi
           echo "key=$key" >> "$GITHUB_OUTPUT"
           mkdir -p config/update
           gpg --export "$key" > config/update/senbit-archive-keyring.gpg
