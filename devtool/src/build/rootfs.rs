@@ -67,6 +67,12 @@ pub(crate) fn copy_tree(src: &Path, dst: &Path) -> Result<()> {
                     dst_path.display()
                 )
             })?;
+
+            // fs::copy sets the mode and THEN writes the data: the kernel clears the
+            // setuid/setgid bits on write. Put the exact mode back (sudo needs 4755).
+            fs::set_permissions(&dst_path, metadata.permissions()).with_context(|| {
+                format!("Failed to set the mode of {}", dst_path.display())
+            })?;
         }
     }
 
@@ -445,8 +451,6 @@ pub fn build(p: &Paths) -> Result<()> {
 
     // Everything systemd needs, every path used by Senbit's units.
     crate::build::systemd::verify_rootfs(&rootfs)?;
-
-    ui::info("Creating initramfs...");
 
     initramfs::build(p, &rootfs)?;
 

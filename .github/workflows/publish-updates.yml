@@ -21,13 +21,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build and publish the repository
+  build:
+    name: Build the repository
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -47,7 +44,8 @@ jobs:
             build-essential bc bison flex libelf-dev libssl-dev libncurses-dev dwarves cpio \
             gzip xz-utils bzip2 git wget curl rsync file xorriso grub-pc-bin grub-efi-amd64-bin \
             grub-common mtools qemu-system-x86 qemu-utils musl-tools libreadline-dev uuid-dev \
-            libpam0g-dev gettext gperf texinfo gnupg binutils
+            libpam0g-dev gettext gperf texinfo gnupg binutils \
+            autoconf automake libtool autopoint pkg-config meson ninja-build python3 python3-jinja2 python3-pyelftools libblkid-dev libcap-dev libmount-dev libcrypt-dev e2fsprogs
 
       # GPG key that signs the repository: secret GPG_PRIVATE_KEY (output of
       # `gpg --armor --export-secret-keys <key>`), without passphrase.
@@ -97,11 +95,43 @@ jobs:
       - name: Build the update packages
         run: ./scripts/devtool build package
 
+      # The root of the site would be a 404 page: add a small landing page.
+      - name: Add a landing page
+        run: |
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          name="${GITHUB_REPOSITORY#*/}"
+          url="https://${owner}.github.io/${name}"
+          cat > build/repo/index.html <<HTML
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Senbit update repository</title>
+          <h1>Senbit update repository</h1>
+          <p>This is an APT repository, not a web site. Use it from Senbit with:</p>
+          <pre>
+          Types: deb
+          URIs: ${url}
+          Suites: stable
+          Components: main
+          Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg
+          </pre>
+          <p><a href="dists/stable/Release">dists/stable/Release</a></p>
+          HTML
+
       - name: Upload the repository
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/repo
 
+  # Separate job (official pattern): the Pages artifact must be finished and visible
+  # before deploy-pages looks for it, otherwise "Found 0 artifact(s)".
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

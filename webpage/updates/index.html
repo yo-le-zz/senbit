@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Updates — Senbit</title>
+    <meta name="description" content="How Senbit updates itself with apt, with snapshots and rollback.">
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" href="/assets/favicon.png" type="image/png">
+    <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/site.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href="/">
+          <img src="/assets/logo.png" alt="" width="30" height="33">
+          Senbit
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Main">
+          <a href="/">Home</a>
+          <a href="/architecture/">Architecture</a>
+          <a href="/install/">Installer</a>
+          <a href="/updates/" aria-current="page">Updates</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/develop/">Develop</a>
+          <a href="https://github.com/yo-le-zz/senbit">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-title">
+        <div class="wrap">
+          <h1>System updates</h1>
+          <p class="intro">
+            Senbit has no update command of its own: the system is updated with the real
+            <code>apt</code>.
+          </p>
+          <p class="warning">
+            Version 0.4.0: written and reviewed, <strong>not tested in a virtual machine yet</strong>.
+            Expect fixes after the first real test.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Updating</h2>
+          <div class="cmd"><code>sudo apt update</code><button type="button" data-copy="sudo apt update">Copy</button></div>
+          <div class="cmd"><code>sudo apt upgrade</code><button type="button" data-copy="sudo apt upgrade">Copy</button></div>
+          <p>
+            Two Debian packages carry Senbit: <code>senbit-kernel</code> (kernel and init) and
+            <code>senbit-userspace</code> (login, commands, systemd units, scripts). They are
+            published in a GPG-signed APT repository and verified by apt like any other package.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Around an update</h2>
+          <div class="grid two">
+            <article class="card">
+              <h3>Detection</h3>
+              <p>A daily timer checks for updates. <code>bootreport</code> tells you at login. Nothing is installed without you, and nothing is asked at boot.</p>
+            </article>
+            <article class="card">
+              <h3>Snapshot</h3>
+              <p>Before each update, the package state is recorded in <code>/var/lib/senbit/snapshots</code> (the last three are kept).</p>
+            </article>
+            <article class="card">
+              <h3>Previous version kept</h3>
+              <p>The previous kernel and initramfs stay on disk and in the boot menu as &ldquo;previous version&rdquo;.</p>
+            </article>
+            <article class="card">
+              <h3>Automatic rollback</h3>
+              <p>After three failed boots in a row, GRUB starts the previous version by itself, and the choice is kept for the next boots.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>The <code>rollback</code> command</h2>
+          <div class="cmd"><code>sudo rollback</code><button type="button" data-copy="sudo rollback">Copy</button></div>
+          <div class="cmd"><code>rollback --status</code><button type="button" data-copy="rollback --status">Copy</button></div>
+          <p>
+            <code>sudo rollback</code> shows the state and asks before going back to the
+            previous version. Run it again to go forward. After a rollback,
+            <code>senbit-kernel</code> is put on hold so that <code>apt upgrade</code> does not
+            bring the faulty version back.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Use the repository</h2>
+          <p>The images built with an <code>[update]</code> section in <code>config.toml</code> already contain this source:</p>
+          <pre class="code"><code>Types: deb
+      URIs: https://yo-le-zz.github.io/senbit
+      Suites: stable
+      Components: main
+      Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg</code></pre>
+          <p class="note">
+            Details, publishing and offline updates:
+            <a href="https://github.com/yo-le-zz/senbit/blob/main/docs/UPDATES.md">docs/UPDATES.md</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p><strong>Senbit</strong> &mdash; server infrastructure, built around Linux.</p>
+        <p>
+          Original code under the Apache License 2.0. The Linux kernel and the
+          third-party components keep their own licenses.
+        </p>
+        <p>
+          <a href="https://github.com/yo-le-zz/senbit">Repository</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/discussions">Discussions</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/releases">Releases</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

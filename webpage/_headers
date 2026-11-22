@@ -1,0 +1,12 @@
+# Cloudflare Pages: response headers.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; img-src 'self'; connect-src https://yo-le-zz.github.io; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# The assets are small and change rarely: let browsers keep them for a day.
+/assets/*
+  Cache-Control: public, max-age=86400

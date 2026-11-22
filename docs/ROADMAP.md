@@ -30,7 +30,7 @@ The roadmap focuses on system capabilities rather than fixed release dates.
 * [x] Native logging
 * [x] `log` command
 * [x] Unix socket IPC
-* [x] Service definition format (systemd unit files, see [docs/SERVICES.md](docs/SERVICES.md))
+* [x] Service definition format (systemd unit files, see [SERVICES.md](SERVICES.md))
 * [x] Service manager (systemd, started by Senbit's init)
 * [x] Service dependencies (`Requires=`, `Wants=`, `After=`, `Before=`)
 * [x] Service lifecycle management (`systemctl start|stop|restart|enable|disable|status`, `journalctl -u`)
@@ -41,8 +41,8 @@ The roadmap focuses on system capabilities rather than fixed release dates.
 
 ## Phase 2 — Package Ecosystem 📦
 
-* [x] Define Senbit package format (the Debian `.deb`, see [docs/PACKAGES.md](docs/PACKAGES.md))
-* [x] Study APT/dpkg reuse (reused as is: [docs/PACKAGES.md](docs/PACKAGES.md))
+* [x] Define Senbit package format (the Debian `.deb`, see [PACKAGES.md](PACKAGES.md))
+* [x] Study APT/dpkg reuse (reused as is: [PACKAGES.md](PACKAGES.md))
 * [x] Debian package compatibility (merged-/usr, glibc runtime, maintainer-script tools, system accounts, D-Bus)
 * [x] Package installation (`apt install curl postgresql`)
 * [x] Package removal (`apt remove`, `apt purge`, `apt autoremove`)

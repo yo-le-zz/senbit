@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Installer — Senbit</title>
+    <meta name="description" content="How the Senbit installer works, on BIOS and UEFI.">
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" href="/assets/favicon.png" type="image/png">
+    <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/site.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href="/">
+          <img src="/assets/logo.png" alt="" width="30" height="33">
+          Senbit
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Main">
+          <a href="/">Home</a>
+          <a href="/architecture/">Architecture</a>
+          <a href="/install/" aria-current="page">Installer</a>
+          <a href="/updates/">Updates</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/develop/">Develop</a>
+          <a href="https://github.com/yo-le-zz/senbit">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-title">
+        <div class="wrap">
+          <h1>Installer</h1>
+          <p class="intro">
+            An interactive installer that asks everything first, writes nothing, and
+            installs only after a final confirmation.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>How an installation goes</h2>
+          <ol class="steps">
+            <li><strong>Questions</strong><small>keyboard, disk and partitioning, accounts, hostname, language, timezone, network (DHCP or static address, gateway, DNS)</small></li>
+            <li><strong>Summary</strong><small>everything that will be done. Nothing has been written to the disk yet.</small></li>
+            <li><strong>Decision</strong><small>Cancel (the default), start over, or install</small></li>
+            <li><strong>Installation</strong><small>each step is displayed as it runs, with its duration</small></li>
+          </ol>
+          <p class="note">Cancelling or starting over before the confirmation never modifies the disk.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>What it sets up</h2>
+          <div class="grid three">
+            <article class="card">
+              <h3>Disks</h3>
+              <p>Automatic or manual (<code>fdisk</code>) partitioning, or an existing partition. FAT32 for the EFI partition, ext4 for the root, then the bootloader.</p>
+            </article>
+            <article class="card">
+              <h3>Accounts</h3>
+              <p>A root account and a main user, stored in <code>/etc/passwd</code>, <code>/etc/shadow</code> and <code>/etc/group</code> with hashed passwords.</p>
+            </article>
+            <article class="card">
+              <h3>System settings</h3>
+              <p>Hostname, locale, timezone, keyboard layout and network are written to the target and persist across reboots.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p><strong>Senbit</strong> &mdash; server infrastructure, built around Linux.</p>
+        <p>
+          Original code under the Apache License 2.0. The Linux kernel and the
+          third-party components keep their own licenses.
+        </p>
+        <p>
+          <a href="https://github.com/yo-le-zz/senbit">Repository</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/discussions">Discussions</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/releases">Releases</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

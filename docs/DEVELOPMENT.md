@@ -127,7 +127,7 @@ Written and reviewed but **not yet tested in a VM** (0.4.0):
 
 * [ ] `devtool build package` and the update repository (`senbit-kernel`, `senbit-userspace`)
 * [ ] `apt upgrade` of the Senbit components, snapshot before the upgrade, updates notice at login
-* [ ] Automatic rollback (GRUB boot counter) and `/usr/lib/senbit/rollback`
+* [ ] Automatic rollback (GRUB boot counter) and the `rollback` command
 
 Current development areas:
 

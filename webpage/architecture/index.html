@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Architecture — Senbit</title>
+    <meta name="description" content="Senbit's layers, its Rust userspace and its boot sequence.">
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" href="/assets/favicon.png" type="image/png">
+    <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/site.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href="/">
+          <img src="/assets/logo.png" alt="" width="30" height="33">
+          Senbit
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Main">
+          <a href="/">Home</a>
+          <a href="/architecture/" aria-current="page">Architecture</a>
+          <a href="/install/">Installer</a>
+          <a href="/updates/">Updates</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/develop/">Develop</a>
+          <a href="https://github.com/yo-le-zz/senbit">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-title">
+        <div class="wrap">
+          <h1>Architecture</h1>
+          <p class="intro">What Senbit is made of, and what happens from power-on to login.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Rust userspace on a standard base</h2>
+          <div class="grid three">
+            <article class="card">
+              <h3>Senbit init</h3>
+              <p>PID 1, written in Rust in small modules (hostname, keymaps, network, installer). It prepares the system, then starts systemd.</p>
+            </article>
+            <article class="card">
+              <h3>Native commands</h3>
+              <p>One Rust crate per command: <code>sudo</code>, <code>log</code>, <code>bootreport</code>, <code>findmnt</code>, <code>adduser</code>, <code>useradd</code>, <code>getent</code> and the power commands.</p>
+            </article>
+            <article class="card">
+              <h3>Standard tools</h3>
+              <p>systemd for services, BusyBox for the minimal environment, and the real <code>apt</code> and <code>dpkg</code> for packages. No Senbit-specific wrapper.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>From power-on to login</h2>
+          <p class="intro">
+            Senbit init runs as PID 1. Without an installation it starts the installer;
+            otherwise it brings the installed system up in this order.
+          </p>
+          <ol class="steps">
+            <li>Detect the system disk and mount the root filesystem</li>
+            <li>Mount <code>/proc</code>, <code>/sys</code>, <code>/dev</code> and <code>/run</code></li>
+            <li>Verify <code>/etc/fstab</code></li>
+            <li>Initialize the hostname and the system configuration</li>
+            <li>Initialize the network<small>a failure never stops the boot: it is shown by <code>bootreport</code> at login</small></li>
+            <li>Start the system infrastructure (systemd and the services)</li>
+            <li>Log in, then start the user's shell</li>
+          </ol>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>One ISO, two firmwares</h2>
+          <div class="grid three">
+            <article class="card">
+              <h3>The ISO</h3>
+              <p>Hybrid image. GRUB <code>i386-pc</code> handles BIOS, GRUB <code>x86_64-efi</code> handles UEFI, and both lead to the same Senbit Linux.</p>
+            </article>
+            <article class="card">
+              <h3>BIOS installs</h3>
+              <p>MBR partition table, ext4 root, GRUB with the <code>i386-pc</code> target.</p>
+            </article>
+            <article class="card">
+              <h3>UEFI installs</h3>
+              <p>GPT table with a FAT32 EFI System Partition, ext4 root, GRUB with the <code>x86_64-efi</code> target.</p>
+            </article>
+          </div>
+          <p class="note">Full technical documentation: <a href="https://github.com/yo-le-zz/senbit/tree/main/docs">docs/</a> in the repository.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p><strong>Senbit</strong> &mdash; server infrastructure, built around Linux.</p>
+        <p>
+          Original code under the Apache License 2.0. The Linux kernel and the
+          third-party components keep their own licenses.
+        </p>
+        <p>
+          <a href="https://github.com/yo-le-zz/senbit">Repository</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/discussions">Discussions</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/releases">Releases</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

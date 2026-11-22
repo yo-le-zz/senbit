@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Develop — Senbit</title>
+    <meta name="description" content="Build Senbit with devtool and run it in QEMU.">
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" href="/assets/favicon.png" type="image/png">
+    <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/site.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href="/">
+          <img src="/assets/logo.png" alt="" width="30" height="33">
+          Senbit
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" class="site-nav" aria-label="Main">
+          <a href="/">Home</a>
+          <a href="/architecture/">Architecture</a>
+          <a href="/install/">Installer</a>
+          <a href="/updates/">Updates</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/develop/" aria-current="page">Develop</a>
+          <a href="https://github.com/yo-le-zz/senbit">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-title">
+        <div class="wrap">
+          <h1>Build it and run it</h1>
+          <p class="intro">
+            <code>devtool</code> checks your machine, downloads the pinned sources, builds
+            everything and boots it in QEMU. It rebuilds only what changed.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Quick start</h2>
+          <div class="cmd"><code>git clone https://github.com/yo-le-zz/senbit</code><button type="button" data-copy="git clone https://github.com/yo-le-zz/senbit">Copy</button></div>
+          <div class="cmd"><code>./scripts/devtool.sh</code><button type="button" data-copy="./scripts/devtool.sh">Copy</button></div>
+          <div class="cmd"><code>./scripts/devtool doctor</code><button type="button" data-copy="./scripts/devtool doctor">Copy</button></div>
+          <div class="cmd"><code>./scripts/devtool install</code><button type="button" data-copy="./scripts/devtool install">Copy</button></div>
+          <div class="cmd"><code>./scripts/devtool run --force</code><button type="button" data-copy="./scripts/devtool run --force">Copy</button></div>
+          <p class="note">
+            Works on Fedora, Ubuntu/Debian and Arch. <code>doctor</code> lists what is
+            missing, <code>install</code> installs it, and <code>run</code> builds and boots
+            Senbit in QEMU (add <code>--new</code> for a blank disk).
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>What gets built</h2>
+          <p class="pipeline">
+            <span>Linux kernel</span><span>BusyBox</span><span>util-linux</span><span>Parted</span>
+            <span>systemd</span><span>apt / dpkg</span><span>Rust userspace</span>
+            <span>native commands</span><span>rootfs</span><span>initramfs</span><span>ISO</span>
+          </p>
+          <p>
+            <code>devtool build package</code> also builds the update packages and the APT
+            repository (<a href="/updates/">updates</a>).
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Test environment</h2>
+          <ul class="checks plain">
+            <li>x86_64 on Linux hosts</li>
+            <li>QEMU with BIOS firmware</li>
+            <li>QEMU with UEFI (OVMF) firmware</li>
+          </ul>
+          <p class="note">
+            Contributing: read <a href="https://github.com/yo-le-zz/senbit/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.
+            ARM64 and other architectures are planned once they add practical value.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p><strong>Senbit</strong> &mdash; server infrastructure, built around Linux.</p>
+        <p>
+          Original code under the Apache License 2.0. The Linux kernel and the
+          third-party components keep their own licenses.
+        </p>
+        <p>
+          <a href="https://github.com/yo-le-zz/senbit">Repository</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/discussions">Discussions</a> &middot;
+          <a href="https://github.com/yo-le-zz/senbit/releases">Releases</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

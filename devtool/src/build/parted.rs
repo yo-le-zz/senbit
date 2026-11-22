@@ -138,6 +138,9 @@ pub fn build(p: &Paths, cache: &mut Cache, jobs: usize) -> Result<()> {
         run_quiet(
             Command::new(dir.join("configure"))
                 .current_dir(&build_dir)
+                // Parted 3.6 declares `do_version ()` the old way: GCC 15 (C23 by default)
+                // reads it as `(void)` and refuses to compile. Stay on C17.
+                .env("CFLAGS", "-g -O2 -std=gnu17")
                 .args([
                     "--prefix=/usr",
                     "--bindir=/usr/bin",
