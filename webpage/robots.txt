@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://senbit.pages.dev/sitemap.xml

@@ -1,166 +1,90 @@
 # Roadmap
 
-> Part of the [Senbit documentation](../README.md#documentation).
+The roadmap is organized by **capability, not by date**: a version is released when its goal is reached.
+Each milestone is small on purpose, and is finished only when:
 
-The roadmap focuses on system capabilities rather than fixed release dates.
+- it works in a QEMU virtual machine, with BIOS and with UEFI firmware;
+- it is documented in `docs/`;
+- it is in the release notes (`docs/releases/`).
 
-## Phase 0 — Foundation 🏗️
+Priorities, set by the project owner: **recovery**, then **security**, then **declarative deployment**,
+then **real hardware**. Until then, the target stays QEMU.
 
-* [x] Repository structure
-* [x] Build system
-* [x] Linux kernel integration
-* [x] Minimal root filesystem
-* [x] Senbit PID 1
-* [x] QEMU boot
-* [x] BIOS boot
-* [x] UEFI boot
-* [x] Installation system
-* [x] User authentication
-* [x] Basic networking
-* [x] Interactive shell
-* [x] Native command system
-* [x] Logging system
-* [x] Shutdown infrastructure
-* [ ] Complete TTY/session management
+## Done
 
-## Phase 1 — Server Userspace 🖥️
+| Version | Subject |
+|---|---|
+| 0.1 – 0.3 | Foundation and server basics: build system (`devtool`), Linux kernel, `senbit-init`, BIOS and UEFI boot, installer, login, native commands, logging; real `apt` and `dpkg` with Debian 12 packages; systemd as PID 1, `systemctl`, `journalctl`, DHCP and static networking, SSH with `apt install openssh-server` |
+| 0.4 | System updates: `senbit-kernel` and `senbit-userspace` packages, signed update repository on GitHub Pages, `apt upgrade`, snapshot before an update, automatic rollback after 3 failed boots, the `rollback` command |
 
-* [x] Native `sudo`
-* [x] Native power-management commands
-* [x] Native logging
-* [x] `log` command
-* [x] Unix socket IPC
-* [x] Service definition format (systemd unit files, see [SERVICES.md](SERVICES.md))
-* [x] Service manager (systemd, started by Senbit's init)
-* [x] Service dependencies (`Requires=`, `Wants=`, `After=`, `Before=`)
-* [x] Service lifecycle management (`systemctl start|stop|restart|enable|disable|status`, `journalctl -u`)
-* [x] `systemctl` (the real one; works for normal users thanks to D-Bus)
-* [x] Standard administration commands, no Senbit-specific wrapper (`systemctl`, `journalctl`, `ip`, `apt`, `adduser`/`useradd`, `getent`)
-* [x] Static networking (asked by the installer, `/etc/network/interfaces`)
-* [x] SSH (`apt install openssh-server`: installed and started by the Debian package scripts)
+## 0.5 — Recovery
 
-## Phase 2 — Package Ecosystem 📦
+**Goal: a Senbit that fails can be repaired without reinstalling.**
 
-* [x] Define Senbit package format (the Debian `.deb`, see [PACKAGES.md](PACKAGES.md))
-* [x] Study APT/dpkg reuse (reused as is: [PACKAGES.md](PACKAGES.md))
-* [x] Debian package compatibility (merged-/usr, glibc runtime, maintainer-script tools, system accounts, D-Bus)
-* [x] Package installation (`apt install curl postgresql`)
-* [x] Package removal (`apt remove`, `apt purge`, `apt autoremove`)
-* [x] Package updates (`apt update`, `apt upgrade`; the package lists are downloaded automatically at the first boot)
-* [x] Dependency management (apt's resolver, `apt --fix-broken install`)
-* [x] Repository management (`/etc/apt/sources.list.d/*.sources`)
-* [x] Package signatures (repositories verified by apt with GPG keys, `Signed-By:`)
-* [x] Standard `apt` / `dpkg` as the package manager (no Senbit-specific wrapper)
+- [ ] **Recovery boot entry** in GRUB: boots to a root shell (systemd `rescue.target`)
+- [ ] **Repair from the ISO**: the live system finds an installed Senbit, mounts it and gives a shell in it
+- [ ] **`snapshot` command**: `snapshot create`, `list`, `show`, `restore` for the configuration (`/etc`), the package list and the boot files. The snapshots already taken before an update become usable with it
+- [ ] **Filesystem check** after an unclean shutdown, before the root filesystem is used
+- [ ] Complete TTY and session handling, and shell job control (left over from the foundation)
+- [ ] Confirm Docker Engine networking in a VM (the kernel has the nftables and NAT options)
 
-## Phase 3 — System Updates 🔄
+Decision to take before this milestone is closed: snapshots of the *whole disk* need a filesystem that can
+do it (Btrfs, or LVM thin volumes). With ext4 only, the `snapshot` command covers configuration and boot
+files, not data. The milestone is planned for ext4 only.
 
-Updates go through the real `apt` ([UPDATES.md](UPDATES.md)). **Written and reviewed, not tested in a VM yet.**
+**Done when:** in a VM, a broken `/etc/fstab` or a deleted boot file is repaired from the recovery entry or
+from the ISO, and a configuration change is undone with `snapshot restore`.
 
-* [x] Version management (`Cargo.toml` → `/etc/senbit-release`, packages `senbit-kernel` and `senbit-userspace`)
-* [x] Update detection (daily timer, notice at login: `bootreport`)
-* [x] Update download (`apt update && apt upgrade`)
-* [x] Integrity verification (SHA-256 of the apt indexes)
-* [x] Authenticity verification (GPG-signed repository, `Release.gpg` / `InRelease`)
-* [x] Snapshot before update (`/var/lib/senbit/snapshots`, last 3 kept)
-* [x] Component-level updates (kernel/init and userspace are separate packages)
-* [x] Offline updates (`apt install ./x.deb` or a `file:` repository)
-* [x] Automatic rollback at boot (GRUB attempt counter, 3 tries)
-* [x] No Senbit-specific update command: `apt upgrade` is the update command
+## 0.6 — Security
 
-## Phase 4 — Snapshots & Recovery ↩️
+**Goal: a safe-by-default server, and a way to see what is exposed.**
 
-* [ ] Snapshot system
-* [ ] Configuration snapshots
-* [ ] Package snapshots
-* [ ] Service snapshots
-* [ ] Snapshot restoration
-* [ ] Snapshot integrity verification
-* [ ] Recovery mode
-* [ ] Boot recovery
-* [ ] Automatic rollback
+- [ ] **Firewall**: nftables with a documented default ruleset (inbound denied except what the administrator
+  opens; SSH when it is installed)
+- [ ] **Exposure report**: listening ports and the service that owns each, shown by `bootreport`
+- [ ] **File integrity**: Senbit packages ship checksums, and `dpkg --verify` on them is part of
+  `bootreport`; a modified system file shows as a warning
+- [ ] **Hardening defaults**: sysctl settings, stricter defaults for `sudo` and for SSH when installed
+  (no root login), documented
+- [ ] Opt-in automatic security updates (a systemd timer that runs `apt upgrade`; off by default)
 
-## Phase 5 — Security & Monitoring 🛡️
+**Done when:** a fresh install has a firewall, `bootreport` lists what listens on the network, and changing
+`/usr/lib/senbit/rollback` (or any packaged file) is reported at the next login.
 
-* [ ] Firewall
-* [ ] Linux capabilities management
-* [ ] Security auditing
-* [ ] Service exposure auditing
-* [ ] File integrity tracking
-* [ ] Security event management
-* [ ] Configuration validation
-* [ ] Security hardening
+## 0.7 — Declarative deployment
 
-## Phase 6 — Deployment 🚀
+**Goal: install the same server twice, without answering questions.**
 
-* [ ] Declarative configuration
-* [ ] Automated installation
-* [ ] Automated system configuration
-* [ ] Automated package installation
-* [ ] Reproducible server deployment
-* [ ] Server fleet management
-* [ ] Remote administration
+- [ ] **Unattended install** from an answers file (disk, accounts, hostname, network, locale), read from the
+  kernel command line or from a second disk
+- [ ] **Export** of the answers of an installation to that file, so that a machine can be reinstalled the same way
+- [ ] **VM disk image** (`devtool build image`): a ready-to-boot qcow2 with the answers file injected
+- [ ] Published checksum for every ISO and image
 
-## Phase 7 — Multi-Architecture 🌍
+**Done when:** one command creates a VM, installs Senbit with no question, and ends with a working login and
+SSH.
 
-### x86_64
+## 0.8 — Real hardware
 
-* [x] Initial support
+**Goal: boot and install on one physical x86_64 machine.**
 
-### ARM64
+- [ ] Boot the ISO from a USB stick on a real PC, in UEFI mode
+- [ ] Review the kernel drivers: storage (SATA, NVMe, USB) and the common network cards
+- [ ] Decide how firmware files (`linux-firmware`) are handled
+- [ ] Document what is not supported (Secure Boot, to start with)
+- [ ] A hardware test checklist, and the list of machines that were tried
 
-* [ ] Kernel support
-* [ ] Userspace build
-* [ ] Initramfs build
-* [ ] QEMU support
-* [ ] Image generation
-* [ ] Installation testing
+**Done when:** a complete installation, a reboot, an update and a rollback were done on a physical machine.
 
-### Other architectures
+## Later, not planned
 
-* [ ] Evaluate RISC-V
-* [ ] Evaluate ARM32
-* [ ] Define officially supported architectures
+Ideas, with no order and no date: ARM64 (kernel, userspace, images), other architectures, management of
+several machines, remote administration, a declarative configuration of the running system (beyond the
+install), Btrfs or LVM snapshots of the whole disk. They are taken up only when the milestones above are done.
 
----
+## Always
 
-# 🔭 Long-Term Vision
-
-The long-term goal is to make Senbit a complete server operating platform.
-
-A server should eventually be manageable through a predictable lifecycle:
-
-```text
-             Deploy
-               │
-               ▼
-           Configure
-               │
-               ▼
-              Run
-               │
-               ▼
-           Monitor
-               │
-               ▼
-            Update
-               │
-               ▼
-            Verify
-               │
-          ┌────┴────┐
-          ▼         ▼
-       Success    Failure
-          │         │
-          ▼         ▼
-       Continue   Rollback
-```
-
-Senbit should make server operations:
-
-* Predictable
-* Automatable
-* Observable
-* Recoverable
-* Reproducible
-
-The project will continue building around the Linux ecosystem rather than attempting to replace it.
+- Documentation kept in line with the code, and release notes for every version.
+- `cargo test` and the build in GitHub Actions stay green.
+- No Senbit-specific command where a standard one exists: `rollback` and `snapshot` are the exceptions,
+  because nothing standard does the job.

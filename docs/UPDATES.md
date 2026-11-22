@@ -1,10 +1,5 @@
 # System updates (Phase 3, Senbit 0.4.0)
 
-> Part of the [Senbit documentation](../README.md#documentation).
->
-> **Status: written and reviewed by hand, not tested in a VM yet.** Expect fixes after the first
-> real test.
-
 Senbit has **no update command of its own**. The system is updated with the real `apt`, exactly like
 any other package: the components of Senbit are Debian packages published in a signed APT repository.
 
@@ -128,7 +123,7 @@ only; the images you build locally keep `[update] repository = ""` unless you se
 image that already points to the repository, set `repository` to the same URL in your `config.toml` and
 put the public key in `config/update/senbit-archive-keyring.gpg`.
 
-Not tested yet. The first run takes a long time (it compiles the kernel).
+The first run takes a long time (it compiles the kernel).
 
 ## Offline updates
 
@@ -147,7 +142,7 @@ Components: main
 Signed-By: /usr/share/keyrings/senbit-archive-keyring.gpg
 ```
 
-## Testing in the VM
+## Trying an update locally
 
 ```bash
 # on the host

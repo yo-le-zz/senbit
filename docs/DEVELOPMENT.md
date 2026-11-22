@@ -1,137 +1,57 @@
 # Development
 
-> Part of the [Senbit documentation](../README.md#documentation).
-
-# 🛠️ Development
-
-Senbit provides a dedicated development tool:
-
-```text
-devtool
-```
-
-The development workflow manages the major components required to build and run Senbit.
-
-## First setup (Fedora, Ubuntu/Debian, Arch)
-
-Everything starts from one script, from any directory of the clone:
+`devtool` builds Senbit and runs it in QEMU. Everything starts from one script, from any directory of the
+clone (Fedora, Ubuntu/Debian and Arch are supported):
 
 ```bash
 ./scripts/devtool.sh        # compiles devtool -> scripts/devtool
 ./scripts/devtool doctor    # checks this machine, prints the install command
-./scripts/devtool install   # installs missing packages (apt / dnf / pacman)
-./scripts/devtool get       # downloads the PINNED sources and verifies them
-./scripts/devtool build     # kernel, BusyBox, util-linux, Parted, systemd, apt, ISO
+./scripts/devtool install   # installs the missing packages (apt / dnf / pacman)
+./scripts/devtool get       # downloads the pinned sources and verifies them
+./scripts/devtool build     # builds everything, down to the ISO
 ```
 
-All paths are relative to the project root, so the repository works wherever
-it is cloned. See [docs/BUILD.md](docs/BUILD.md) for versions, patches and apt.
+All paths are relative to the project root. Versions, patches and apt are explained in
+[BUILD.md](BUILD.md); every option of the tool is in [devtool/README.md](../devtool/README.md).
 
 ## Run Senbit
 
-The recommended development command is:
-
 ```bash
-./scripts/devtool run --force
+./scripts/devtool run --force       # rebuild, then boot in QEMU
+./scripts/devtool run --force --new # also start from a blank disk (tests the installer)
 ```
 
-This performs the required rebuild and launches Senbit in QEMU.
+`config/vm.config` sets the memory, the CPUs, the disk, and `BOOT=bios` or `BOOT=uefi`.
 
-For a completely fresh VM disk:
-
-```bash
-./scripts/devtool run --force --new
-```
-
-The `--new` option is useful when testing the installation process from scratch.
-
----
-
-# 🏗️ Build Pipeline
-
-The Senbit build system assembles the operating system through multiple stages:
+## Build pipeline
 
 ```text
-Linux Kernel
-      │
-      ▼
-BusyBox
-      │
-      ▼
-Util-linux / Parted
-      │
-      ▼
-Senbit Rust Userspace
-      │
-      ▼
-Native Commands
-      │
-      ▼
-GRUB
-      │
-      ▼
-Root Filesystem
-      │
-      ▼
-Initramfs
-      │
-      ▼
-ISO
+Linux kernel → BusyBox → util-linux, Parted → systemd → apt, dpkg
+   → Rust userspace → native commands → tools (keymaps, fonts)
+   → root filesystem → initramfs → ISO
 ```
 
-The build system is designed to avoid rebuilding components unnecessarily.
+Only what changed is rebuilt (`--force` rebuilds everything). The initramfs is recompressed only when the
+root filesystem changed. `./scripts/devtool build package` also builds the update packages and the APT
+repository (see [UPDATES.md](UPDATES.md)).
 
----
+## Tests
 
-# 🧪 Testing
+Senbit is tested in QEMU, with BIOS and with UEFI firmware, and `cargo test` covers the Rust code.
 
-Senbit is currently tested primarily in QEMU.
+Covered in the VM:
 
-Current tested functionality includes:
+- boot: kernel, `senbit-init`, root filesystem, API filesystems, systemd as PID 1
+- installer: detection, BIOS and UEFI installations, GPT and MBR, GRUB for both, fstab, hostname, locale,
+  timezone, keyboard, users
+- network (DHCP and static), login, `sudo`, power commands, logging, `log`, `bootreport`
+- packages and services: `apt install`, systemd units
+- updates: signed repository, `apt upgrade`, snapshot, automatic rollback and the `rollback` command
 
-* [x] Linux kernel boot
-* [x] Senbit PID 1
-* [x] Root filesystem mounting
-* [x] `/proc`
-* [x] `/sys`
-* [x] `/dev`
-* [x] `/run`
-* [x] Installation detection
-* [x] BIOS installation
-* [x] UEFI installation
-* [x] GPT partitioning
-* [x] MBR partitioning
-* [x] GRUB BIOS installation
-* [x] GRUB UEFI installation
-* [x] Root filesystem installation
-* [x] `/etc/fstab`
-* [x] `/etc/senbit-release`
-* [x] Hostname
-* [x] Locale
-* [x] Timezone
-* [x] DHCP networking
-* [x] User creation
-* [x] Password authentication
-* [x] Keyboard persistence
-* [x] Shell startup
-* [x] Native `sudo`
-* [x] Native power-management commands
-* [x] System Unix socket
-* [x] Logging
-* [x] Native `log` command
-* [x] Clean shutdown infrastructure
-* [x] QEMU BIOS testing
-* [x] QEMU UEFI testing
+Still to do: complete TTY and session management, job control, recovery mode, snapshots.
 
-Written and reviewed but **not yet tested in a VM** (0.4.0):
+## Contributing
 
-* [ ] `devtool build package` and the update repository (`senbit-kernel`, `senbit-userspace`)
-* [ ] `apt upgrade` of the Senbit components, snapshot before the upgrade, updates notice at login
-* [ ] Automatic rollback (GRUB boot counter) and the `rollback` command
-
-Current development areas:
-
-* [ ] Complete TTY/session management
-* [ ] Proper shell job control
-* [ ] Recovery mode
-* [ ] Snapshots (Phase 4)
+Work on a branch and open a pull request: see [CONTRIBUTING.md](../CONTRIBUTING.md). The repository must
+not contain nested Git repositories: the downloaded sources (`kernel/linux`, `external/`, `third_party/`)
+and `build/` are ignored; `./scripts/git-unify.sh` cleans an old clone.

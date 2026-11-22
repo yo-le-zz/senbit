@@ -6,8 +6,14 @@
     <title>Updates — Senbit</title>
     <meta name="description" content="How Senbit updates itself with apt, with snapshots and rollback.">
     <meta name="color-scheme" content="dark light">
+    <link rel="canonical" href="https://senbit.pages.dev/updates/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Updates — Senbit">
+    <meta property="og:description" content="How Senbit updates itself with apt, with snapshots and rollback.">
+    <meta property="og:url" content="https://senbit.pages.dev/updates/">
     <link rel="icon" href="/assets/favicon.png" type="image/png">
     <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/init.js"></script>
     <script src="/assets/site.js" defer></script>
   </head>
   <body>
@@ -38,10 +44,6 @@
             Senbit has no update command of its own: the system is updated with the real
             <code>apt</code>.
           </p>
-          <p class="warning">
-            Version 0.4.0: written and reviewed, <strong>not tested in a virtual machine yet</strong>.
-            Expect fixes after the first real test.
-          </p>
         </div>
       </section>
 
@@ -62,19 +64,19 @@
         <div class="wrap">
           <h2>Around an update</h2>
           <div class="grid two">
-            <article class="card">
+            <article class="card reveal">
               <h3>Detection</h3>
               <p>A daily timer checks for updates. <code>bootreport</code> tells you at login. Nothing is installed without you, and nothing is asked at boot.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>Snapshot</h3>
               <p>Before each update, the package state is recorded in <code>/var/lib/senbit/snapshots</code> (the last three are kept).</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>Previous version kept</h3>
               <p>The previous kernel and initramfs stay on disk and in the boot menu as &ldquo;previous version&rdquo;.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>Automatic rollback</h3>
               <p>After three failed boots in a row, GRUB starts the previous version by itself, and the choice is kept for the next boots.</p>
             </article>

@@ -4,10 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roadmap — Senbit</title>
-    <meta name="description" content="Senbit's roadmap, phase by phase.">
+    <meta name="description" content="Senbit's roadmap: recovery, security, declarative deployment, real hardware.">
     <meta name="color-scheme" content="dark light">
+    <link rel="canonical" href="https://senbit.pages.dev/roadmap/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Roadmap — Senbit">
+    <meta property="og:description" content="Senbit's roadmap: recovery, security, declarative deployment, real hardware.">
+    <meta property="og:url" content="https://senbit.pages.dev/roadmap/">
     <link rel="icon" href="/assets/favicon.png" type="image/png">
     <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/init.js"></script>
     <script src="/assets/site.js" defer></script>
   </head>
   <body>
@@ -34,95 +40,109 @@
       <section class="page-title">
         <div class="wrap">
           <h1>Roadmap</h1>
-          <p class="intro">Organized by capability, not by date.</p>
+          <p class="intro">
+            Organized by capability, not by date: a version is released when its goal is reached.
+            Priorities: recovery, then security, then declarative deployment, then real hardware.
+            Until then, the target stays QEMU.
+          </p>
         </div>
       </section>
 
       <section>
-        <div class="wrap grid two">
-          <article class="card phase">
-            <h3>Phase 0 — Foundation <span class="count">10/11</span></h3>
-            <ul class="checks">
-              <li class="done">Build system and Linux kernel integration</li>
-              <li class="done">Minimal root filesystem</li>
-              <li class="done">Senbit PID 1 and QEMU boot</li>
-              <li class="done">BIOS and UEFI boot</li>
-              <li class="done">Installation system</li>
-              <li class="done">User authentication</li>
-              <li class="done">Basic networking and interactive shell</li>
-              <li class="done">Native command system</li>
-              <li class="done">Logging system</li>
-              <li class="done">Shutdown infrastructure</li>
-              <li class="todo">Complete TTY and session management</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 1 — Server userspace <span class="count">6/6</span></h3>
-            <ul class="checks">
-              <li class="done">Native <code>sudo</code> and power-management commands</li>
-              <li class="done"><code>log</code> command and Unix socket IPC</li>
-              <li class="done">Service management (systemd, started by Senbit init)</li>
-              <li class="done"><code>systemctl</code> and <code>journalctl</code></li>
-              <li class="done">Static networking</li>
-              <li class="done">SSH (<code>apt install openssh-server</code>)</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 2 — Package ecosystem <span class="count">5/5</span></h3>
-            <ul class="checks">
-              <li class="done">Debian <code>.deb</code> as the package format</li>
-              <li class="done">Debian package compatibility</li>
-              <li class="done">Install, remove, update with <code>apt</code></li>
-              <li class="done">Dependency management</li>
-              <li class="done">Repository management and package signatures</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 3 — System updates (not tested in a VM yet) <span class="count">7/7</span></h3>
-            <ul class="checks">
-              <li class="done">Version management and update detection</li>
-              <li class="done">Download through <code>apt upgrade</code></li>
-              <li class="done">Integrity and authenticity verification (SHA-256, GPG)</li>
-              <li class="done">Snapshot before update</li>
-              <li class="done">Component-level updates (kernel and userspace packages)</li>
-              <li class="done">Offline updates</li>
-              <li class="done">Automatic rollback at boot, and the <code>rollback</code> command</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 4 — Snapshots and recovery <span class="count">0/3</span></h3>
-            <ul class="checks">
-              <li class="todo">Snapshot system, configuration, package and service snapshots</li>
-              <li class="todo">Snapshot restoration and integrity verification</li>
-              <li class="todo">Recovery mode and boot recovery</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 5 — Security and monitoring <span class="count">0/4</span></h3>
-            <ul class="checks">
-              <li class="todo">Firewall and Linux capabilities management</li>
-              <li class="todo">Security and service exposure auditing</li>
-              <li class="todo">File integrity tracking and security events</li>
-              <li class="todo">Configuration validation and hardening</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 6 — Deployment <span class="count">0/4</span></h3>
-            <ul class="checks">
-              <li class="todo">Declarative configuration</li>
-              <li class="todo">Automated installation and configuration</li>
-              <li class="todo">Reproducible server deployment</li>
-              <li class="todo">Fleet management and remote administration</li>
-            </ul>
-          </article>
-          <article class="card phase">
-            <h3>Phase 7 — Multi-architecture <span class="count">1/3</span></h3>
-            <ul class="checks">
-              <li class="done">x86_64</li>
-              <li class="todo">ARM64: kernel, userspace, initramfs, QEMU, images</li>
-              <li class="todo">Evaluate RISC-V and ARM32</li>
-            </ul>
-          </article>
+        <div class="wrap">
+          <h2>Done</h2>
+          <div class="grid two">
+            <article class="card reveal">
+              <h3>0.1 – 0.3 &middot; Foundation and server basics</h3>
+              <ul class="checks">
+                <li class="done">Build system, Linux kernel, <code>senbit-init</code>, BIOS and UEFI boot</li>
+                <li class="done">Installer, login, native commands, logging</li>
+                <li class="done">Real <code>apt</code> and <code>dpkg</code> with Debian 12 packages</li>
+                <li class="done">systemd as PID 1, <code>systemctl</code>, <code>journalctl</code></li>
+                <li class="done">DHCP and static networking, SSH with <code>apt install openssh-server</code></li>
+              </ul>
+            </article>
+            <article class="card reveal">
+              <h3>0.4 &middot; System updates</h3>
+              <ul class="checks">
+                <li class="done"><code>senbit-kernel</code> and <code>senbit-userspace</code> packages</li>
+                <li class="done">Signed update repository on GitHub Pages</li>
+                <li class="done"><code>apt upgrade</code>, snapshot before an update</li>
+                <li class="done">Automatic rollback after 3 failed boots</li>
+                <li class="done">The <code>rollback</code> command</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Next</h2>
+          <div class="grid two">
+            <article class="card phase reveal">
+              <h3>0.5 — Recovery</h3>
+              <p class="note">A Senbit that fails can be repaired without reinstalling.</p>
+              <ul class="checks">
+                <li class="todo">Recovery boot entry in GRUB (root shell)</li>
+                <li class="todo">Repair from the ISO: find an installed Senbit, mount it, shell inside</li>
+                <li class="todo"><code>snapshot</code> command: create, list, show, restore (configuration, package list, boot files)</li>
+                <li class="todo">Filesystem check after an unclean shutdown</li>
+                <li class="todo">Complete TTY and session handling, shell job control</li>
+                <li class="todo">Confirm Docker Engine networking in a VM</li>
+              </ul>
+              <p class="note"><strong>Done when:</strong> a broken <code>/etc/fstab</code> or a deleted boot file is repaired from the recovery entry or the ISO, and a configuration change is undone with <code>snapshot restore</code>.</p>
+            </article>
+            <article class="card phase reveal">
+              <h3>0.6 — Security</h3>
+              <p class="note">A safe-by-default server, and a way to see what is exposed.</p>
+              <ul class="checks">
+                <li class="todo">Firewall: nftables with a documented default ruleset</li>
+                <li class="todo">Exposure report: listening ports and their service, in <code>bootreport</code></li>
+                <li class="todo">File integrity: package checksums verified, warnings in <code>bootreport</code></li>
+                <li class="todo">Hardening defaults: sysctl, <code>sudo</code>, SSH (no root login)</li>
+                <li class="todo">Opt-in automatic security updates</li>
+              </ul>
+              <p class="note"><strong>Done when:</strong> a fresh install has a firewall, <code>bootreport</code> lists what listens on the network, and a modified packaged file is reported at the next login.</p>
+            </article>
+            <article class="card phase reveal">
+              <h3>0.7 — Declarative deployment</h3>
+              <p class="note">Install the same server twice, without answering questions.</p>
+              <ul class="checks">
+                <li class="todo">Unattended install from an answers file</li>
+                <li class="todo">Export the answers of an installation to that file</li>
+                <li class="todo">VM disk image (<code>devtool build image</code>)</li>
+                <li class="todo">Published checksum for every ISO and image</li>
+              </ul>
+              <p class="note"><strong>Done when:</strong> one command creates a VM, installs Senbit with no question, and ends with a working login and SSH.</p>
+            </article>
+            <article class="card phase reveal">
+              <h3>0.8 — Real hardware</h3>
+              <p class="note">Boot and install on one physical x86_64 machine.</p>
+              <ul class="checks">
+                <li class="todo">Boot the ISO from a USB stick on a real PC, in UEFI mode</li>
+                <li class="todo">Review the kernel drivers: storage and common network cards</li>
+                <li class="todo">Decide how firmware files are handled</li>
+                <li class="todo">Document what is not supported (Secure Boot, to start with)</li>
+                <li class="todo">A hardware test checklist and the list of machines tried</li>
+              </ul>
+              <p class="note"><strong>Done when:</strong> a complete installation, a reboot, an update and a rollback were done on a physical machine.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>Later, not planned</h2>
+          <p class="intro">
+            ARM64 and other architectures, management of several machines, remote administration,
+            a declarative configuration of the running system, and Btrfs or LVM snapshots of the whole
+            disk. Taken up only when the milestones above are done.
+          </p>
+          <p class="note">
+            Full details: <a href="https://github.com/yo-le-zz/senbit/blob/main/docs/ROADMAP.md">docs/ROADMAP.md</a>.
+          </p>
         </div>
       </section>
     </main>

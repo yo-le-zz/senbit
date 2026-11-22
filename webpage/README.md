@@ -1,6 +1,6 @@
 # Senbit web site
 
-Static site, deployed by Cloudflare Pages. No build step: the files in this folder are served as they are.
+Static site, deployed by Cloudflare Pages at <https://senbit.pages.dev>. No build step: the files in this folder are served as they are.
 
 ```text
 webpage/
@@ -13,10 +13,12 @@ webpage/
 ├── 404.html                page not found
 ├── assets/
 │   ├── site.css            the only stylesheet
-│   ├── site.js             menu, copy buttons, published version
+│   ├── init.js             one line: marks the page as "scripts enabled"
+│   ├── site.js             menu, copy buttons, published version, scroll animation
 │   └── logo.png, favicon.png
 ├── _headers                security and cache headers (Cloudflare)
-└── robots.txt
+├── robots.txt
+└── sitemap.xml
 ```
 
 ## Cloudflare Pages settings
@@ -38,3 +40,6 @@ with `No url found for submodule path`. If that happens, run `./scripts/git-unif
   (`dists/stable/main/binary-amd64/Packages`). If the request fails, the version written in the page
   is kept: update it by hand at each release.
 - Keep the roadmap in `roadmap/index.html` in line with `docs/ROADMAP.md`.
+- Animations only use `opacity` and `transform`, and are disabled by `prefers-reduced-motion`.
+  Cards and layers get the class `reveal` (added by the page itself, not by the script, to avoid a flash).
+- `_headers` forbids inline scripts and styles (Content-Security-Policy): keep scripts and styles in `assets/`.

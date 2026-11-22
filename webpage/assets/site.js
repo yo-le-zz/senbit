@@ -1,8 +1,9 @@
 /*
- * Senbit web site: the only script. Three small, independent features:
+ * Senbit web site: the only script (plus init.js, one line). Four small, independent features:
  *   1. the menu button on small screens;
  *   2. the "Copy" buttons next to commands;
- *   3. the published version, read from the update repository.
+ *   3. the published version, read from the update repository;
+ *   4. the fade-in of cards when they scroll into view.
  *
  * Nothing here is needed to read the site: without JavaScript every page works.
  */
@@ -40,6 +41,59 @@
       });
     });
   });
+
+  /* ---- 4. Scroll animation ----------------------------------------------- */
+
+  var revealed = document.querySelectorAll(".reveal");
+
+  if (window.IntersectionObserver) {
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      // Any visible pixel is enough: elements at the very end of a page must not stay hidden.
+      { threshold: 0 }
+    );
+    revealed.forEach(function (element) {
+      observer.observe(element);
+    });
+
+    // A jump (anchor, reload halfway down) can carry the page past an element without it ever
+    // crossing the screen: the observer is not called then. Reveal what is above the screen.
+    var scrollPending = false;
+    window.addEventListener(
+      "scroll",
+      function () {
+        if (scrollPending) {
+          return;
+        }
+        scrollPending = true;
+        requestAnimationFrame(function () {
+          scrollPending = false;
+          revealed.forEach(function (element) {
+            if (
+              !element.classList.contains("visible") &&
+              element.getBoundingClientRect().bottom < 0
+            ) {
+              element.classList.add("visible");
+              observer.unobserve(element);
+            }
+          });
+        });
+      },
+      { passive: true }
+    );
+  } else {
+    // Very old browsers: no animation, show everything.
+    revealed.forEach(function (element) {
+      element.classList.add("visible");
+    });
+  }
 
   /* ---- 3. Published version --------------------------------------------- */
 

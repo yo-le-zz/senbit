@@ -30,16 +30,17 @@ Linux ecosystem: it stays compatible with existing Linux software.
 
 > **Senbit 0.4.0 is in early development.** It installs and boots in QEMU (BIOS and UEFI).
 
-Working (tested in QEMU):
+Working (developed and tested in QEMU, BIOS and UEFI):
 
-* 🐧 Linux kernel, 🦀 Rust PID 1 (`senbit-init`) that starts systemd
+* 🐧 Linux kernel, 🦀 `senbit-init` (transition from the initramfs) and systemd as PID 1
 * 💿 Installer that asks everything first and installs after a final confirmation (BIOS/UEFI, GPT/MBR, DHCP or static network)
-* 👤 Users and authentication, native `sudo`, power commands, `log`, `findmnt`, `adduser`/`useradd`, `getent`
+* 👤 Login, users, native `sudo`, power commands, `log`, `findmnt`, `adduser`/`useradd`, `getent`
 * 🩺 Non-blocking boot with a boot report (`bootreport`): a network failure never stops the boot
 * 📦 `apt install <anything>` (Debian 12 packages) and systemd services (`systemctl`, `journalctl`)
+* 🔄 System updates with the real `apt upgrade`, snapshot before each update, automatic rollback after
+  3 failed boots and the `rollback` command ([docs/UPDATES.md](docs/UPDATES.md))
 
-Written, **not tested in a VM yet** (0.4.0): system updates through `apt upgrade`, snapshot before an
-update, automatic rollback at boot ([docs/UPDATES.md](docs/UPDATES.md)).
+Website: <https://senbit.pages.dev>
 
 ## Quick start
 
@@ -61,9 +62,9 @@ Add a native command: `./newcmds.sh mycmd` (see [commands/README.md](commands/RE
 
 | Document | Contents |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layers, kernel, Rust userspace, native command system |
-| [docs/INSTALLER.md](docs/INSTALLER.md) | BIOS/UEFI boot, installation flow |
-| [docs/SYSTEM.md](docs/SYSTEM.md) | boot and init, IPC, `sudo`, logging, shutdown, networking, boot report, users, shell |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layers, components, boot sequence, native command system |
+| [docs/INSTALLER.md](docs/INSTALLER.md) | installation flow, BIOS and UEFI |
+| [docs/SYSTEM.md](docs/SYSTEM.md) | login, `sudo`, network, boot report, logs, configuration |
 | [docs/SYSTEMD.md](docs/SYSTEMD.md) · [docs/SERVICES.md](docs/SERVICES.md) | systemd integration and writing services |
 | [docs/PACKAGES.md](docs/PACKAGES.md) | `apt`/`dpkg` on Senbit |
 | [docs/UPDATES.md](docs/UPDATES.md) | system updates, snapshot, rollback, update repository |
@@ -74,16 +75,15 @@ Add a native command: `./newcmds.sh mycmd` (see [commands/README.md](commands/RE
 
 ## Roadmap
 
-| Phase | Subject | State |
+Organized by capability, not by date. Priorities: recovery, security, declarative deployment, real hardware.
+
+| Version | Subject | State |
 |---|---|---|
-| 0 | Foundation (kernel, init, installer, login, logging) | done, TTY/session management left |
-| 1 | Server userspace (services, `systemctl`, static network, SSH) | done |
-| 2 | Package ecosystem (`apt`/`dpkg`) | done |
-| 3 | System updates (`apt upgrade`, snapshot, rollback) | written, to test in VM |
-| 4 | Snapshots and recovery | planned |
-| 5 | Security and monitoring | planned |
-| 6 | Deployment | planned |
-| 7 | Multi-architecture | planned |
+| 0.1 – 0.4 | Foundation, packages (`apt`), systemd, updates and rollback | done |
+| 0.5 | Recovery: recovery boot, repair from the ISO, `snapshot` | next |
+| 0.6 | Security: firewall, exposure report, file integrity | planned |
+| 0.7 | Declarative deployment: unattended install, VM images | planned |
+| 0.8 | Real hardware: first physical x86_64 machine | planned |
 
 Details: [docs/ROADMAP.md](docs/ROADMAP.md).
 

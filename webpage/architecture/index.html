@@ -6,8 +6,14 @@
     <title>Architecture — Senbit</title>
     <meta name="description" content="Senbit's layers, its Rust userspace and its boot sequence.">
     <meta name="color-scheme" content="dark light">
+    <link rel="canonical" href="https://senbit.pages.dev/architecture/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Architecture — Senbit">
+    <meta property="og:description" content="Senbit's layers, its Rust userspace and its boot sequence.">
+    <meta property="og:url" content="https://senbit.pages.dev/architecture/">
     <link rel="icon" href="/assets/favicon.png" type="image/png">
     <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/init.js"></script>
     <script src="/assets/site.js" defer></script>
   </head>
   <body>
@@ -42,15 +48,15 @@
         <div class="wrap">
           <h2>Rust userspace on a standard base</h2>
           <div class="grid three">
-            <article class="card">
+            <article class="card reveal">
               <h3>Senbit init</h3>
               <p>PID 1, written in Rust in small modules (hostname, keymaps, network, installer). It prepares the system, then starts systemd.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>Native commands</h3>
               <p>One Rust crate per command: <code>sudo</code>, <code>log</code>, <code>bootreport</code>, <code>findmnt</code>, <code>adduser</code>, <code>useradd</code>, <code>getent</code> and the power commands.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>Standard tools</h3>
               <p>systemd for services, BusyBox for the minimal environment, and the real <code>apt</code> and <code>dpkg</code> for packages. No Senbit-specific wrapper.</p>
             </article>
@@ -81,15 +87,15 @@
         <div class="wrap">
           <h2>One ISO, two firmwares</h2>
           <div class="grid three">
-            <article class="card">
+            <article class="card reveal">
               <h3>The ISO</h3>
               <p>Hybrid image. GRUB <code>i386-pc</code> handles BIOS, GRUB <code>x86_64-efi</code> handles UEFI, and both lead to the same Senbit Linux.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>BIOS installs</h3>
               <p>MBR partition table, ext4 root, GRUB with the <code>i386-pc</code> target.</p>
             </article>
-            <article class="card">
+            <article class="card reveal">
               <h3>UEFI installs</h3>
               <p>GPT table with a FAT32 EFI System Partition, ext4 root, GRUB with the <code>x86_64-efi</code> target.</p>
             </article>

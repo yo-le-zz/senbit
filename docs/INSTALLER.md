@@ -1,90 +1,43 @@
-# Installer and boot modes
+# Installer
 
-> Part of the [Senbit documentation](../README.md#documentation).
-
-# 💿 BIOS & UEFI Boot
-
-Senbit supports both major x86 boot modes.
-
-### Legacy BIOS
-
-The installer can create an MBR partition table and install GRUB using the:
-
-```text
-i386-pc
-```
-
-target.
-
-### UEFI
-
-The installer can create a GPT partition table with an EFI System Partition and install GRUB using:
-
-```text
-x86_64-efi
-```
-
-The Senbit ISO itself supports both BIOS and UEFI boot.
+The Senbit ISO boots on **BIOS and UEFI**. It starts an interactive installer when no installation is found.
 
 ```text
                  Senbit ISO
                      │
           ┌──────────┴──────────┐
           ▼                     ▼
-       BIOS                  UEFI
-          │                     │
+        BIOS                  UEFI
      GRUB i386-pc         GRUB x86_64-efi
-          │                     │
           └──────────┬──────────┘
                      ▼
-              Senbit Linux
+               Senbit Linux
 ```
 
----
+## How an installation goes
 
-# 💾 Installation System
+The installer asks **everything first and writes nothing**, then installs after a final confirmation.
 
-Senbit includes an interactive installer capable of:
+1. **Questions**: keyboard, disk, partitioning, root and user accounts, hostname, language, timezone,
+   network (DHCP, or static address, gateway and DNS).
+2. **Summary**: everything that will be done. *Nothing has been written to the disk yet.*
+3. **Decision**: cancel (the default), start over, or install.
+4. **Installation**: about fourteen steps, from creating the partitions to writing everything to the disk.
+   Each step is displayed as it runs, with its duration.
 
-* Detecting the current boot mode
-* Detecting available disks
-* Detecting existing partitions
-* Automatically partitioning a disk
-* Manual partitioning through `fdisk`
-* Creating GPT partitions for UEFI
-* Creating MBR partitions for BIOS
-* Creating EFI System Partitions
-* Formatting EFI partitions as FAT32
-* Formatting root partitions as ext4
-* Installing the Senbit root filesystem
-* Creating users
-* Configuring passwords
-* Configuring hostname
-* Configuring locale
-* Configuring timezone
-* Configuring keyboard layout
-* Configuring networking
-* Installing the bootloader
+Cancelling or starting over before the confirmation never modifies the disk.
 
-Senbit can also be installed onto an existing partition.
+## What it can do
 
-## Installation flow (since 0.3.0)
+| Area | Details |
+|---|---|
+| Disks | Detects the boot mode, the disks and the existing partitions. Automatic partitioning, manual partitioning with `fdisk`, or an existing partition. |
+| BIOS | MBR partition table, ext4 root, GRUB with the `i386-pc` target. |
+| UEFI | GPT partition table, FAT32 EFI System Partition, ext4 root, GRUB with the `x86_64-efi` target. |
+| Accounts | `root` and a main user, in `/etc/passwd`, `/etc/shadow` and `/etc/group`, with hashed passwords. |
+| Settings | Hostname, locale, timezone, keyboard layout, network. Written to the target system and restored at every boot. |
+| Network | The real network card is detected (a single card is selected without asking). DHCP or static: `/etc/network/interfaces` and `/etc/resolv.conf`. |
+| Bootloader | GRUB, with the boot menu written by `/usr/lib/senbit/grub-config`: the installed system already has the boot counter that makes the automatic rollback work (see [UPDATES.md](UPDATES.md)). |
 
-The installer asks **everything first and writes nothing**, then installs **after a final confirmation**:
-
-```text
-1. Questions   keyboard, disk, partitioning, root/user accounts, hostname,
-               language, timezone, network (DHCP or static address/gateway/DNS)
-2. Summary     everything that will be done, "Nothing has been written to the disk yet"
-3. Decision    Cancel (default) / Start over / INSTALL
-4. Installation  [ 1/14] Creating the partitions ... [14/14] Writing everything to the disk
-```
-
-Cancelling or starting over before the confirmation never modifies the disk. Each step is
-displayed as it runs, with its duration.
-
-## After the installation
-
-The installer writes the boot menu with `/usr/lib/senbit/grub-config` (the same script is used by the
-`senbit-kernel` package), so a freshly installed system already has the boot counter that makes the
-automatic rollback possible: see [UPDATES.md](UPDATES.md).
+After the installation, the system boots on its own: see [ARCHITECTURE.md](ARCHITECTURE.md) and
+[SYSTEM.md](SYSTEM.md).
