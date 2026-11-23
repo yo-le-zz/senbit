@@ -143,6 +143,7 @@ if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
     # A system installed before 0.4.0 does not have these units enabled yet.
     systemctl enable senbit-boot-ok.service senbit-update-check.timer 2>/dev/null || true
     systemctl enable senbit-login@tty2.service senbit-login@tty3.service 2>/dev/null || true
+    systemctl enable senbit-firewall.service 2>/dev/null || true
 fi
 exit 0
 "#;
@@ -192,6 +193,40 @@ fn collect_conffiles(stage: &Path) -> Vec<String> {
     out
 }
 
+/// Contents of the `md5sums` control file: `<md5>  <path>` for every regular file of the
+/// package, except the conffiles (the administrator is allowed to change those).
+///
+/// `dpkg --verify <package>` compares the installed files with it, which is how `bootreport
+/// --verify` finds a modified Senbit file. Uses the host's `md5sum`.
+fn md5sums(stage: &Path, conffiles: &[String]) -> Result<String> {
+    let output = Command::new("sh")
+        .current_dir(stage)
+        .arg("-c")
+        .arg(
+            r"find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r md5sum | sed 's|^\([0-9a-f]*\)  \./|\1  |'",
+        )
+        .output()
+        .context("failed to run md5sum (coreutils)")?;
+
+    if !output.status.success() {
+        bail!("md5sum failed while listing the files of the package");
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut sums = String::new();
+    for line in text.lines() {
+        let path = line.split_once("  ").map(|(_, path)| path).unwrap_or("");
+        let is_conffile = conffiles
+            .iter()
+            .any(|conffile| conffile.trim_start_matches('/') == path);
+        if !is_conffile {
+            sums.push_str(line);
+            sums.push('\n');
+        }
+    }
+    Ok(sums)
+}
+
 fn sha256_hex(path: &Path) -> Result<String> {
     let bytes = fs::read(path).with_context(|| format!("cannot read {}", path.display()))?;
     Ok(format!("{:x}", Sha256::digest(&bytes)))
@@ -221,6 +256,7 @@ fn build_deb(
     if !conffiles.is_empty() {
         fs::write(control_dir.join("conffiles"), conffiles.join("\n") + "\n")?;
     }
+    fs::write(control_dir.join("md5sums"), md5sums(stage, conffiles)?)?;
     fs::write(work.join("debian-binary"), "2.0\n")?;
 
     let owner = ["--owner=0", "--group=0", "--numeric-owner"];
@@ -303,6 +339,7 @@ fn stage_userspace(p: &Paths, stage: &Path) -> Result<()> {
         "usr/lib/senbit/update-snapshot",
         "usr/sbin/rollback",
         "usr/sbin/snapshot",
+        "usr/lib/senbit/firewall",
     ] {
         let path = stage.join(script);
         if path.is_file() {

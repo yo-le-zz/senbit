@@ -97,14 +97,16 @@
               <p class="note"><strong>Done when:</strong> a broken <code>/etc/fstab</code> or a deleted boot file is repaired from the recovery entry or the ISO, and a configuration change is undone with <code>snapshot restore</code>.</p>
             </article>
             <article class="card phase reveal">
-              <h3>0.6 — Security</h3>
+              <h3>0.6 — Security (in progress)</h3>
               <p class="note">A safe-by-default server, and a way to see what is exposed.</p>
               <ul class="checks">
-                <li class="todo">Firewall: nftables with a documented default ruleset</li>
-                <li class="todo">Exposure report: listening ports and their service, in <code>bootreport</code></li>
-                <li class="todo">File integrity: package checksums verified, warnings in <code>bootreport</code></li>
-                <li class="todo">Hardening defaults: sysctl, <code>sudo</code>, SSH (no root login)</li>
-                <li class="todo">Opt-in automatic security updates</li>
+                <li class="wip">Firewall: default nftables ruleset, your own rules in <code>/etc/senbit/firewall.d/</code></li>
+                <li class="wip">Exposure report: <code>bootreport --ports</code></li>
+                <li class="wip">File integrity: <code>bootreport --verify</code> on the Senbit packages</li>
+                <li class="wip">Hardening defaults: sysctl, SSH without root login</li>
+                <li class="wip">Opt-in automatic upgrades (timer, off by default)</li>
+                <li class="todo">nftables installed by the installer</li>
+                <li class="todo">Exposure and integrity shown in the boot banner</li>
               </ul>
               <p class="note"><strong>Done when:</strong> a fresh install has a firewall, <code>bootreport</code> lists what listens on the network, and a modified packaged file is reported at the next login.</p>
             </article>

@@ -66,6 +66,8 @@ bootreport --logs      # systemd journal of this boot (journalctl -b)
 bootreport --kernel    # kernel log
 bootreport --failed    # failed systemd units
 bootreport --history   # previous boots (/var/log/senbit/boot-report.log)
+bootreport --ports     # what listens on the network, and which process (see SECURITY.md)
+bootreport --verify    # Senbit files modified since the packages were installed
 ```
 
 `bootreport` also shows when updates are available (see [UPDATES.md](UPDATES.md)). It is the only

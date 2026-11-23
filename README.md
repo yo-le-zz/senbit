@@ -64,6 +64,7 @@ Add a native command: `./newcmds.sh mycmd` (see [commands/README.md](commands/RE
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | layers, components, boot sequence, native command system |
 | [docs/INSTALLER.md](docs/INSTALLER.md) | installation flow, BIOS and UEFI |
+| [docs/SECURITY.md](docs/SECURITY.md) | firewall, exposure report, file integrity, hardening, automatic upgrades |
 | [docs/API.md](docs/API.md) | the system API used by the commands, the `panic` command |
 | [docs/SYSTEM.md](docs/SYSTEM.md) | login, `sudo`, network, boot report, logs, configuration |
 | [docs/SYSTEMD.md](docs/SYSTEMD.md) · [docs/SERVICES.md](docs/SERVICES.md) | systemd integration and writing services |
@@ -82,7 +83,7 @@ Organized by capability, not by date. Priorities: recovery, security, declarativ
 |---|---|---|
 | 0.1 – 0.4 | Foundation, packages (`apt`), systemd, updates and rollback | done |
 | 0.5 | Recovery: recovery boot, `snapshot`, repair from the ISO, filesystem check, system API and `panic` | in progress |
-| 0.6 | Security: firewall, exposure report, file integrity | planned |
+| 0.6 | Security: firewall, exposure report, file integrity, hardening | in progress |
 | 0.7 | Declarative deployment: unattended install, VM images | planned |
 | 0.8 | Real hardware: first physical x86_64 machine | planned |
 

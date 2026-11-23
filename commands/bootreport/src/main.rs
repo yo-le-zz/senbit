@@ -14,6 +14,8 @@
 //!   bootreport --kernel   journal du noyau (dmesg)
 //!   bootreport --failed   unités systemd en échec
 //!   bootreport --history  rapports des démarrages précédents
+//!   bootreport --ports    ce qui écoute sur le réseau, et quel processus
+//!   bootreport --verify   fichiers des paquets Senbit modifiés depuis leur installation
 //!
 //! Le bandeau et le rapport indiquent aussi les mises à jour disponibles (fichier
 //! /var/lib/senbit/updates-available, écrit chaque jour par senbit-update-check.timer
@@ -22,6 +24,7 @@
 //! Format du fichier (une ligne par étape, séparée par des tabulations) :
 //!   statut <TAB> uptime_ms <TAB> étape <TAB> détail      (statut = ok | warn | failed)
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::IsTerminal;
 use std::process::{Command, ExitCode, Stdio};
@@ -425,8 +428,186 @@ fn history() -> ExitCode {
     }
 }
 
+/* ---------------------------------------------------------------- listening ports */
+
+/// One socket that accepts connections (TCP) or receives datagrams (UDP).
+#[derive(Debug, PartialEq)]
+struct Listener {
+    protocol: &'static str,
+    address: String,
+    port: u16,
+    /// Reachable only from this machine (127.0.0.1, ::1).
+    local_only: bool,
+    inode: u64,
+}
+
+/// Address as written in /proc/net/{tcp,udp}{,6}: 8 hex digits (IPv4, bytes in memory order)
+/// or 32 (IPv6). Returns the text to show and whether it is a loopback address.
+fn parse_address(hex: &str) -> (String, bool) {
+    match hex.len() {
+        8 => match u32::from_str_radix(hex, 16) {
+            Ok(value) => {
+                let bytes = value.to_le_bytes();
+                let text = format!("{}.{}.{}.{}", bytes[0], bytes[1], bytes[2], bytes[3]);
+                let local = bytes[0] == 127;
+                (text, local)
+            }
+            Err(_) => (hex.to_string(), false),
+        },
+        32 if hex.chars().all(|c| c == '0') => ("::".to_string(), false),
+        32 if hex == "00000000000000000000000001000000" => ("::1".to_string(), true),
+        32 => ("[ipv6]".to_string(), false),
+        _ => (hex.to_string(), false),
+    }
+}
+
+/// Listening sockets of one /proc/net file. `state` is the hex state that means "listening":
+/// `0A` for TCP, `07` for a bound UDP socket.
+fn parse_listeners(text: &str, protocol: &'static str, state: &str) -> Vec<Listener> {
+    text.lines()
+        .skip(1)
+        .filter_map(|line| {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            if fields.len() < 10 || fields[3] != state {
+                return None;
+            }
+            let (address_hex, port_hex) = fields[1].rsplit_once(':')?;
+            let port = u16::from_str_radix(port_hex, 16).ok()?;
+            let (address, local_only) = parse_address(address_hex);
+            let inode = fields[9].parse().ok()?;
+            Some(Listener { protocol, address, port, local_only, inode })
+        })
+        .collect()
+}
+
+/// Which process owns which socket: the inode of every `socket:[N]` open in /proc/<pid>/fd.
+/// Other users' processes are only visible to root.
+fn socket_owners() -> HashMap<u64, String> {
+    let mut owners = HashMap::new();
+    let Ok(processes) = fs::read_dir("/proc") else {
+        return owners;
+    };
+
+    for process in processes.flatten() {
+        let pid = process.file_name().to_string_lossy().to_string();
+        if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        let Ok(descriptors) = fs::read_dir(format!("/proc/{pid}/fd")) else {
+            continue;
+        };
+        let name = fs::read_to_string(format!("/proc/{pid}/comm"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+
+        for descriptor in descriptors.flatten() {
+            let Ok(target) = fs::read_link(descriptor.path()) else {
+                continue;
+            };
+            let target = target.to_string_lossy().to_string();
+            let inode = target
+                .strip_prefix("socket:[")
+                .and_then(|rest| rest.strip_suffix(']'))
+                .and_then(|number| number.parse::<u64>().ok());
+            if let Some(inode) = inode {
+                owners.entry(inode).or_insert_with(|| format!("{name} ({pid})"));
+            }
+        }
+    }
+    owners
+}
+
+fn ports() -> ExitCode {
+    let mut listeners = Vec::new();
+    for (path, protocol, state) in [
+        ("/proc/net/tcp", "tcp", "0A"),
+        ("/proc/net/tcp6", "tcp6", "0A"),
+        ("/proc/net/udp", "udp", "07"),
+        ("/proc/net/udp6", "udp6", "07"),
+    ] {
+        if let Ok(text) = fs::read_to_string(path) {
+            listeners.extend(parse_listeners(&text, protocol, state));
+        }
+    }
+
+    if listeners.is_empty() {
+        println!("Nothing is listening on the network.");
+        return ExitCode::SUCCESS;
+    }
+
+    listeners.sort_by(|a, b| (a.port, a.protocol).cmp(&(b.port, b.protocol)));
+    let owners = socket_owners();
+
+    println!("{:<6} {:<26} {:<11} {}", "PROTO", "ADDRESS", "REACHABLE", "PROCESS");
+    for listener in &listeners {
+        let reachable = if listener.local_only { "this machine" } else { "network" };
+        let process = owners
+            .get(&listener.inode)
+            .map(String::as_str)
+            .unwrap_or("? (root sees every process)");
+        println!(
+            "{:<6} {:<26} {:<11} {}",
+            listener.protocol,
+            format!("{}:{}", listener.address, listener.port),
+            reachable,
+            process
+        );
+    }
+
+    let exposed = listeners.iter().filter(|l| !l.local_only).count();
+    println!();
+    println!("{exposed} of {} listening socket(s) can be reached from the network.", listeners.len());
+    ExitCode::SUCCESS
+}
+
+/* ---------------------------------------------------------------- file integrity */
+
+/// A `dpkg --verify` line for a configuration file: `??5?????? c /etc/...`. The
+/// administrator is allowed to change those.
+fn is_conffile_line(line: &str) -> bool {
+    line.split_whitespace().nth(1) == Some("c")
+}
+
+fn verify() -> ExitCode {
+    let output = match Command::new("dpkg")
+        .args(["--verify", "senbit-kernel", "senbit-userspace"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) => {
+            eprintln!("bootreport: cannot run dpkg: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let changed: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !is_conffile_line(line))
+        .collect();
+
+    for line in String::from_utf8_lossy(&output.stderr).lines() {
+        eprintln!("dpkg: {line}");
+    }
+
+    if changed.is_empty() {
+        println!("Senbit files: nothing was modified since the packages were installed.");
+        return ExitCode::SUCCESS;
+    }
+
+    println!("Senbit files modified since the packages were installed:");
+    for line in &changed {
+        println!("  {line}");
+    }
+    println!();
+    println!("5 = content changed, M = mode, U/G = owner, missing = the file was removed.");
+    println!("Reinstall them with: sudo apt install --reinstall senbit-userspace senbit-kernel");
+    ExitCode::FAILURE
+}
+
 fn usage() {
-    println!("usage: bootreport [--banner | --logs | --kernel | --failed | --history]");
+    println!("usage: bootreport [--banner | --logs | --kernel | --failed | --history | --ports | --verify]");
     println!();
     println!("  (no option)  full boot report: what worked, what failed");
     println!("  --banner     compact box (shown at login)");
@@ -434,6 +615,8 @@ fn usage() {
     println!("  --kernel     kernel log (dmesg)");
     println!("  --failed     failed systemd units");
     println!("  --history    reports of the previous boots");
+    println!("  --ports      what listens on the network, and which process");
+    println!("  --verify     Senbit files modified since the packages were installed");
 }
 
 #[path = "../../_shared/hook.rs"]
@@ -469,6 +652,8 @@ fn main() -> ExitCode {
         Some("--kernel") => exit_with(run("dmesg", &[])),
         Some("--failed") => exit_with(run("systemctl", &["--failed", "--no-pager"])),
         Some("--history") => history(),
+        Some("--ports") => ports(),
+        Some("--verify") => verify(),
         Some("-h") | Some("--help") => {
             usage();
             ExitCode::SUCCESS
@@ -495,6 +680,33 @@ mod tests {
 
     fn plain() -> Style {
         Style { color: false }
+    }
+
+    #[test]
+    fn addresses_are_decoded() {
+        assert_eq!(parse_address("0100007F"), ("127.0.0.1".to_string(), true));
+        assert_eq!(parse_address("00000000"), ("0.0.0.0".to_string(), false));
+        assert_eq!(parse_address("0201A8C0"), ("192.168.1.2".to_string(), false));
+        assert_eq!(parse_address("00000000000000000000000001000000"), ("::1".to_string(), true));
+    }
+
+    #[test]
+    fn listening_sockets_are_found() {
+        let text = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n\
+   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 12345 1 0000000000000000 100 0 0 10 0\n\
+   1: 0100007F:1F90 0100007F:D2A4 01 00000000:00000000 00:00000000 00000000     0        0 555 1 0000000000000000 100 0 0 10 0\n";
+        let found = parse_listeners(text, "tcp", "0A");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].port, 22);
+        assert_eq!(found[0].inode, 12345);
+        assert!(!found[0].local_only);
+    }
+
+    #[test]
+    fn configuration_files_are_not_reported_as_modified() {
+        assert!(is_conffile_line("??5?????? c /etc/hosts"));
+        assert!(!is_conffile_line("??5??????   /usr/sbin/rollback"));
+        assert!(!is_conffile_line("missing     /usr/sbin/snapshot"));
     }
 
     #[test]

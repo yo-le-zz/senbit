@@ -1,0 +1,6 @@
+# Files of this folder are loaded after /etc/senbit/firewall.nft, in alphabetical order.
+# Add your own, for example 10-web.nft:
+#
+#   add rule inet senbit input tcp dport { 80, 443 } accept
+#
+# Reload: sudo systemctl reload senbit-firewall

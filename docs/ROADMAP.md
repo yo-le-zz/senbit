@@ -52,21 +52,27 @@ files, not data. The milestone is planned for ext4 only.
 from the ISO, a configuration change is undone with `snapshot restore`, and `sudo panic` ends with the
 machine back on its feet.
 
-## 0.6 — Security
+## 0.6 — Security (in progress)
 
-**Goal: a safe-by-default server, and a way to see what is exposed.**
+**Goal: a safe-by-default server, and a way to see what is exposed.** Details in [SECURITY.md](SECURITY.md).
 
-- [ ] **Firewall**: nftables with a documented default ruleset (inbound denied except what the administrator
-  opens; SSH when it is installed)
-- [ ] **Exposure report**: listening ports and the service that owns each, shown by `bootreport`
-- [ ] **File integrity**: Senbit packages ship checksums, and `dpkg --verify` on them is part of
-  `bootreport`; a modified system file shows as a warning
-- [ ] **Hardening defaults**: sysctl settings, stricter defaults for `sudo` and for SSH when installed
-  (no root login), documented
-- [ ] Opt-in automatic security updates (a systemd timer that runs `apt upgrade`; off by default)
+Written, **to be tested in a VM**:
 
-**Done when:** a fresh install has a firewall, `bootreport` lists what listens on the network, and changing
-`/usr/lib/senbit/rollback` (or any packaged file) is reported at the next login.
+- ● **Firewall**: a default nftables ruleset (inbound denied, SSH and DHCP allowed), your own rules in
+  `/etc/senbit/firewall.d/`, loaded by `senbit-firewall.service` once nftables is installed
+- ● **Exposure report**: `bootreport --ports` lists the listening ports and the process behind each
+- ● **File integrity**: the Senbit packages ship MD5 sums, `bootreport --verify` runs `dpkg --verify` on them
+- ● **Hardening defaults**: sysctl settings (`50-senbit.conf`) and SSH defaults (no root login)
+- ● **Opt-in automatic upgrades**: `senbit-auto-upgrade.timer`, off by default
+
+Still to do:
+
+- [ ] nftables installed by the installer, so that a fresh install already has the firewall
+- [ ] Show the exposure and integrity results in the boot banner, not only on request
+- [ ] Hardening of `sudo` (lockout after repeated failures)
+
+**Done when:** a fresh install has a firewall, `bootreport` lists what listens on the network, and a modified
+packaged file is reported at the next login.
 
 ## 0.7 — Declarative deployment
 

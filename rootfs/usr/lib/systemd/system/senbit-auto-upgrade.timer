@@ -1,0 +1,16 @@
+# Runs senbit-auto-upgrade.service every day. OFF by default; to turn it on:
+#   sudo systemctl enable --now senbit-auto-upgrade.timer
+# and to turn it off again:
+#   sudo systemctl disable --now senbit-auto-upgrade.timer
+
+[Unit]
+Description=Daily Senbit automatic package upgrade
+Documentation=https://github.com/yo-le-zz/senbit/blob/main/docs/SECURITY.md
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

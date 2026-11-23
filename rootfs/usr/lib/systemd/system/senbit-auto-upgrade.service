@@ -1,0 +1,15 @@
+# Upgrades every installed package (apt upgrade). Not enabled by default: see
+# senbit-auto-upgrade.timer and docs/SECURITY.md.
+
+[Unit]
+Description=Senbit automatic package upgrade
+Documentation=https://github.com/yo-le-zz/senbit/blob/main/docs/SECURITY.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DEBIAN_FRONTEND=noninteractive
+ExecStartPre=/usr/bin/apt-get update
+# --force-confold: a configuration file changed by the administrator is never replaced.
+ExecStart=/usr/bin/apt-get -y -o Dpkg::Options::=--force-confold upgrade

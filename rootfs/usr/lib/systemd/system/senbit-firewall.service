@@ -1,0 +1,23 @@
+# Senbit default firewall (nftables), see docs/SECURITY.md.
+#
+# It does nothing until nftables is installed (sudo apt install nftables): the condition
+# below keeps the unit out of the way, and the boot untouched, on a system without nft.
+
+[Unit]
+Description=Senbit default firewall (nftables)
+Documentation=https://github.com/yo-le-zz/senbit/blob/main/docs/SECURITY.md
+ConditionPathExists=/usr/sbin/nft
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/senbit/firewall start
+ExecReload=/usr/lib/senbit/firewall start
+ExecStop=/usr/lib/senbit/firewall stop
+
+[Install]
+WantedBy=sysinit.target

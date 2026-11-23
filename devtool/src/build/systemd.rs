@@ -115,6 +115,13 @@ const ENABLED_UNITS: &[(&str, &str, &str)] = &[
         "senbit-dhcp@eth0.service",
         "senbit-dhcp@.service",
     ),
+    // Default firewall: loads /etc/senbit/firewall.nft once nftables is installed (the unit
+    // is skipped, with no effect on the boot, while /usr/sbin/nft does not exist).
+    (
+        "sysinit.target.wants",
+        "senbit-firewall.service",
+        "senbit-firewall.service",
+    ),
     // Two more consoles (Alt+F2, Alt+F3): the same login, without the API socket.
     (
         "multi-user.target.wants",
@@ -710,6 +717,7 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
         "usr/lib/senbit/update-snapshot",
         "usr/sbin/rollback",
         "usr/sbin/snapshot",
+        "usr/lib/senbit/firewall",
     ] {
         let path = rootfs.join(script);
         if path.is_file() {

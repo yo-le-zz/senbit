@@ -1,0 +1,34 @@
+#!/bin/sh
+# Loads or removes Senbit's default firewall (called by senbit-firewall.service).
+#
+#   firewall start    check /etc/senbit/firewall.nft, then load it
+#   firewall stop     remove the table "inet senbit"
+#   firewall status   show the rules in force
+#
+# nft is not part of the base system: sudo apt install nftables
+rules="${FIREWALL_RULES:-/etc/senbit/firewall.nft}"
+nft="${NFT:-/usr/sbin/nft}"
+
+case "$1" in
+    start)
+        if [ ! -x "$nft" ]; then
+            echo "firewall: nftables is not installed (sudo apt install nftables): no firewall" >&2
+            exit 0
+        fi
+        # Check first: a rules file with an error must not leave the machine half configured.
+        "$nft" -c -f "$rules" || { echo "firewall: $rules has errors, nothing was loaded" >&2; exit 1; }
+        "$nft" -f "$rules"
+        ;;
+    stop)
+        [ -x "$nft" ] && "$nft" delete table inet senbit 2>/dev/null
+        exit 0
+        ;;
+    status)
+        [ -x "$nft" ] || { echo "firewall: nftables is not installed"; exit 1; }
+        "$nft" list table inet senbit
+        ;;
+    *)
+        echo "usage: firewall start|stop|status" >&2
+        exit 2
+        ;;
+esac
