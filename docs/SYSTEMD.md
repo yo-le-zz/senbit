@@ -10,6 +10,7 @@ adds a login service and a few units around it.
 | `senbit-init` | Transition only: mount, prepare, `exec(systemd)`. Also contains the installer. |
 | `senbit-login` | Console login, and the event socket `/run/senbit.sock`. Independent crate. |
 | `senbit-login.service` | Starts the login on `/dev/console` and restarts it if it stops. |
+| `senbit-login@<tty>.service` | Additional console logins (`tty2`, `tty3` enabled), started with `--no-events`: only the main login owns the API socket. |
 | `senbit-dhcp@<interface>.service` | Keeps the DHCP lease alive. |
 | `senbit-boot-ok.service`, `senbit-update-check.timer` | Update support: see [UPDATES.md](UPDATES.md). |
 

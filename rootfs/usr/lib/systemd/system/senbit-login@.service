@@ -1,0 +1,36 @@
+# Senbit console login on an additional virtual terminal: senbit-login@tty2 is the login
+# of Alt+F2, senbit-login@tty3 the one of Alt+F3 (enabled by default).
+#
+# The main login (senbit-login.service, on /dev/console) is the only one that owns the
+# system API socket (/run/senbit.sock): the other instances start with --no-events.
+# Everything else is the same as in senbit-login.service.
+
+[Unit]
+Description=Senbit console login on %I
+Documentation=https://github.com/yo-le-zz/senbit
+# No such terminal (a serial-only machine, a kernel without VT): nothing to start.
+ConditionPathExists=/dev/%I
+After=systemd-journald.service local-fs.target systemd-user-sessions.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=idle
+ExecStart=/sbin/senbit-login --no-events
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/%I
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+Restart=always
+RestartSec=2
+KillMode=control-group
+SendSIGHUP=yes
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

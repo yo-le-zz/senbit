@@ -115,6 +115,17 @@ const ENABLED_UNITS: &[(&str, &str, &str)] = &[
         "senbit-dhcp@eth0.service",
         "senbit-dhcp@.service",
     ),
+    // Two more consoles (Alt+F2, Alt+F3): the same login, without the API socket.
+    (
+        "multi-user.target.wants",
+        "senbit-login@tty2.service",
+        "senbit-login@.service",
+    ),
+    (
+        "multi-user.target.wants",
+        "senbit-login@tty3.service",
+        "senbit-login@.service",
+    ),
     // systemd's own ldconfig.service, made unconditional by the drop-in
     // ldconfig.service.d/10-senbit.conf: the library cache is rebuilt at every
     // boot and the service shows as "active (exited)". (It replaces Senbit's

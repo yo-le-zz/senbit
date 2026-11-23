@@ -48,7 +48,7 @@ Covered in the VM:
 - packages and services: `apt install`, systemd units
 - updates: signed repository, `apt upgrade`, snapshot, automatic rollback and the `rollback` command
 
-Still to do: complete TTY and session management, job control, recovery mode, snapshots.
+Milestone 0.5 (recovery) is written and waits for its tests: see [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

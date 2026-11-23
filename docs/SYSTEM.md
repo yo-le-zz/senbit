@@ -22,7 +22,12 @@ starts services with an almost empty one:
 | `SENBIT_VERSION` | `/etc/senbit-release` |
 | `USER`, `HOME`, `SHELL`... | `/etc/passwd` |
 
-The shell is BusyBox `ash`. Complete TTY and session management and job control are still to do.
+The shell is BusyBox `ash`. It is started in its own session with the terminal as its controlling terminal,
+so job control (`Ctrl+Z`, `bg`, `fg`, `Ctrl+C`) works.
+
+Three consoles are available on a machine with a screen: the main one, and `Alt+F2` and `Alt+F3`
+(`senbit-login@tty2.service` and `@tty3.service`). Only the main login owns the system API socket
+([API.md](API.md)). More consoles: `systemctl enable --now senbit-login@tty4`.
 
 ## sudo
 

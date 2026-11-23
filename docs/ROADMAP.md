@@ -36,9 +36,12 @@ Written, **to be tested in a VM**:
 - ● **`panic=10`** on every kernel command line: after a kernel panic the machine reboots by itself, so
   the boot counter and the rollback do their work
 
+- ● **Consoles and job control**: two more logins on Alt+F2 and Alt+F3 (`senbit-login@tty2`, `@tty3`).
+  Job control was already in the code (the shell gets its own session and controlling terminal): to be
+  confirmed in a VM (`sleep 100`, Ctrl+Z, `bg`, `fg`, Ctrl+C)
+
 Still to do:
 
-- [ ] Complete TTY and session handling, and shell job control (left over from the foundation)
 - [ ] Confirm Docker Engine networking in a VM (the kernel has the nftables and NAT options)
 
 Decision to take before this milestone is closed: snapshots of the *whole disk* need a filesystem that can

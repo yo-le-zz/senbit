@@ -5,9 +5,11 @@
 //! then replaces itself with systemd (PID 1).
 //!
 //! What this program does:
-//!   1. creates the system event socket (/run/senbit.sock) and serves the
-//!      power requests (reboot / shutdown / halt / poweroff) sent by the
-//!      Senbit commands, forwarding them to systemd;
+//!   1. creates the system API socket (/run/senbit.sock) and serves the
+//!      requests sent by the Senbit commands (reboot, shutdown, halt, poweroff,
+//!      panic, ping, version: see docs/API.md). Only the main instance does it:
+//!      the ones started on other terminals (senbit-login@tty2.service) get
+//!      `--no-events`;
 //!   2. runs the login loop on the console (stdin/stdout are the console,
 //!      set up by systemd: StandardInput=tty-force, TTYPath=/dev/console).
 //!
@@ -39,12 +41,17 @@ fn run() -> Result<()> {
     // NumLock on by default (best effort, VGA / framebuffer console only).
     console::enable_numlock();
 
-    let listener = events::bind().context("failed to create the system event socket")?;
+    // Only the main instance (on /dev/console) owns the system API socket.
+    let serves_events = !std::env::args().skip(1).any(|argument| argument == "--no-events");
 
-    std::thread::Builder::new()
-        .name("senbit-events".into())
-        .spawn(move || events::serve(listener))
-        .context("failed to start the system event listener")?;
+    if serves_events {
+        let listener = events::bind().context("failed to create the system event socket")?;
+
+        std::thread::Builder::new()
+            .name("senbit-events".into())
+            .spawn(move || events::serve(listener))
+            .context("failed to start the system event listener")?;
+    }
 
     login::run()
 }
