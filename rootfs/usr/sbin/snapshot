@@ -1,0 +1,205 @@
+#!/bin/sh
+# snapshot - save and restore the configuration of the system.
+#
+#   snapshot                      list the snapshots
+#   sudo snapshot create [LABEL]  save now (kept until you delete it)
+#   snapshot show NAME            what a snapshot holds
+#   sudo snapshot restore NAME    put /etc back as it was (asks first; --yes to skip)
+#   sudo snapshot delete NAME     remove a snapshot (asks first; --yes to skip)
+#
+# A snapshot is a directory of /var/lib/senbit/snapshots:
+#   etc.tar.gz        /etc, the configuration
+#   packages          every installed package with its version
+#   status            /var/lib/dpkg/status
+#   senbit-release    which Senbit version it was
+#   boot-files        the kernel and initramfs files at that moment (a record only:
+#                     for the boot files use `rollback`)
+#
+# apt takes one before every upgrade (/usr/lib/senbit/update-snapshot, `--auto`): only
+# the last 3 of those are kept. The ones you create yourself are never removed.
+#
+# restore puts back the files that the snapshot holds; files created after it stay. A
+# safety snapshot of the current state is taken first, so a restore can be undone.
+
+base="${SNAPSHOT_DIR:-/var/lib/senbit/snapshots}"
+root="${SNAPSHOT_ROOT:-}"
+
+usage() {
+    cat <<USAGE
+usage: snapshot [list]
+       snapshot create [LABEL]
+       snapshot show NAME
+       snapshot restore [--yes] NAME
+       snapshot delete [--yes] NAME
+USAGE
+}
+
+die() {
+    echo "snapshot: $*" >&2
+    exit 1
+}
+
+need_root() {
+    [ "$(id -u)" = 0 ] || die "root is required, run: sudo snapshot $1"
+}
+
+# A snapshot name is a timestamp, optionally followed by a label: no slash, no "..".
+valid_name() {
+    case "$1" in
+        ""|*/*|.*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Same rule for labels: letters, digits, dot, dash and underscore.
+clean_label() {
+    printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-40
+}
+
+ask() {
+    # $1 = question. Yes only when the answer starts with y/o.
+    [ -t 0 ] || die "not a terminal, add --yes"
+    printf '%s [y/N] ' "$1"
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES|o|O|oui) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+release_of() {
+    sed -n 's/^VERSION=//p' "$1/senbit-release" 2>/dev/null | head -n 1
+}
+
+# ---------------------------------------------------------------- create
+
+# $1 = "manual" or "auto", $2 = label (optional). Prints the name.
+make_snapshot() {
+    kind="$1"
+    label="$(clean_label "$2")"
+    stamp="$(date -u +%Y%m%d-%H%M%S)"
+    name="$stamp"
+    [ -n "$label" ] && name="$stamp-$label"
+    dir="$base/$name"
+
+    mkdir -p "$dir" || return 1
+
+    tar -czf "$dir/etc.tar.gz" -C "${root:-/}" etc 2>/dev/null || { rm -rf "$dir"; return 1; }
+    cp -p "$root/var/lib/dpkg/status" "$dir/status" 2>/dev/null
+    cp -p "$root/etc/senbit-release" "$dir/senbit-release" 2>/dev/null
+    dpkg-query -W -f='${Package} ${Version}\n' > "$dir/packages" 2>/dev/null
+    ls -l "$root/boot/vmlinuz" "$root/boot/initramfs.cpio.gz" > "$dir/boot-files" 2>/dev/null
+
+    # Automatic snapshots (taken by apt) carry no marker and are pruned; manual ones are kept.
+    [ "$kind" = manual ] && : > "$dir/manual"
+
+    printf '%s\n' "$name"
+}
+
+prune_auto() {
+    # Keep the 3 most recent automatic snapshots.
+    for dir in $(ls -1d "$base"/*/ 2>/dev/null | sort); do
+        [ -f "${dir}manual" ] || printf '%s\n' "$dir"
+    done | head -n -3 | while read -r old; do
+        rm -rf "$old"
+    done
+}
+
+cmd_create() {
+    if [ "$1" = "--auto" ]; then
+        # Called by apt: silent, never an error for apt.
+        [ -f "$root/var/lib/dpkg/status" ] || exit 0
+        make_snapshot auto "" >/dev/null 2>&1
+        prune_auto
+        exit 0
+    fi
+
+    need_root create
+    name="$(make_snapshot manual "$1")" || die "cannot create the snapshot"
+    echo "Snapshot created: $name"
+}
+
+# ---------------------------------------------------------------- list, show
+
+cmd_list() {
+    if ! ls -1d "$base"/*/ >/dev/null 2>&1; then
+        echo "No snapshot yet. Create one with: sudo snapshot create"
+        return 0
+    fi
+    printf '%-34s %-9s %s\n' "NAME" "SENBIT" "KIND"
+    for dir in $(ls -1d "$base"/*/ | sort); do
+        name="$(basename "$dir")"
+        kind=auto
+        [ -f "${dir}manual" ] && kind=manual
+        printf '%-34s %-9s %s\n' "$name" "$(release_of "$dir")" "$kind"
+    done
+}
+
+cmd_show() {
+    valid_name "$1" || die "usage: snapshot show NAME"
+    dir="$base/$1"
+    [ -d "$dir" ] || die "no snapshot named '$1' (see: snapshot list)"
+
+    echo "Snapshot:  $1"
+    echo "Senbit:    $(release_of "$dir")"
+    [ -f "$dir/manual" ] && echo "Kind:      manual" || echo "Kind:      automatic (taken by apt)"
+    echo "Packages:  $(wc -l < "$dir/packages" 2>/dev/null) installed"
+    echo "Senbit packages:"
+    grep '^senbit-' "$dir/packages" 2>/dev/null | sed 's/^/  /'
+    echo "Configuration: $(tar -tzf "$dir/etc.tar.gz" 2>/dev/null | wc -l) entries in etc.tar.gz"
+    if [ -f "$dir/boot-files" ]; then
+        echo "Boot files at that moment:"
+        sed 's/^/  /' "$dir/boot-files"
+    fi
+}
+
+# ---------------------------------------------------------------- restore, delete
+
+cmd_restore() {
+    assume_yes=no
+    [ "$1" = "--yes" ] || [ "$1" = "-y" ] && { assume_yes=yes; shift; }
+    valid_name "$1" || die "usage: snapshot restore [--yes] NAME"
+    need_root restore
+    dir="$base/$1"
+    [ -f "$dir/etc.tar.gz" ] || die "no snapshot named '$1' (see: snapshot list)"
+    tar -tzf "$dir/etc.tar.gz" >/dev/null 2>&1 || die "the snapshot is damaged: $dir/etc.tar.gz"
+
+    echo "This puts /etc back as it was in $1 (Senbit $(release_of "$dir"))."
+    echo "Files created since then stay; a safety snapshot is taken first."
+    if [ "$assume_yes" = no ]; then
+        ask "Restore this snapshot?" || { echo "Nothing changed."; return 0; }
+    fi
+
+    safety="$(make_snapshot manual "before-restore")" || die "cannot take the safety snapshot: nothing changed"
+    echo "Safety snapshot: $safety"
+
+    tar -xzf "$dir/etc.tar.gz" -C "${root:-/}" || die "extraction failed, restore with: snapshot restore $safety"
+    sync
+
+    echo "Done. Reboot to be sure that every service reads the restored files: sudo reboot"
+    echo "To undo: sudo snapshot restore $safety"
+}
+
+cmd_delete() {
+    assume_yes=no
+    [ "$1" = "--yes" ] || [ "$1" = "-y" ] && { assume_yes=yes; shift; }
+    valid_name "$1" || die "usage: snapshot delete [--yes] NAME"
+    need_root delete
+    [ -d "$base/$1" ] || die "no snapshot named '$1' (see: snapshot list)"
+    if [ "$assume_yes" = no ]; then
+        ask "Delete snapshot $1?" || { echo "Nothing changed."; return 0; }
+    fi
+    rm -rf "$base/$1" && echo "Deleted: $1"
+}
+
+# ---------------------------------------------------------------- main
+
+case "$1" in
+    ""|list) cmd_list ;;
+    create) shift; cmd_create "$@" ;;
+    show) shift; cmd_show "$@" ;;
+    restore) shift; cmd_restore "$@" ;;
+    delete|remove) shift; cmd_delete "$@" ;;
+    -h|--help|help) usage ;;
+    *) usage >&2; exit 1 ;;
+esac

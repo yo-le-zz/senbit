@@ -17,13 +17,24 @@ then **real hardware**. Until then, the target stays QEMU.
 | 0.1 – 0.3 | Foundation and server basics: build system (`devtool`), Linux kernel, `senbit-init`, BIOS and UEFI boot, installer, login, native commands, logging; real `apt` and `dpkg` with Debian 12 packages; systemd as PID 1, `systemctl`, `journalctl`, DHCP and static networking, SSH with `apt install openssh-server` |
 | 0.4 | System updates: `senbit-kernel` and `senbit-userspace` packages, signed update repository on GitHub Pages, `apt upgrade`, snapshot before an update, automatic rollback after 3 failed boots, the `rollback` command |
 
-## 0.5 — Recovery
+## 0.5 — Recovery (in progress)
 
 **Goal: a Senbit that fails can be repaired without reinstalling.**
 
-- [ ] **Recovery boot entry** in GRUB: boots to a root shell (systemd `rescue.target`)
+Written, **to be tested in a VM**:
+
+- ● **Recovery boot entry** in GRUB: boots to a root shell (systemd `rescue.target`); it does not count as
+  a failed boot
+- ● **`snapshot` command**: `create`, `list`, `show`, `restore`, `delete` for the configuration (`/etc`), the
+  package list and a record of the boot files; apt takes one before every upgrade
+- ● **System API** ([API.md](API.md)): documented protocol, `ping` and `version` requests, a real
+  **`panic`** (command and request), and a panic hook for every native command and for `senbit-init`
+- ● **`panic=10`** on every kernel command line: after a kernel panic the machine reboots by itself, so
+  the boot counter and the rollback do their work
+
+Still to do:
+
 - [ ] **Repair from the ISO**: the live system finds an installed Senbit, mounts it and gives a shell in it
-- [ ] **`snapshot` command**: `snapshot create`, `list`, `show`, `restore` for the configuration (`/etc`), the package list and the boot files. The snapshots already taken before an update become usable with it
 - [ ] **Filesystem check** after an unclean shutdown, before the root filesystem is used
 - [ ] Complete TTY and session handling, and shell job control (left over from the foundation)
 - [ ] Confirm Docker Engine networking in a VM (the kernel has the nftables and NAT options)
@@ -33,7 +44,8 @@ do it (Btrfs, or LVM thin volumes). With ext4 only, the `snapshot` command cover
 files, not data. The milestone is planned for ext4 only.
 
 **Done when:** in a VM, a broken `/etc/fstab` or a deleted boot file is repaired from the recovery entry or
-from the ISO, and a configuration change is undone with `snapshot restore`.
+from the ISO, a configuration change is undone with `snapshot restore`, and `sudo panic` ends with the
+machine back on its feet.
 
 ## 0.6 — Security
 

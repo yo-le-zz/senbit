@@ -107,6 +107,19 @@ fn decompte() -> ! {
 }
 
 /* ============================================================
+   Rust panics
+============================================================ */
+
+/// A Rust panic in PID 1 would end with `panic = "abort"`: the process dies and the kernel
+/// stops with "Attempted to kill init" and no explanation. With this hook the panic goes
+/// through the same screen as every other fatal error, with the message and the place.
+pub fn install_hook() {
+    std::panic::set_hook(Box::new(|info| {
+        kpanic_impl(&format!("internal error: {info}"));
+    }));
+}
+
+/* ============================================================
    Kernel panic
 ============================================================ */
 

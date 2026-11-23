@@ -79,14 +79,17 @@
       <section>
         <div class="wrap">
           <h2>Next</h2>
+          <p class="note"><span class="legend">&#9679;</span> written, to be tested in a VM &nbsp; <span class="legend off">&#9675;</span> to do</p>
           <div class="grid two">
             <article class="card phase reveal">
-              <h3>0.5 — Recovery</h3>
+              <h3>0.5 — Recovery (in progress)</h3>
               <p class="note">A Senbit that fails can be repaired without reinstalling.</p>
               <ul class="checks">
-                <li class="todo">Recovery boot entry in GRUB (root shell)</li>
+                <li class="wip">Recovery boot entry in GRUB (root shell)</li>
+                <li class="wip"><code>snapshot</code> command: create, list, show, restore (configuration, package list, boot files)</li>
+                <li class="wip">System API, a real <code>panic</code> command, panic hooks</li>
+                <li class="wip"><code>panic=10</code>: the machine reboots by itself after a kernel panic</li>
                 <li class="todo">Repair from the ISO: find an installed Senbit, mount it, shell inside</li>
-                <li class="todo"><code>snapshot</code> command: create, list, show, restore (configuration, package list, boot files)</li>
                 <li class="todo">Filesystem check after an unclean shutdown</li>
                 <li class="todo">Complete TTY and session handling, shell job control</li>
                 <li class="todo">Confirm Docker Engine networking in a VM</li>

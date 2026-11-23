@@ -97,6 +97,29 @@ Filtering by level, module and time, JSON output, rotation and clearing are cove
 | Version | `/etc/senbit-release` |
 | Network | `/etc/network/interfaces`, `/etc/resolv.conf` |
 
+## Recovery
+
+Written, to be tested in a virtual machine (milestone 0.5, see [ROADMAP.md](ROADMAP.md)).
+
+- **GRUB menu**: `Senbit`, `Senbit (previous version)` and `Senbit (recovery)`. The recovery entry boots to
+  a root shell with the services stopped (systemd `rescue.target`, the root password is asked). Choosing it
+  does not count as a failed boot.
+- **`sudo snapshot`** saves and restores the configuration:
+
+```bash
+snapshot                          # list
+sudo snapshot create before-ssh   # keep the current /etc (never removed automatically)
+snapshot show NAME                # what a snapshot holds
+sudo snapshot restore NAME        # put /etc back (asks first, takes a safety snapshot first)
+sudo snapshot delete NAME
+```
+
+  A snapshot holds `/etc`, the package list with versions, the dpkg state and a record of the boot files.
+  apt takes one before every upgrade (the last 3 are kept). `restore` puts back the files the snapshot holds;
+  files created since then stay. For the kernel and initramfs, use `rollback` ([UPDATES.md](UPDATES.md)).
+- **After a kernel panic** the machine reboots by itself after 10 seconds (`panic=10`), so the boot counter
+  can bring the previous version back. `sudo panic` triggers a real one on purpose ([API.md](API.md)).
+
 ## Debugging a boot
 
 `./scripts/devtool run --debug` writes the whole boot (kernel, `senbit-init`, systemd, journal, login) to

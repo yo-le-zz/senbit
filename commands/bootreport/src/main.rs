@@ -436,7 +436,11 @@ fn usage() {
     println!("  --history    reports of the previous boots");
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() -> ExitCode {
+    hook::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let style = make_style();
 

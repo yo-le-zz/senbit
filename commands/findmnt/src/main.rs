@@ -470,7 +470,11 @@ fn run(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() -> ExitCode {
+    hook::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
     run(&args)
 }

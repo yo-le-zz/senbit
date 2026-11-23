@@ -1,0 +1,11 @@
+[package]
+name = "panic"
+version = "0.1.0"
+edition = "2024"
+description = "Crash the system on purpose (real kernel panic)"
+
+[package.metadata.senbit]
+install = "sbin"
+
+[dependencies]
+libc = "0.2"

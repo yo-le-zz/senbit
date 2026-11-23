@@ -698,6 +698,7 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
         "usr/lib/senbit/update-check",
         "usr/lib/senbit/update-snapshot",
         "usr/sbin/rollback",
+        "usr/sbin/snapshot",
     ] {
         let path = rootfs.join(script);
         if path.is_file() {

@@ -377,6 +377,19 @@ section {
   color: var(--ok);
 }
 
+.checks li.wip::before {
+  content: "\25CF";
+  color: var(--warn);
+}
+
+.legend {
+  color: var(--warn);
+}
+
+.legend.off {
+  color: var(--muted);
+}
+
 .checks li.todo::before {
   content: "\25CB";
   color: var(--muted);

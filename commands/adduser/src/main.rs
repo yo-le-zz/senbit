@@ -457,7 +457,11 @@ fn run(program: &str, o: &Opts) -> Result<(), String> {
     }
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() -> ExitCode {
+    hook::install();
     let mut args: Vec<String> = std::env::args().collect();
     let program = if args.is_empty() {
         "adduser".to_string()

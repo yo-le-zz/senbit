@@ -145,7 +145,11 @@ fn parse_delay(
     )
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() {
+    hook::install();
     let args: Vec<String> =
         env::args()
             .skip(1)

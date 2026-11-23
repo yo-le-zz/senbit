@@ -92,6 +92,25 @@ fn direct_transition(action: PowerAction) -> Result<()> {
     Ok(())
 }
 
+/// Crashes the kernel on purpose (magic SysRq "c"), for tests: it shows that a crash is
+/// survived and exercises the boot counter. `panic=10` on the kernel command line (written
+/// by /usr/lib/senbit/grub-config) makes the machine reboot by itself afterwards.
+///
+/// This only returns when the kernel refused: the error says why.
+pub fn panic() -> Result<()> {
+    log_warn!("kernel panic requested through the system API");
+
+    cleanup_runtime();
+    unsafe {
+        libc::sync();
+    }
+
+    fs::write("/proc/sysrq-trigger", b"c")
+        .context("failed to write /proc/sysrq-trigger (CONFIG_MAGIC_SYSRQ missing?)")?;
+
+    bail!("the kernel did not panic")
+}
+
 pub fn request(action: PowerAction) -> Result<()> {
     log_info!("power request: {}", action.verb());
 

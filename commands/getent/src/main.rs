@@ -220,7 +220,11 @@ fn run(args: &[String]) -> u8 {
     }
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() -> ExitCode {
+    hook::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
     // Options de getent ignorées : -s service, --service=..., -i.
     let mut cleaned: Vec<String> = Vec::new();

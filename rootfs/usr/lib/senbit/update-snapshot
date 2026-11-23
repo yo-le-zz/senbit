@@ -1,25 +1,10 @@
 #!/bin/sh
-# Called by apt before each upgrade (/etc/apt/apt.conf.d/50senbit-update): a small
-# snapshot to come back to. The boot files of the previous version are kept by
-# the senbit-kernel package (/boot/vmlinuz.old); here are the package list and the
-# versions, plus a copy of the previous .deb files for `rollback`.
+# Called by apt before each upgrade (/etc/apt/apt.conf.d/50senbit-update): takes an
+# automatic snapshot to come back to. The work is done by the `snapshot` command
+# (configuration, package list, versions, boot files record); only the last 3 automatic
+# snapshots are kept, the ones created by hand never are.
 #
-# Only the last 3 snapshots are kept.
-base=/var/lib/senbit/snapshots
-stamp="$(date -u +%Y%m%d-%H%M%S)"
-dir="$base/$stamp"
-
-# Nothing to save when apt is only installing from nothing (no dpkg database).
-[ -f /var/lib/dpkg/status ] || exit 0
-
-mkdir -p "$dir" || exit 0
-cp -p /var/lib/dpkg/status "$dir/status" 2>/dev/null
-cp -p /etc/senbit-release "$dir/senbit-release" 2>/dev/null
-dpkg-query -W -f='${Package} ${Version}\n' 'senbit-*' > "$dir/senbit-packages" 2>/dev/null
-[ -f /boot/vmlinuz ] && ls -l /boot/vmlinuz /boot/initramfs.cpio.gz > "$dir/boot-files" 2>/dev/null
-
-# Keep the 3 most recent.
-ls -1d "$base"/*/ 2>/dev/null | sort | head -n -3 | while read -r old; do
-    rm -rf "$old"
-done
+# The boot files of the previous version are kept by the senbit-kernel package
+# (/boot/vmlinuz.old): see `rollback`.
+[ -x /usr/sbin/snapshot ] && /usr/sbin/snapshot create --auto
 exit 0

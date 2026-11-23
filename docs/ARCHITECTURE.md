@@ -24,7 +24,8 @@ small Rust userspace on top and reuses the standard server tools (systemd, apt, 
 |---|---|---|
 | `senbit-init` | Runs from the initramfs, only for the transition: finds the disk, mounts the system, prepares it, then `exec`s systemd. Also contains the installer. | `src/` |
 | `senbit-login` | Console login, and the event socket used by the power commands. Independent crate. | `components/senbit-login/` |
-| Native commands | One crate per command: `sudo`, `log`, `bootreport`, `findmnt`, `getent`, `adduser`, `useradd`, `halt`, `poweroff`, `reboot`, `shutdown`. | `commands/` |
+| Native commands | One crate per command: `sudo`, `log`, `bootreport`, `findmnt`, `getent`, `adduser`, `useradd`, `halt`, `poweroff`, `reboot`, `shutdown`, `panic`. | `commands/` |
+| System scripts | `rollback` and `snapshot` (commands), `grub-config`, `boot-ok`, `update-check` (helpers). Shell scripts, shipped in the root filesystem. | `rootfs/usr/sbin/`, `rootfs/usr/lib/senbit/` |
 | systemd | PID 1 of the running system: services, ordering, shutdown. | built from the pinned sources |
 | apt and dpkg | Packages, with the Debian `.deb` format. | see [PACKAGES.md](PACKAGES.md) |
 | `devtool` | Builds everything and runs it in QEMU. | `devtool/` |
@@ -72,12 +73,13 @@ GRUB → kernel → initramfs → senbit-init
 Only an impossible mount or switch root stops the boot. Every other step (fstab, hostname, network,
 keyboard) records its result and the system starts anyway: see *Boot report* in [SYSTEM.md](SYSTEM.md).
 
-## Power commands
+## System API and power commands
 
-`reboot`, `shutdown`, `halt` and `poweroff` write one word to `/run/senbit.sock` (root only).
-`senbit-login` answers `ok`, then runs `systemctl --no-block <verb>`. systemd stops **every** service in
-reverse dependency order (Senbit's and those added by packages), then unmounts and powers off. No service
-name is written in the code.
+Commands ask `senbit-login` through the socket `/run/senbit.sock` (root only): this is the **system API**,
+described in [API.md](API.md). `reboot`, `shutdown`, `halt` and `poweroff` send one word; `senbit-login`
+answers `ok`, then runs `systemctl --no-block <verb>`. systemd stops **every** service in reverse
+dependency order (Senbit's and those added by packages), then unmounts and powers off. No service name is
+written in the code. `panic` asks for a real kernel panic, for tests.
 
 ## Native commands
 
@@ -91,9 +93,10 @@ commands/
 ├── getent/
 ├── halt/  poweroff/  reboot/  shutdown/
 ├── log/
+├── panic/
 ├── sudo/
 ├── useradd/      useradd, groupadd, userdel, groupdel, usermod
-├── _shared/      code shared by several commands (not a command)
+├── _shared/      code shared by several commands (accounts, api, hook; not a command)
 └── INDEX.md      generated index of every command
 ```
 

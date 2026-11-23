@@ -10,7 +10,11 @@ use clap::Parser;
 
 use cli::Cli;
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() {
+    hook::install();
     if let Err(error) = run() {
         eprintln!("log: {}", error);
         std::process::exit(1);

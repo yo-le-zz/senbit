@@ -57,6 +57,9 @@ fn no_installation() {
 }
 
 fn main() {
+    // A Rust panic must show the Senbit panic screen, not kill PID 1 silently.
+    kernel::panic::install_hook();
+
     // PID 1 is responsible for setting the PATH environment variable
     unsafe {
         std::env::set_var(

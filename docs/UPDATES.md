@@ -31,7 +31,7 @@ administrator changed (`Dpkg::Options { "--force-confold"; }` in `/etc/apt/apt.c
 | Notice | `bootreport` shows `^ N update(s) available ... sudo apt upgrade` at login and in the full report. Nothing is asked at boot. |
 | Download + integrity | apt, with the SHA-256 sums of the signed `Release` and `Packages` files. |
 | Authenticity | GPG: `Release.gpg` / `InRelease`, key `/usr/share/keyrings/senbit-archive-keyring.gpg` (`Signed-By:`). |
-| Snapshot | `DPkg::Pre-Invoke` runs `/usr/lib/senbit/update-snapshot`: dpkg status, versions of `senbit-*`, boot files list, in `/var/lib/senbit/snapshots/<date>` (the last 3 are kept). The `.deb` files stay in `/var/cache/apt/archives`. |
+| Snapshot | `DPkg::Pre-Invoke` runs `/usr/lib/senbit/update-snapshot`, which calls `snapshot create --auto`: `/etc`, the package list, the dpkg state and a record of the boot files, in `/var/lib/senbit/snapshots/<date>` (the last 3 automatic ones are kept). Restore it with the `snapshot` command ([SYSTEM.md](SYSTEM.md)). |
 | Previous boot files | the `preinst` of `senbit-kernel` copies `/boot/vmlinuz` to `/boot/vmlinuz.old` and the initramfs to `/boot/initramfs.cpio.gz.old`. |
 | Notice refresh | `DPkg::Post-Invoke` runs `update-check --offline`. |
 

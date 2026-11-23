@@ -480,7 +480,11 @@ fn print_version() {
     );
 }
 
+#[path = "../../_shared/hook.rs"]
+mod hook;
+
 fn main() -> Result<()> {
+    hook::install();
     let args: Vec<String> =
         env::args()
             .skip(1)
