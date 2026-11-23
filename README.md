@@ -81,7 +81,7 @@ Organized by capability, not by date. Priorities: recovery, security, declarativ
 | Version | Subject | State |
 |---|---|---|
 | 0.1 – 0.4 | Foundation, packages (`apt`), systemd, updates and rollback | done |
-| 0.5 | Recovery: recovery boot, `snapshot`, system API and `panic`, repair from the ISO | in progress |
+| 0.5 | Recovery: recovery boot, `snapshot`, repair from the ISO, filesystem check, system API and `panic` | in progress |
 | 0.6 | Security: firewall, exposure report, file integrity | planned |
 | 0.7 | Declarative deployment: unattended install, VM images | planned |
 | 0.8 | Real hardware: first physical x86_64 machine | planned |

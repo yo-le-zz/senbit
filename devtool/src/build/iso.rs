@@ -17,6 +17,11 @@ menuentry "Senbit" {
     linux /boot/bzImage console=ttyS0,115200 console=tty0 loglevel=3 net.ifnames=0 biosdevname=0
     initrd /boot/initramfs.cpio.gz
 }
+
+menuentry "Senbit (repair an installed system)" {
+    linux /boot/bzImage console=ttyS0,115200 console=tty0 loglevel=3 net.ifnames=0 biosdevname=0 senbit.repair=1
+    initrd /boot/initramfs.cpio.gz
+}
 "#;
 
 /// Détecte le nom de l'exécutable GRUB Rescue disponible sur l'hôte.

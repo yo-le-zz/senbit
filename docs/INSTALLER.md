@@ -39,5 +39,7 @@ Cancelling or starting over before the confirmation never modifies the disk.
 | Network | The real network card is detected (a single card is selected without asking). DHCP or static: `/etc/network/interfaces` and `/etc/resolv.conf`. |
 | Bootloader | GRUB, with the boot menu written by `/usr/lib/senbit/grub-config`: the installed system already has the boot counter that makes the automatic rollback work (see [UPDATES.md](UPDATES.md)). |
 
+The ISO also has an entry **"Senbit (repair an installed system)"**: see *Recovery* in [SYSTEM.md](SYSTEM.md).
+
 After the installation, the system boots on its own: see [ARCHITECTURE.md](ARCHITECTURE.md) and
 [SYSTEM.md](SYSTEM.md).

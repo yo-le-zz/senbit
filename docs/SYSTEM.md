@@ -117,6 +117,14 @@ sudo snapshot delete NAME
   A snapshot holds `/etc`, the package list with versions, the dpkg state and a record of the boot files.
   apt takes one before every upgrade (the last 3 are kept). `restore` puts back the files the snapshot holds;
   files created since then stay. For the kernel and initramfs, use `rollback` ([UPDATES.md](UPDATES.md)).
+- **Repair from the ISO**: boot the ISO and choose "Senbit (repair an installed system)". It finds the
+  installed Senbit, runs the automatic filesystem check, offers a full one (`e2fsck -f -y`), mounts the
+  system and gives a root shell inside it (chroot) with `snapshot`, `rollback` and `apt` available. `exit`
+  unmounts everything and reboots. Nothing is changed until you do it yourself.
+- **Filesystem check at every boot**: `senbit-init` runs `e2fsck -p` on the root partition before mounting
+  it. On a cleanly shut down filesystem it ends at once; after a power cut or a crash it repairs what is
+  safe to repair. The result is in the boot report (`bootreport`): a warning means errors were found, and
+  `Filesystem check` says when a full check is needed.
 - **After a kernel panic** the machine reboots by itself after 10 seconds (`panic=10`), so the boot counter
   can bring the previous version back. `sudo panic` triggers a real one on purpose ([API.md](API.md)).
 

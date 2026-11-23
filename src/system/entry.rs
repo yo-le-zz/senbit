@@ -4,6 +4,7 @@ use colored::Colorize;
 
 use std::convert::Infallible;
 
+use crate::filesystem::check::{self, Outcome};
 use crate::system::report;
 use crate::{log_error, log_info, log_warn};
 
@@ -34,6 +35,22 @@ const NEW_ROOT: &str = "/newroot";
 ///
 /// This function never returns Ok: it either execs systemd or fails.
 pub fn start_system(sys_disk: &str) -> Result<Infallible> {
+    // Before the root filesystem is mounted: repair what is safe to repair after a power cut
+    // or a crash. It never stops the boot: the result goes to the boot report.
+    log_info!("{}", "Checking the root filesystem...".cyan());
+    match check::check_root(sys_disk, false) {
+        Outcome::Clean => report::ok("Filesystem check", "clean"),
+        Outcome::Repaired => report::warn(
+            "Filesystem check",
+            "errors were found and repaired (was the machine shut down properly?)",
+        ),
+        Outcome::NeedsAttention(why) => report::warn(
+            "Filesystem check",
+            format!("{why}: run a full check from the ISO repair mode"),
+        ),
+        Outcome::NotChecked(why) => report::warn("Filesystem check", format!("not checked: {why}")),
+    }
+
     log_info!("{}", "Mounting system...".cyan());
     mount_system(sys_disk, NEW_ROOT)?;
     report::ok("Root filesystem", format!("{sys_disk} mounted"));

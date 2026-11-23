@@ -84,6 +84,11 @@ fn main() {
     // too (the shell only loads it after login). /dev must be mounted first.
     system::init::console::load_font();
 
+    // Repair mode (ISO entry "repair an installed system"): never starts the system.
+    if system::repair::requested() {
+        system::repair::run();
+    }
+
     // disk detection
     log_info!("{}", "Detecting disks...".cyan());
 
