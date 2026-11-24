@@ -48,7 +48,7 @@ Covered in the VM:
 - packages and services: `apt install`, systemd units
 - updates: signed repository, `apt upgrade`, snapshot, automatic rollback and the `rollback` command
 
-Milestone 0.5 (recovery) is written and waits for its tests: see [ROADMAP.md](ROADMAP.md).
+Milestone 0.6 (recovery and security) is written and waits for its tests: see [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

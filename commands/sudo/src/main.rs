@@ -377,7 +377,97 @@ fn read_password() -> Result<String> {
     Ok(password)
 }
 
+/*
+ * Lockout after repeated failures.
+ *
+ * Five wrong passwords within ten minutes lock `sudo` for this user for five minutes (and
+ * every further failure renews the lock): guessing the root password through sudo becomes
+ * far too slow to be worth it. The counter lives next to the timestamps, in /run/sudo (a
+ * root-owned directory, empty again at every boot).
+ */
+const FAILURE_LIMIT: u32 = 5;
+const FAILURE_WINDOW: u64 = 600; // seconds: older failures are forgotten
+const LOCKOUT: u64 = 300; // seconds
+
+fn failure_path(uid: u32) -> String {
+    format!("{TIMESTAMP_DIR}/{uid}.fail")
+}
+
+/// Failures recorded for this user: (how many, when the last one happened).
+fn read_failures(uid: u32) -> (u32, u64) {
+    fs::read_to_string(failure_path(uid))
+        .ok()
+        .and_then(|text| {
+            let mut parts = text.split_whitespace();
+            let count = parts.next()?.parse().ok()?;
+            let last = parts.next()?.parse().ok()?;
+            Some((count, last))
+        })
+        .unwrap_or((0, 0))
+}
+
+/// Refuses to go further while the user is locked.
+fn check_not_locked(uid: u32, now: u64) -> Result<()> {
+    let (count, last) = read_failures(uid);
+
+    if count >= FAILURE_LIMIT && now < last + LOCKOUT {
+        bail!(
+            "Too many failed attempts: try again in {} seconds.",
+            last + LOCKOUT - now
+        );
+    }
+
+    Ok(())
+}
+
+/// Makes sure /run/sudo exists, is a real directory (never a symlink) owned by root.
+fn secure_timestamp_dir() -> Result<()> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+
+    let dir = Path::new(TIMESTAMP_DIR);
+
+    if fs::symlink_metadata(dir).is_err() {
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(dir)
+            .context("Failed to create the sudo timestamp directory")?;
+    }
+
+    let metadata = fs::symlink_metadata(dir)?;
+    if !metadata.is_dir() || metadata.uid() != 0 {
+        bail!("{TIMESTAMP_DIR} is not a directory owned by root");
+    }
+
+    Ok(())
+}
+
+/// Counts a wrong password. Best effort: a problem here must never let anyone in, and never
+/// hides the real answer ("Sorry, try again.") either.
+fn record_failure(uid: u32, now: u64) {
+    if secure_timestamp_dir().is_err() {
+        return;
+    }
+
+    let (count, last) = read_failures(uid);
+    let count = if count > 0 && now.saturating_sub(last) <= FAILURE_WINDOW {
+        count + 1
+    } else {
+        1
+    };
+
+    let _ = fs::write(failure_path(uid), format!("{count} {now}\n"));
+}
+
+fn clear_failures(uid: u32) {
+    let _ = fs::remove_file(failure_path(uid));
+}
+
 fn authenticate_root() -> Result<()> {
+    let uid = current_uid()?;
+    let now = current_timestamp()?;
+
+    check_not_locked(uid, now)?;
+
     let stored_hash =
         read_root_shadow()?;
 
@@ -396,10 +486,14 @@ fn authenticate_root() -> Result<()> {
         })?;
 
     if !valid {
+        record_failure(uid, now);
+
         bail!(
             "Sorry, try again."
         );
     }
+
+    clear_failures(uid);
 
     Ok(())
 }

@@ -122,6 +122,12 @@ const ENABLED_UNITS: &[(&str, &str, &str)] = &[
         "senbit-firewall.service",
         "senbit-firewall.service",
     ),
+    // Counts the modified Senbit files once per boot, for the login banner.
+    (
+        "multi-user.target.wants",
+        "senbit-integrity.service",
+        "senbit-integrity.service",
+    ),
     // Two more consoles (Alt+F2, Alt+F3): the same login, without the API socket.
     (
         "multi-user.target.wants",
@@ -718,6 +724,7 @@ pub fn install_into_rootfs(p: &Paths, rootfs: &Path) -> Result<()> {
         "usr/sbin/rollback",
         "usr/sbin/snapshot",
         "usr/lib/senbit/firewall",
+        "usr/lib/senbit/integrity-check",
     ] {
         let path = rootfs.join(script);
         if path.is_file() {

@@ -1,0 +1,16 @@
+# Checks once per boot that the Senbit files are the ones the packages installed, and
+# leaves the result for the login banner (/run/senbit/integrity). Nothing waits for it:
+# the login does not depend on this unit. Details: bootreport --verify, docs/SECURITY.md.
+
+[Unit]
+Description=Senbit file integrity check
+Documentation=https://github.com/yo-le-zz/senbit/blob/main/docs/SECURITY.md
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/senbit/integrity-check
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -143,7 +143,7 @@ if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
     # A system installed before 0.4.0 does not have these units enabled yet.
     systemctl enable senbit-boot-ok.service senbit-update-check.timer 2>/dev/null || true
     systemctl enable senbit-login@tty2.service senbit-login@tty3.service 2>/dev/null || true
-    systemctl enable senbit-firewall.service 2>/dev/null || true
+    systemctl enable senbit-firewall.service senbit-integrity.service 2>/dev/null || true
 fi
 exit 0
 "#;
@@ -340,6 +340,7 @@ fn stage_userspace(p: &Paths, stage: &Path) -> Result<()> {
         "usr/sbin/rollback",
         "usr/sbin/snapshot",
         "usr/lib/senbit/firewall",
+        "usr/lib/senbit/integrity-check",
     ] {
         let path = stage.join(script);
         if path.is_file() {

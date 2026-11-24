@@ -518,6 +518,26 @@ fn socket_owners() -> HashMap<u64, String> {
     owners
 }
 
+/// Number of sockets reachable from the network, for the login banner. The DHCP client
+/// (UDP 68) is not counted: every machine has it.
+fn exposed_count() -> usize {
+    let mut count = 0;
+    for (path, protocol, state) in [
+        ("/proc/net/tcp", "tcp", "0A"),
+        ("/proc/net/tcp6", "tcp6", "0A"),
+        ("/proc/net/udp", "udp", "07"),
+        ("/proc/net/udp6", "udp6", "07"),
+    ] {
+        if let Ok(text) = fs::read_to_string(path) {
+            count += parse_listeners(&text, protocol, state)
+                .iter()
+                .filter(|l| !l.local_only && !(l.protocol.starts_with("udp") && l.port == 68))
+                .count();
+        }
+    }
+    count
+}
+
 fn ports() -> ExitCode {
     let mut listeners = Vec::new();
     for (path, protocol, state) in [
@@ -645,6 +665,30 @@ fn main() -> ExitCode {
                     "{}",
                     render_banner(&entries, &failed_units(), read_updates().as_ref(), &style, terminal_width())
                 );
+
+                // Computed once per boot by senbit-integrity.service.
+                let modified: usize = fs::read_to_string("/run/senbit/integrity")
+                    .ok()
+                    .and_then(|text| text.trim().parse().ok())
+                    .unwrap_or(0);
+                if modified > 0 {
+                    println!(
+                        "{}",
+                        style.dim(&format!(
+                            "  {modified} Senbit file(s) modified since installation: bootreport --verify"
+                        ))
+                    );
+                }
+
+                let exposed = exposed_count();
+                if exposed > 0 {
+                    println!(
+                        "{}",
+                        style.dim(&format!(
+                            "  {exposed} port(s) reachable from the network: bootreport --ports"
+                        ))
+                    );
+                }
             }
             ExitCode::SUCCESS
         }

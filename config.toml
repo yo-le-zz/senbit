@@ -82,6 +82,9 @@ bootstrap = [
   "init-system-helpers", "perl-base", "debconf", "bash",
   "coreutils", "sed", "grep", "findutils", "gzip", "tar", "diffutils",
   "debianutils", "hostname", "ncurses-base", "ncurses-bin", "netbase", "dbus", "less",
+  # Pare-feu par defaut de Senbit (docs/SECURITY.md) : /usr/sbin/nft, charge par
+  # senbit-firewall.service. Le service nftables.service de Debian n'est PAS active.
+  "nftables",
 ]
 
 [rust]

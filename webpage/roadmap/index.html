@@ -42,7 +42,7 @@
           <h1>Roadmap</h1>
           <p class="intro">
             Organized by capability, not by date: a version is released when its goal is reached.
-            Priorities: recovery, then security, then declarative deployment, then real hardware.
+            Priorities: recovery and security, then declarative deployment, then real hardware.
             Until then, the target stays QEMU.
           </p>
         </div>
@@ -82,33 +82,23 @@
           <p class="note"><span class="legend">&#9679;</span> written, to be tested in a VM &nbsp; <span class="legend off">&#9675;</span> to do</p>
           <div class="grid two">
             <article class="card phase reveal">
-              <h3>0.5 — Recovery (in progress)</h3>
-              <p class="note">A Senbit that fails can be repaired without reinstalling.</p>
+              <h3>0.6 — Recovery and security (in progress)</h3>
+              <p class="note">A Senbit that fails can be repaired without reinstalling, and a server that is safe by default.</p>
               <ul class="checks">
                 <li class="wip">Recovery boot entry in GRUB (root shell)</li>
-                <li class="wip"><code>snapshot</code> command: create, list, show, restore (configuration, package list, boot files)</li>
-                <li class="wip">System API, a real <code>panic</code> command, panic hooks</li>
-                <li class="wip"><code>panic=10</code>: the machine reboots by itself after a kernel panic</li>
                 <li class="wip">Repair from the ISO: find an installed Senbit, mount it, shell inside</li>
+                <li class="wip"><code>snapshot</code> command: create, list, show, restore, delete</li>
                 <li class="wip">Filesystem check of the root partition at every boot</li>
-                <li class="wip">More consoles (Alt+F2, Alt+F3), job control confirmed</li>
+                <li class="wip">System API, a real <code>panic</code> command, panic hooks, <code>panic=10</code></li>
+                <li class="wip">More consoles (Alt+F2, Alt+F3), job control</li>
+                <li class="wip">Firewall: nftables in the image, default ruleset, your own rules in <code>/etc/senbit/firewall.d/</code></li>
+                <li class="wip">Exposure report: <code>bootreport --ports</code>, count in the login banner</li>
+                <li class="wip">File integrity: <code>bootreport --verify</code>, checked once per boot</li>
+                <li class="wip">Hardening defaults (sysctl, SSH without root login), <code>sudo</code> lockout</li>
+                <li class="wip">Opt-in automatic upgrades (timer, off by default)</li>
                 <li class="todo">Confirm Docker Engine networking in a VM</li>
               </ul>
-              <p class="note"><strong>Done when:</strong> a broken <code>/etc/fstab</code> or a deleted boot file is repaired from the recovery entry or the ISO, and a configuration change is undone with <code>snapshot restore</code>.</p>
-            </article>
-            <article class="card phase reveal">
-              <h3>0.6 — Security (in progress)</h3>
-              <p class="note">A safe-by-default server, and a way to see what is exposed.</p>
-              <ul class="checks">
-                <li class="wip">Firewall: default nftables ruleset, your own rules in <code>/etc/senbit/firewall.d/</code></li>
-                <li class="wip">Exposure report: <code>bootreport --ports</code></li>
-                <li class="wip">File integrity: <code>bootreport --verify</code> on the Senbit packages</li>
-                <li class="wip">Hardening defaults: sysctl, SSH without root login</li>
-                <li class="wip">Opt-in automatic upgrades (timer, off by default)</li>
-                <li class="todo">nftables installed by the installer</li>
-                <li class="todo">Exposure and integrity shown in the boot banner</li>
-              </ul>
-              <p class="note"><strong>Done when:</strong> a fresh install has a firewall, <code>bootreport</code> lists what listens on the network, and a modified packaged file is reported at the next login.</p>
+              <p class="note"><strong>Done when:</strong> a broken <code>/etc/fstab</code> is repaired from the recovery entry or the ISO, <code>snapshot restore</code> undoes a configuration change, <code>sudo panic</code> ends with the machine back on its feet, a fresh install has a firewall, and a modified packaged file is reported at the next login.</p>
             </article>
             <article class="card phase reveal">
               <h3>0.7 — Declarative deployment</h3>

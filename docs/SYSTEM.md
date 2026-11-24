@@ -106,7 +106,7 @@ Filtering by level, module and time, JSON output, rotation and clearing are cove
 
 ## Recovery
 
-Written, to be tested in a virtual machine (milestone 0.5, see [ROADMAP.md](ROADMAP.md)).
+Written, to be tested in a virtual machine (milestone 0.6, see [ROADMAP.md](ROADMAP.md)).
 
 - **GRUB menu**: `Senbit`, `Senbit (previous version)` and `Senbit (recovery)`. The recovery entry boots to
   a root shell with the services stopped (systemd `rescue.target`, the root password is asked). Choosing it

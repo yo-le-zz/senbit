@@ -1,10 +1,12 @@
 # Security
 
 Senbit aims at a server that is safe by default and that shows what it exposes. This page lists what is in
-place, how to change it, and what is not covered. Milestone 0.6 of the [roadmap](ROADMAP.md); written, to be
-tested in a virtual machine.
+place, how to change it, and what is not covered. Part of milestone 0.6 of the [roadmap](ROADMAP.md); written,
+to be tested in a virtual machine.
 
 ## What is exposed: `bootreport --ports`
+
+The login banner also says how many ports can be reached from the network, when there are any.
 
 ```bash
 sudo bootreport --ports
@@ -28,13 +30,18 @@ Senbit ships a default ruleset for **nftables**: inbound traffic is denied excep
 machine started, the loopback, ping and IPv6 neighbour discovery, the DHCP client and SSH. Outbound traffic is
 not restricted.
 
+nftables is part of the image, and `senbit-firewall.service` loads the ruleset at every boot, before the
+network comes up:
+
 ```bash
-sudo apt install nftables
-sudo reboot            # or: sudo systemctl start senbit-firewall
+systemctl status senbit-firewall     # active (exited)
+/usr/lib/senbit/firewall status      # the rules in force
 ```
 
-`nft` is not part of the base system, so the firewall starts only once nftables is installed:
-`senbit-firewall.service` is skipped while `/usr/sbin/nft` does not exist, and the boot is not affected.
+If `/usr/sbin/nft` is ever missing, the unit is skipped and the boot is not affected.
+
+Use **one** firewall service: Debian's own `nftables.service` starts with `flush ruleset`, which removes
+Senbit's table (and Docker's). It is not enabled; leave it that way.
 
 | File | Role |
 |---|---|
@@ -65,6 +72,9 @@ Senbit's two packages (`senbit-kernel`, `senbit-userspace`) ship the MD5 sum of 
 the administrator is allowed to change them. A modified, removed or re-owned file is listed, with the command
 that reinstalls it.
 
+The check also runs once per boot (`senbit-integrity.service`, nothing waits for it) and the login banner
+warns when a file was modified: `N Senbit file(s) modified since installation: bootreport --verify`.
+
 The sums are known to dpkg once a package was installed through apt (the first `apt upgrade` of Senbit
 installs them). Before that, `--verify` finds nothing to compare.
 
@@ -74,7 +84,7 @@ installs them). Before that, `--verify` finds nothing to compare.
 |---|---|
 | `/usr/lib/sysctl.d/50-senbit.conf` | No ICMP redirects, no source routing, SYN cookies, loose reverse-path filtering, no broadcast ping answers, protected hardlinks/symlinks/fifos/regular files, randomized memory layout, kernel addresses hidden. `ip_forward` is left alone (Docker and routers set it) |
 | `/etc/ssh/sshd_config.d/10-senbit.conf` | For `openssh-server`: no direct root login, 4 password attempts, no X11 forwarding |
-| `sudo` | Asks the **root** password, five minutes of authentication, symbolic links refused in its timestamp directory |
+| `sudo` | Asks the **root** password, five minutes of authentication, symbolic links refused in its timestamp directory. Five wrong passwords within ten minutes lock `sudo` for that user for five minutes |
 
 Change a sysctl value in `/etc/sysctl.d/` (the same key there wins). For SSH, log in as a normal user, then
 use `sudo`.
@@ -93,7 +103,6 @@ rollback ([UPDATES.md](UPDATES.md)).
 
 ## Not covered yet
 
-- nftables is not installed by the installer: a fresh install has no firewall until `apt install nftables`.
 - No audit log of administrative actions, no file integrity for the files of Debian packages (use
   `debsums` for those).
 - Secure Boot and disk encryption.
