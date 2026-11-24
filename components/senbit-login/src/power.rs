@@ -100,7 +100,7 @@ fn direct_transition(action: PowerAction) -> Result<()> {
 pub fn panic() -> Result<()> {
     log_warn!("kernel panic requested through the system API");
 
-    cleanup_runtime();
+    // No cleanup_runtime() here: if the kernel refuses, the login must keep working.
     unsafe {
         libc::sync();
     }
